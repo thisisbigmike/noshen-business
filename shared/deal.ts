@@ -44,6 +44,8 @@ export const DISPUTE_REASONS = [
 
 export type DisputeReason = (typeof DISPUTE_REASONS)[number][0];
 
+export const disputeReasonLabel = (r: string) => DISPUTE_REASONS.find(([k]) => k === r)?.[1] ?? r;
+
 export const CONDITIONS = [
   ["new", "New", "Never used, in its box."],
   ["like_new", "Like new", "No marks, works perfectly."],

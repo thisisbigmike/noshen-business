@@ -1,2 +1,13 @@
-import { Outlet } from "react-router";
-export default function Stub() { return <main className="page"><p>Not built yet</p><Outlet /></main>; }
+import { redirect } from "react-router";
+import type { Route } from "./+types/signout";
+import { createAuth } from "../../../server/auth";
+import { smsFor } from "../../../server/context";
+
+export async function action({ request }: Route.ActionArgs) {
+  const res = await createAuth(smsFor()).api.signOut({ headers: request.headers, asResponse: true });
+  const headers = new Headers();
+  for (const c of res.headers.getSetCookie()) headers.append("Set-Cookie", c);
+  return redirect("/staff/signin", { headers });
+}
+
+export const loader = () => redirect("/staff");

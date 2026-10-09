@@ -4,11 +4,10 @@ import type { Route } from "./+types/deal";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "../../server/engine/queries";
 import { acceptDeal, cancelDeal, confirmReceived, declineDeal, markDelivered, rate, sendMessage } from "../../server/engine/deals";
-import { disputeReasonLabel } from "../../server/engine/disputes";
 import { BottomAction, Button, ErrorText, Icon, Info, Kv, MoneyStatus, TextArea, Timeline, TopBar } from "../components/ui";
 import { dealSteps, dealText } from "../lib/deal-text";
 import { naira } from "../../shared/money";
-import { firstName, isOpen } from "../../shared/deal";
+import { disputeReasonLabel, firstName, isOpen } from "../../shared/deal";
 import { when } from "../../shared/time";
 import { photoUrl } from "../../shared/photos";
 

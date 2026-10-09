@@ -120,7 +120,7 @@ export function dealSteps(deal: DealLike, role: "buyer" | "seller", names: { buy
     { label: role === "buyer" ? "Request sent" : `${buyer} sent a request`, when: fmt(deal.created_at), status: "done" },
     { label: role === "buyer" ? `${seller} accepts` : "You accept", when: reached("accepted") ? fmt(at("accepted")) : deal.state === "requested" ? `By ${fmt(deal.request_expires_at)}` : undefined, status: st(reached("accepted"), deal.state === "requested") },
     { label: role === "buyer" ? `You pay ${due} into NosHen` : `${share} held for you`, when: reached("held") ? fmt(at("held")) : deal.state === "accepted" ? `By ${fmt(deal.payment_due_at)}` : undefined, status: st(reached("held"), deal.state === "accepted") },
-    { label: handoverLabel, when: deal.state === "held" ? `By ${fmt(deal.handover_due_at)}` : undefined, status: st(reached("released") || !!deal.delivered_at, deal.state === "held" && !deal.delivered_at) },
+    { label: handoverLabel, when: deal.delivered_at ? fmt(deal.delivered_at) : deal.state === "held" ? `By ${fmt(deal.handover_due_at)}` : undefined, status: st(reached("released") || !!deal.delivered_at, deal.state === "held" && !deal.delivered_at) },
     { label: releaseLabel, when: reached("released") ? fmt(at("released")) : undefined, status: st(reached("released"), deal.state === "held" && !!deal.delivered_at) },
   ];
 }

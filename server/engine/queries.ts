@@ -149,3 +149,22 @@ export async function moneySummary(db: Db) {
   const unmatched = await many(db, "select amount_kobo, sender_name, received_at from payments where deal_id is null order by received_at desc");
   return { check, byState, transfers, unmatched };
 }
+
+export async function disputeReview(db: Db, disputeId: string) {
+  const disp = await one(db, "select * from disputes where id = $1", [disputeId]);
+  if (!disp) return null;
+  const v = await dealView(db, disp.deal_id);
+  const decidedBy = disp.decided_by ? await one(db, "select name from staff where id = $1", [disp.decided_by]) : null;
+  const pastDisputes = async (userId: string) =>
+    Number((await one(db, "select count(*) as n from disputes x join deals d on d.id = x.deal_id where (d.buyer_id = $1 or d.seller_id = $1) and x.id <> $2", [userId, disputeId]))?.n ?? 0);
+  return { ...v!, dispute: disp, decidedBy: decidedBy?.name ?? null, buyerDisputes: await pastDisputes(v!.deal.buyer_id), sellerDisputes: await pastDisputes(v!.deal.seller_id) };
+}
+
+export async function holdReview(db: Db, dealId: string) {
+  const v = await dealView(db, dealId);
+  if (!v) return null;
+  const kyc = await one(db, "select verified_name from kyc_checks where user_id = $1 and result = 'verified' order by checked_at desc limit 1", [v.deal.buyer_id]);
+  const buyerDeals = await one(db, "select count(*) as n from deals where buyer_id = $1 and state = 'paid_out'", [v.deal.buyer_id]);
+  const buyerPhone = await one(db, "select phone, created_at from users where id = $1", [v.deal.buyer_id]);
+  return { ...v, buyerKycName: kyc?.verified_name ?? null, buyerCompleted: Number(buyerDeals?.n ?? 0), buyerSince: buyerPhone?.created_at };
+}

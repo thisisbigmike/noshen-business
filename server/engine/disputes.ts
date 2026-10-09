@@ -5,7 +5,7 @@ import { when, addHours } from "../../shared/time";
 import { type Deps, DealError, N, amountPaid, lockDeal, notify, nowOf, schedule, settingsOf, userName } from "./core";
 import { refund, release } from "./deals";
 
-const reasonLabel = (r: string) => DISPUTE_REASONS.find(([k]) => k === r)?.[1] ?? r;
+import { disputeReasonLabel as reasonLabel } from "../../shared/deal";
 
 /** The buyer reports a problem before release: the money freezes at once. */
 export async function reportProblem(d: Deps, buyerId: string, dealId: string, input: { reason: DisputeReason; description?: string; photoKeys?: string[] }) {
@@ -92,4 +92,3 @@ export async function resolveReviewHold(d: Deps, staffId: string, dealId: string
   });
 }
 
-export const disputeReasonLabel = reasonLabel;

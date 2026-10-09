@@ -8,13 +8,23 @@ PostgreSQL (Neon in production, via Hyperdrive with query caching off), Better A
 
 ## Status
 
-- Done: database migrations (our schema + Better Auth), deal engine (request, accept, pay, hold, release by code,
-  delivery, cancel, refund, disputes, review holds, timers, ledger), 12 engine tests + 23 schema checks passing,
-  fake payment partner, ID check and SMS for development, buyer and seller pages (browse, listing, sign-in,
-  buy request, deals, deal page with chat, pay, release code, enter code, report, evidence, sell, account, verify).
-- Tested in the browser so far: browse, listing, sign-in with SMS code, buy request screen.
-- Not done yet: staff console pages (`app/routes/staff/*` are placeholders), finishing the browser test of the
-  whole deal flow, PostHog, Cloudflare Queues for webhooks, real partner/ID/SMS providers, deployment.
+**Works, and tested end to end in the browser** (phone and desktop sizes):
+
+- Buyer: browse → listing → sign in with an SMS code → buy request → pay into the deal account → money held → release-code checklist → code.
+- Seller: accept → see what's held for them → enter the code (wrong codes count down and lock after 5) → released → payout confirmed by the partner.
+- Delivery deals: mark delivered → buyer confirms, or the money releases 24 hours later.
+- Problems: report with photos → money frozen → evidence → a staff reviewer decides → refund or release, with the reason sent to both.
+- Selling: photos (stored in R2) → details → the ID and bank checks if not done yet → live listing → share screen with a WhatsApp preview.
+- Staff console: email, password and authenticator-app sign-in (two-factor is required), queues, dispute review and decision, review holds, money check, audit log.
+- Every deal deadline is a Cloudflare Workflow; a 15-minute sweep catches any that didn't fire.
+- Checks: 12 engine tests (`pnpm test`) and 23 schema checks (`pnpm db:test`) pass; the type check is clean.
+
+**Not done yet:**
+
+- Real providers: the payment partner, NIN/BVN checks and SMS are development stand-ins until they're chosen (see `server/partner/`, `server/idcheck.ts`, `server/sms.ts`).
+- Cloudflare Queues for webhooks and SMS retries (they're processed straight away for now), PostHog analytics, image resizing, and a generated 1200×630 link-preview image (the first photo is used).
+- The console's user page (freeze, limits, blocklist), and seller tools like editing a live listing.
+- Deployment: a Neon production database, Hyperdrive (with caching off), R2 bucket and Workers secrets. See below.
 
 ## Run it locally
 
@@ -29,3 +39,13 @@ pnpm dev                         # http://localhost:5173
 Set `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` if your database isn't at the default in `wrangler.jsonc`.
 In development, sign-in codes appear on screen, and the pay screen can pretend to be the buyer's bank.
 Seed sellers: Tunde 0803 412 7701, Kunle 0803 412 4471. Staff: tobi@noshen.test / noshen-dev-staff.
+
+## Deploying (when the providers and region are decided)
+
+1. Create the Neon project (region per the lawyer's answer on data transfer) and run `DATABASE_URL=... pnpm db:migrate`.
+2. `wrangler hyperdrive create noshen-db --connection-string=... --caching-disabled`, and put its id in `wrangler.jsonc`.
+3. `wrangler r2 bucket create noshen-photos`.
+4. Set secrets: `wrangler secret put BETTER_AUTH_SECRET` (and `RELEASE_CODE_SECRET`, `FIELD_KEY`, the partner's keys). Set `APP_URL`, `PARTNER`, `SMS`, `ID_PROVIDER` vars.
+5. Create staff with `pnpm staff:create "Name" email admin`; they set up two-factor at first sign-in.
+6. `pnpm deploy`. Put Cloudflare Access in front of `/staff`.
+

@@ -73,10 +73,11 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
   const busy = nav.state !== "idle";
   const a = actionData as any;
   const step = loaderData.needsName ? "name" : a?.step === "code" ? "code" : "phone";
+  const formAction = `/signin?next=${encodeURIComponent(loaderData.next)}`;
 
   if (step === "name") {
     return (
-      <Form method="post">
+      <Form method="post" action={formAction}>
         <TopBar title="Your name" />
         <main className="page narrow no-tabs stack-4">
           <h1 className="heading">What's your name?</h1>
@@ -92,7 +93,7 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
 
   if (step === "code") {
     return (
-      <Form method="post">
+      <Form method="post" action={formAction}>
         <TopBar title="Sign in" back="/signin" />
         <main className="page narrow no-tabs stack-4">
           <h1 className="heading">Enter the 6-digit code</h1>
@@ -109,7 +110,7 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
   }
 
   return (
-    <Form method="post">
+    <Form method="post" action={formAction}>
       <TopBar title="Sign in" back="/" />
       <main className="page narrow no-tabs stack-4">
         <h1 className="heading">What's your phone number?</h1>
