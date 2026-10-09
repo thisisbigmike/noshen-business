@@ -1,0 +1,10 @@
+// Used only to generate Better Auth's tables (db/migrations/0002). The app's real config is server/auth.ts.
+import { betterAuth } from "better-auth";
+import { phoneNumber, twoFactor } from "better-auth/plugins";
+import pg from "pg";
+
+export const auth = betterAuth({
+  database: new pg.Pool({ connectionString: process.env.DATABASE_URL }),
+  emailAndPassword: { enabled: true, disableSignUp: true },
+  plugins: [phoneNumber({ sendOTP: async () => {} }), twoFactor()],
+});

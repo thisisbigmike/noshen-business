@@ -1,0 +1,40 @@
+{
+  "name": "noshen",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "react-router dev",
+    "build": "react-router build",
+    "preview": "pnpm build && vite preview",
+    "deploy": "pnpm build && wrangler deploy",
+    "typecheck": "wrangler types && react-router typegen && tsc -b",
+    "cf-typegen": "wrangler types",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:seed": "node scripts/seed.mjs",
+    "db:test": "node scripts/db-test.mjs",
+    "test": "vitest run",
+    "staff:create": "node scripts/create-staff.mjs"
+  },
+  "dependencies": {
+    "better-auth": "^1.7.7",
+    "hono": "^4.13.13",
+    "isbot": "^5.1.36",
+    "pg": "^8.23.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router": "^8.4.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.63.1",
+    "@react-router/dev": "^8.4.0",
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.15.6",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.3",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.149.0"
+  },
+  "packageManager": "pnpm@12.6.0"
+}

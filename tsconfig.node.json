@@ -1,0 +1,32 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "vite.config.ts",
+    "react-router.config.ts",
+    "vitest.config.ts",
+    "tests/**/*",
+    "shared/**/*",
+    "server/engine/**/*",
+    "server/partner/**/*",
+    "server/db.ts",
+    "server/crypto.ts",
+    "server/settings.ts",
+    "server/sms.ts",
+    "server/idcheck.ts"
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "strict": true,
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false
+  }
+}

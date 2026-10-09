@@ -1,0 +1,12 @@
+/* NosHen tokens as CSS custom properties, generated from tokens.json. Light by default; dark with data-theme="dark" or the system setting. */
+:root, [data-theme="light"] { --brand: #14b8a6; --on-brand: #04342c; --primary: #0f6e56; --on-primary: #ffffff; --primary-ink: #04342c; --tint: #e1f5ee; --canvas: #f6f8f7; --surface: #ffffff; --border: #d5deda; --ink: #17201d; --ink-muted: #56625e; --held: #a15c07; --held-soft: #fef6e7; --released: #2e7d32; --released-soft: #ecf6ed; --dispute: #b42318; --dispute-soft: #fdecea; }
+[data-theme="dark"] { --brand: #14b8a6; --on-brand: #04342c; --primary: #7ce3c9; --on-primary: #04241d; --primary-ink: #b8f5e6; --tint: #164237; --canvas: #0e1513; --surface: #16201d; --border: #2b3834; --ink: #e8efec; --ink-muted: #a3b0ab; --held: #f5b454; --held-soft: #3a2a10; --released: #6fd27a; --released-soft: #16301b; --dispute: #ff8a7a; --dispute-soft: #3d1915; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --brand: #14b8a6; --on-brand: #04342c; --primary: #7ce3c9; --on-primary: #04241d; --primary-ink: #b8f5e6; --tint: #164237; --canvas: #0e1513; --surface: #16201d; --border: #2b3834; --ink: #e8efec; --ink-muted: #a3b0ab; --held: #f5b454; --held-soft: #3a2a10; --released: #6fd27a; --released-soft: #16301b; --dispute: #ff8a7a; --dispute-soft: #3d1915; } }
+:root { --space-2: 8px; --space-4: 16px; --space-6: 24px; --space-10: 40px; --radius-sm: 6px; --radius-md: 12px; --radius-full: 999px; --font-display: "Sora", "Figtree", system-ui, sans-serif; --font-sans: "Figtree", system-ui, sans-serif; --font-mono: "IBM Plex Mono", ui-monospace, monospace; }
+.display { font-family: var(--font-display); font-size: 32px; line-height: 38px; font-weight: 600; letter-spacing: -0.01em; }
+.heading { font-family: var(--font-display); font-size: 22px; line-height: 28px; font-weight: 600; }
+.title { font-family: var(--font-sans); font-size: 17px; line-height: 24px; font-weight: 600; }
+.body { font-family: var(--font-sans); font-size: 15px; line-height: 22px; font-weight: 400; }
+.caption { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 400; }
+.label { font-family: var(--font-sans); font-size: 13px; line-height: 16px; font-weight: 600; }
+.release-code { font-family: var(--font-mono); font-size: 28px; line-height: 32px; font-weight: 500; letter-spacing: 0.24em; }

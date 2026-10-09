@@ -1,0 +1,79 @@
+
+/* Preview stage: used by the component previews, not needed in apps. */
+.nh-stage { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-4); padding: var(--space-4); background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+.nh-stage-col { flex-direction: column; }
+
+.nh-icon { display: block; flex: none; }
+
+/* Wordmark: the name set in type until there is a logo. */
+.nh-wordmark { font-family: var(--font-display); font-weight: 600; line-height: 1; letter-spacing: -0.02em; color: var(--primary-ink); }
+.nh-wordmark-sm { font-size: 17px; }
+.nh-wordmark-md { font-size: 24px; }
+.nh-wordmark-lg { font-size: 40px; }
+
+/* Button */
+.nh-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); padding: 0 var(--space-4); border: 1px solid var(--ink-muted); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); font-family: var(--font-sans); font-size: 15px; font-weight: 600; line-height: 20px; cursor: pointer; }
+.nh-btn-md { min-height: 44px; }
+.nh-btn-lg { min-height: 52px; font-size: 17px; }
+.nh-btn-block { width: 100%; }
+.nh-btn-secondary:hover { background: var(--tint); }
+.nh-btn-primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.nh-btn-danger { border-color: var(--dispute); color: var(--dispute); }
+.nh-btn-danger:hover { background: var(--dispute-soft); }
+.nh-btn:disabled { background: var(--canvas); border-color: var(--border); color: var(--ink-muted); cursor: not-allowed; }
+
+/* One focus ring everywhere: 2px primary, 2px away. */
+.nh-btn:focus-visible, .nh-input:focus-visible, .nh-listing:focus-visible, .nh-code-box:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Text field */
+.nh-field, .nh-code { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.nh-field { width: 100%; max-width: 360px; }
+.nh-field-label { color: var(--ink); }
+.nh-input { min-height: 44px; padding: 0 12px; border: 1px solid var(--ink-muted); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-family: var(--font-sans); font-size: 16px; }
+.nh-input::placeholder { color: var(--ink-muted); }
+.nh-field-error .nh-input { border: 2px solid var(--dispute); }
+.nh-field-msg { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-muted); }
+.nh-field-msg-error { color: var(--dispute); }
+
+/* Code input: one real input under six visual cells. */
+.nh-code-box { position: relative; display: inline-flex; align-self: flex-start; border-radius: var(--radius-sm); }
+.nh-code-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; font-size: 16px; cursor: text; }
+.nh-code-cells { display: flex; gap: var(--space-2); letter-spacing: 0; }
+.nh-code-cell { display: flex; align-items: center; justify-content: center; width: 40px; height: 52px; border: 1px solid var(--ink-muted); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); }
+.nh-code-cell-gap { margin-left: var(--space-2); }
+.nh-code-cell-filled { border: 2px solid var(--primary); }
+.nh-code-error .nh-code-cell { border-color: var(--dispute); }
+
+/* Money status chip */
+.nh-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--radius-sm); white-space: nowrap; }
+.nh-status-held { background: var(--held-soft); color: var(--held); }
+.nh-status-released { background: var(--released-soft); color: var(--released); }
+.nh-status-dispute { background: var(--dispute-soft); color: var(--dispute); }
+.nh-status-awaiting, .nh-status-refunded { background: var(--canvas); color: var(--ink-muted); box-shadow: inset 0 0 0 1px var(--border); }
+
+/* Protection badge */
+.nh-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--radius-full); white-space: nowrap; }
+.nh-badge-tint { background: var(--tint); color: var(--primary-ink); }
+.nh-badge-brand { background: var(--brand); color: var(--on-brand); }
+
+/* Listing card */
+.nh-listing { display: flex; flex-direction: column; width: 100%; max-width: 280px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); text-decoration: none; }
+.nh-listing-photo { display: flex; align-items: center; justify-content: center; max-width: 100%; aspect-ratio: 4 / 3; background: var(--canvas); color: var(--ink-muted); }
+.nh-listing-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.nh-listing-body { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-4); }
+.nh-listing-title, .nh-listing-price, .nh-listing-meta { margin: 0; }
+.nh-listing-meta { display: flex; align-items: center; gap: 6px; color: var(--ink-muted); }
+
+/* Deal card */
+.nh-deal { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; max-width: 360px; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); }
+.nh-deal-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.nh-deal-deadline { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-muted); }
+.nh-deal-amount, .nh-deal-item, .nh-deal-next { margin: 0; }
+.nh-deal-amount { font-variant-numeric: tabular-nums; }
+.nh-deal-who, .nh-deal-next { color: var(--ink-muted); }
+.nh-deal-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+
+/* Release code panel (buyer) */
+.nh-release { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); width: 100%; max-width: 360px; padding: var(--space-4); border-radius: var(--radius-md); background: var(--tint); color: var(--primary-ink); }
+.nh-release-label, .nh-release-code, .nh-release-help { margin: 0; }
+.nh-release-help { color: var(--ink-muted); }
