@@ -10,6 +10,7 @@ PostgreSQL (Neon in production, via Hyperdrive with query caching off), Better A
 
 **Works, and tested end to end in the browser** (phone and desktop sizes):
 
+- Landing page at `/` (what NosHen is, how it works, fees, questions), with the marketplace at `/browse`.
 - Buyer: browse → listing → sign in with an SMS code → buy request → pay into the deal account → money held → release-code checklist → code.
 - Seller: accept → see what's held for them → enter the code (wrong codes count down and lock after 5) → released → payout confirmed by the partner.
 - Delivery deals: mark delivered → buyer confirms, or the money releases 24 hours later.

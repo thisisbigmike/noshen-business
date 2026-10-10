@@ -56,7 +56,7 @@ export default function Sell({ loaderData: x, actionData }: Route.ComponentProps
   const n = x.photos.length;
   return (
     <div>
-      <TopBar title={<span>Sell <span className="caption muted">Step 1 of 3</span></span>} back="/" />
+      <TopBar title={<span>Sell <span className="caption muted">Step 1 of 3</span></span>} back="/browse" />
       <main className="page narrow stack-4">
         <div className="stack"><h1 className="heading">Add photos</h1><p className="body muted">Add at least 3. Clear, honest photos sell faster.</p></div>
         {!x.ready.ready ? (

@@ -54,16 +54,16 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   const buy = mine ? (
     <Button variant="secondary" size="lg" block to="/sell">This is your listing</Button>
   ) : status ? (
-    <Button size="lg" block to="/">See more listings</Button>
+    <Button size="lg" block to="/browse">See more listings</Button>
   ) : (
     <Button variant="primary" size="lg" block icon="shield-check" to={`/l/${l.id}/buy`}>Buy with protection</Button>
   );
 
   return (
     <div>
-      <TopBar title={<span className="row"><span className="nh-wordmark nh-wordmark-sm">NosHen</span></span>} back="/" right={<Link className="caption" style={{ padding: "0 8px" }} to="/">See more listings</Link>} />
+      <TopBar title={<span className="row"><span className="nh-wordmark nh-wordmark-sm">NosHen</span></span>} back="/browse" right={<Link className="caption" style={{ padding: "0 8px" }} to="/browse">See more listings</Link>} />
       <main className="page flush no-tabs">
-        <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/">Browse</Link> / {l.category === "phone" ? "Phones" : "Laptops"} / {l.area}</nav>
+        <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/browse">Browse</Link> / {l.category === "phone" ? "Phones" : "Laptops"} / {l.area}</nav>
         <div className="two-col">
           <div className="stack-4">
             <div className="carousel" style={{ margin: "0 -16px" }}>

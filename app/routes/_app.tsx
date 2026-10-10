@@ -18,7 +18,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   });
 }
 
-const TABS: [string, string, IconName][] = [["/", "Browse", "search"], ["/deals", "Deals", "receipt"], ["/sell", "Sell", "plus"], ["/account", "Account", "user"]];
+const TABS: [string, string, IconName][] = [["/browse", "Browse", "search"], ["/deals", "Deals", "receipt"], ["/sell", "Sell", "plus"], ["/account", "Account", "user"]];
 
 export default function AppShell({ loaderData }: Route.ComponentProps) {
   const matches = useMatches();
@@ -30,7 +30,7 @@ export default function AppShell({ loaderData }: Route.ComponentProps) {
         <Link to="/" aria-label="NosHen home" style={{ textDecoration: "none" }}><Wordmark /></Link>
         <nav aria-label="Main">
           {TABS.map(([to, label]) => (
-            <NavLink key={to} to={to} end={to === "/"} className="navlink">
+            <NavLink key={to} to={to} end={to === "/browse"} className="navlink">
               {label}{label === "Deals" && badge ? ` (${badge})` : ""}
             </NavLink>
           ))}
@@ -48,7 +48,7 @@ export default function AppShell({ loaderData }: Route.ComponentProps) {
       {hideTabs ? null : (
         <nav className="tabs" aria-label="Main">
           {TABS.map(([to, label, icon]) => (
-            <NavLink key={to} to={to} end={to === "/"} className="tab caption">
+            <NavLink key={to} to={to} end={to === "/browse"} className="tab caption">
               <Icon name={icon} size={22} />
               <span>{label}</span>
               {label === "Deals" && badge ? <span className="badge" aria-label={`${badge} deal${badge > 1 ? "s" : ""} need you`}>{badge}</span> : null}
