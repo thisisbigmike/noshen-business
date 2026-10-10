@@ -184,7 +184,9 @@
 .range::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -9px; border-radius: 50%; background: var(--surface); border: 2px solid var(--primary); box-shadow: var(--shadow-md); transition: transform var(--dur-fast) var(--ease-out); }
 .range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--surface); border: 2px solid var(--primary); box-shadow: var(--shadow-md); }
 .range:active::-webkit-slider-thumb { transform: scale(1.12); }
-.range:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; border-radius: 8px; }
+.range:focus-visible { box-shadow: none; }
+.range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 30%, transparent), var(--shadow-md); }
+.range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 30%, transparent), var(--shadow-md); }
 .fee-calc .kv.total { font-size: 17px; }
 
 /* ---------------------------------------------------------------- FAQ */
