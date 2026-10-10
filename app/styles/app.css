@@ -4,6 +4,9 @@
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: radial-gradient(900px 420px at 50% -180px, color-mix(in srgb, var(--brand) 12%, transparent), transparent 70%) no-repeat, var(--canvas); color: var(--ink); font-family: var(--font-sans); font-size: 15px; line-height: 22px; -webkit-font-smoothing: antialiased; }
 h1, h2, h3, p { margin: 0; }
+/* Headings break into even lines; paragraphs avoid a lone last word. */
+h1, h2, h3, .heading, .display { text-wrap: balance; }
+p { text-wrap: pretty; }
 a { color: var(--primary); }
 a:hover { color: var(--primary-ink); }
 button, input, textarea, select { font: inherit; color: inherit; }
