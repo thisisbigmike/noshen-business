@@ -43,7 +43,7 @@
     "production": {
       "name": "noshen-web",
       "vars": {
-        "APP_URL": "https://noshen-web.egbo2255.workers.dev",
+        "APP_URL": "https://noshen-web.usenoshen.workers.dev",
         // Pretend payments and ID checks: a demo, not the real service (the site says so on every page).
         "PARTNER": "fake",
         "PARTNER_BANK_NAME": "Test Bank (demo)",
