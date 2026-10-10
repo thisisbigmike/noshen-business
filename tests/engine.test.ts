@@ -64,6 +64,18 @@ describe("a meet-up deal from request to payout", () => {
     expect((await w.db.query("select listing_id from deals where id = $1", [dealId])).rows.length).toBe(1);
   });
 
+  it("emails both people about each change, only after it's saved", async () => {
+    const before = w.mail.sent.length;
+    const { seller, dealId } = await heldDeal(60_000);
+    const mine = w.mail.sent.slice(before);
+    expect(mine.some((m) => /wants to buy/.test(m.text))).toBe(true);
+    expect(mine.some((m) => /held safely/.test(m.text) && m.text.includes(`/d/${dealId}`))).toBe(true);
+    expect(mine.every((m) => !/\b\d{6}\b/.test(m.subject))).toBe(true); // never a code in a deal email
+    const rows = (await w.db.query("select channel, status from notifications where deal_id = $1", [dealId])).rows;
+    expect(rows.filter((r: any) => r.channel === "email").every((r: any) => r.status === "sent")).toBe(true);
+    expect(seller).toBeTruthy();
+  });
+
   it("stores a repeated webhook once", async () => {
     const seller = await verifiedSeller(w, "Kunle Adeyemi");
     const buyer = await person(w, "Femi Ade");

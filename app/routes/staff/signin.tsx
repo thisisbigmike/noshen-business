@@ -1,7 +1,7 @@
 import { Form, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/signin";
 import { createAuth } from "../../../server/auth";
-import { smsFor } from "../../../server/context";
+import { mailFor } from "../../../server/context";
 import { Button, CodeInput, ErrorText, TextField, Wordmark } from "../../components/ui";
 
 export const meta = () => [{ title: "Staff sign in · NosHen" }];
@@ -14,7 +14,7 @@ function forward(res: Response) {
 
 export async function action({ request }: Route.ActionArgs) {
   const f = await request.formData();
-  const auth = createAuth(smsFor());
+  const auth = createAuth(mailFor());
   if (f.get("step") === "totp") {
     const res = await auth.api.verifyTOTP({ body: { code: String(f.get("code") ?? "") }, headers: request.headers, asResponse: true }).catch(() => null);
     if (!res?.ok) return { step: "totp" as const, error: "That code doesn’t match. Check your authenticator app and try again." };

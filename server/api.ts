@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { env } from "cloudflare:workers";
 import { createAuth } from "./auth";
-import { withApp, partnerFor, smsFor, isDev } from "./context";
+import { withApp, partnerFor, mailFor, isDev } from "./context";
 import { handlePartnerEvent } from "./engine/deals";
 import { sweep } from "./engine/sweep";
 import { dealView, dealsFor } from "./engine/queries";
@@ -18,7 +18,7 @@ import { one } from "./db";
  */
 export const api = new Hono();
 
-api.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(smsFor()).handler(c.req.raw));
+api.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(mailFor()).handler(c.req.raw));
 
 // The partner's webhook: verify the signature first, store the event once, then process it.
 api.post("/api/webhooks/partner", async (c) => {

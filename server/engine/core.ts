@@ -1,7 +1,7 @@
 import type { Db, Tx } from "../db";
 import { one } from "../db";
 import type { PaymentsPartner, PartnerEvent } from "../partner/types";
-import type { SmsSender } from "../sms";
+import type { EmailSender } from "../email";
 import type { IdProvider } from "../idcheck";
 import type { Settings } from "../settings";
 import { loadSettings } from "../settings";
@@ -17,7 +17,7 @@ export interface Timers {
 export interface Deps {
   db: Db;
   partner: PaymentsPartner;
-  sms: SmsSender;
+  mail: EmailSender;
   ids: IdProvider;
   timers: Timers;
   secrets: { releaseCode: string; fieldKey: string };
@@ -93,29 +93,37 @@ export async function userName(db: Db, userId: string): Promise<string> {
 }
 
 /**
- * Tells someone about a change in their deal: an in-app notification now, and an SMS sent only
+ * Tells someone about a change in their deal: an in-app notification now, and an email sent only
  * after the transaction commits, so nobody is ever told about something that didn't happen.
+ * (SMS comes later, once phone numbers are collected.)
  */
 export async function notify(d: Deps, tx: Tx, userId: string, dealId: string | null, template: string, text: string) {
   await tx.db.query(
     "insert into notifications (user_id, deal_id, channel, template, params, status, sent_at) values ($1, $2, 'in_app', $3, $4, 'sent', now())",
     [userId, dealId, template, JSON.stringify({ text })],
   );
-  const sms = await one<{ id: string }>(
+  const to = await one<{ email: string | null }>(tx.db, "select email from users where id = $1", [userId]);
+  if (!to?.email) return;
+  const mail = await one<{ id: string }>(
     tx.db,
-    "insert into notifications (user_id, deal_id, channel, template, params) values ($1, $2, 'sms', $3, $4) returning id",
+    "insert into notifications (user_id, deal_id, channel, template, params) values ($1, $2, 'email', $3, $4) returning id",
     [userId, dealId, template, JSON.stringify({ text })],
   );
-  const phone = await one<{ phone: string }>(tx.db, "select phone from users where id = $1", [userId]);
-  const link = dealId ? ` ${d.appUrl}/d/${dealId}` : "";
+  const link = dealId ? `\n\nOpen the deal: ${d.appUrl}/d/${dealId}` : "";
   tx.after(async () => {
     try {
-      await d.sms.send(phone!.phone, `NosHen: ${text}${link}`);
-      await d.db.query("update notifications set status = 'sent', sent_at = now(), attempts = attempts + 1 where id = $1", [sms!.id]);
+      await d.mail.send({ to: to.email!, subject: `NosHen: ${subjectOf(text)}`, text: `${text}${link}\n\nNosHen never asks for your release code or sign-in code.` });
+      await d.db.query("update notifications set status = 'sent', sent_at = now(), attempts = attempts + 1 where id = $1", [mail!.id]);
     } catch (e) {
-      await d.db.query("update notifications set status = 'failed', attempts = attempts + 1, error = $2 where id = $1", [sms!.id, String(e)]);
+      await d.db.query("update notifications set status = 'failed', attempts = attempts + 1, error = $2 where id = $1", [mail!.id, String(e)]);
     }
   });
+}
+
+/** A short subject line: the first sentence of the message. */
+function subjectOf(text: string) {
+  const first = text.split(/(?<=\.)\s/)[0].replace(/\.$/, "");
+  return first.length > 70 ? first.slice(0, 67) + "…" : first;
 }
 
 export function schedule(d: Deps, tx: Tx, kind: TimerKind, dealId: string, at: Date) {

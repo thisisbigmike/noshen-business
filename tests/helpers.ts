@@ -1,7 +1,7 @@
 import pg from "pg";
 import { FakePartner } from "../server/partner/fake";
 import type { PartnerEvent } from "../server/partner/types";
-import { ConsoleSms } from "../server/sms";
+import { ConsoleEmail } from "../server/email";
 import { FakeIdProvider } from "../server/idcheck";
 import type { Deps, TimerKind } from "../server/engine/core";
 import { handlePartnerEvent } from "../server/engine/deals";
@@ -13,7 +13,7 @@ export interface TestWorld {
   db: pg.Client;
   settled: PartnerEvent[];
   timers: { kind: TimerKind; at: Date; dealId?: string }[];
-  sms: ConsoleSms;
+  mail: ConsoleEmail;
   partner: FakePartner;
   clock: { now: Date };
 }
@@ -24,23 +24,23 @@ export async function world(): Promise<TestWorld> {
   const settled: PartnerEvent[] = [];
   const timers: TestWorld["timers"] = [];
   const partner = new FakePartner("test-partner-secret", "Test Bank", async (e) => { settled.push(e); });
-  const sms = new ConsoleSms();
-  sms.send = async (to, text) => { sms.sent.push({ to, text }); };
+  const mail = new ConsoleEmail();
+  mail.send = async (m) => { mail.sent.push(m); };
   const clock = { now: new Date() };
   const d: Deps = {
-    db, partner, sms, ids: new FakeIdProvider(),
+    db, partner, mail, ids: new FakeIdProvider(),
     timers: { schedule: async (t) => { timers.push(t); } },
     secrets: { releaseCode: "test-release-secret", fieldKey: btoa(String.fromCharCode(...new Uint8Array(32).fill(7))) },
     appUrl: "http://test",
     now: () => clock.now,
   };
-  return { d, db, settled, timers, sms, partner, clock };
+  return { d, db, settled, timers, mail, partner, clock };
 }
 
 let phoneSeq = 10_000_000;
 export async function person(w: TestWorld, fullName: string) {
-  const phone = "+23480" + String(phoneSeq++).padStart(8, "0");
-  const r = await w.db.query("insert into users (phone, full_name) values ($1, $2) returning id", [phone, fullName]);
+  const email = `${fullName.toLowerCase().replace(/[^a-z]+/g, ".")}${phoneSeq++}@example.com`;
+  const r = await w.db.query("insert into users (email, full_name) values ($1, $2) returning id", [email, fullName]);
   return r.rows[0].id as string;
 }
 

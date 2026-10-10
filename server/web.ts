@@ -1,13 +1,12 @@
 import { redirect } from "react-router";
 import { createAuth } from "./auth";
-import { withApp, smsFor } from "./context";
+import { withApp, mailFor } from "./context";
 import type { Deps } from "./engine/core";
 import { DealError } from "./engine/core";
 import { one } from "./db";
-import { normalisePhone } from "../shared/deal";
 
 export interface AppUser {
-  id: string; phone: string; full_name: string | null; status: string; auth_user_id: string;
+  id: string; email: string | null; phone: string | null; full_name: string | null; status: string; auth_user_id: string;
 }
 
 export interface StaffUser {
@@ -15,23 +14,29 @@ export interface StaffUser {
 }
 
 async function sessionOf(request: Request) {
-  const auth = createAuth(smsFor());
-  return auth.api.getSession({ headers: request.headers });
+  return createAuth(mailFor()).api.getSession({ headers: request.headers });
+}
+
+/** A real name from the sign-in provider (Google gives one; an email code doesn't). */
+function realName(name: string | null | undefined, email: string) {
+  const n = (name ?? "").trim();
+  return n && n !== email && !n.includes("@") && n.split(/\s+/).length >= 2 ? n.slice(0, 120) : null;
 }
 
 /** The signed-in buyer or seller, creating their NosHen profile the first time they sign in. */
 export async function optionalUser(request: Request, d?: Deps): Promise<AppUser | null> {
   const s = await sessionOf(request);
-  if (!s?.user) return null;
-  const phone = normalisePhone((s.user as any).phoneNumber ?? "");
-  if (!phone) return null; // a staff account, not a buyer or seller
+  if (!s?.user?.email) return null;
+  const email = s.user.email.toLowerCase();
   const run = async (dd: Deps) => {
-    let u = await one<AppUser>(dd.db, "select id, phone, full_name, status, auth_user_id from users where auth_user_id = $1", [s.user.id]);
+    if (await one(dd.db, "select 1 from staff where auth_user_id = $1", [s.user.id])) return null; // staff aren't buyers or sellers
+    const cols = "id, email, phone, full_name, status, auth_user_id";
+    let u = await one<AppUser>(dd.db, `select ${cols} from users where auth_user_id = $1`, [s.user.id]);
     if (!u) {
       u = await one<AppUser>(dd.db,
-        `insert into users (phone, auth_user_id) values ($1, $2)
-         on conflict (phone) do update set auth_user_id = excluded.auth_user_id
-         returning id, phone, full_name, status, auth_user_id`, [phone, s.user.id]);
+        `insert into users (email, full_name, auth_user_id, signup_source) values ($1, $2, $3, 'web')
+         on conflict (email) do update set auth_user_id = excluded.auth_user_id
+         returning ${cols}`, [email, realName(s.user.name, email), s.user.id]);
     }
     return u;
   };

@@ -1,7 +1,7 @@
 import { Form, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/setup-2fa";
 import { createAuth } from "../../../server/auth";
-import { smsFor } from "../../../server/context";
+import { mailFor } from "../../../server/context";
 import { requireStaff } from "../../../server/web";
 import { Button, CodeInput, ErrorText, Info, TextField, Wordmark } from "../../components/ui";
 
@@ -16,7 +16,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   await requireStaff(request, { allowWithout2fa: true });
   const f = await request.formData();
-  const auth = createAuth(smsFor());
+  const auth = createAuth(mailFor());
   if (f.get("step") === "verify") {
     const res = await auth.api.verifyTOTP({ body: { code: String(f.get("code") ?? "") }, headers: request.headers, asResponse: true }).catch(() => null);
     if (!res?.ok) return { step: "verify" as const, uri: String(f.get("uri")), codes: JSON.parse(String(f.get("codes") ?? "[]")) as string[], error: "That code doesn’t match. Wait for the next code and try again." };

@@ -3,7 +3,7 @@ import { withDb, type Db } from "./db";
 import type { Deps } from "./engine/core";
 import { FakePartner } from "./partner/fake";
 import type { PaymentsPartner, PartnerEvent } from "./partner/types";
-import { ConsoleSms, type SmsSender } from "./sms";
+import { ConsoleEmail, type EmailSender } from "./email";
 import { FakeIdProvider } from "./idcheck";
 
 /** Deal timers run as Cloudflare Workflows: one instance per deadline, sleeping until it's due. */
@@ -27,16 +27,16 @@ export function partnerFor(): PaymentsPartner {
   throw new Error(`Payment partner "${env.PARTNER}" isn't set up yet. See server/partner/.`);
 }
 
-export function smsFor(): SmsSender {
-  if (env.SMS === "console") return new ConsoleSms();
-  throw new Error(`SMS provider "${env.SMS}" isn't set up yet. See server/sms.ts.`);
+export function mailFor(): EmailSender {
+  if (env.EMAIL === "console") return new ConsoleEmail();
+  throw new Error(`Email provider "${env.EMAIL}" isn't set up yet. See server/email.ts.`);
 }
 
-export function depsFor(db: Db, sms: SmsSender = smsFor()): Deps {
+export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
   return {
     db,
     partner: partnerFor(),
-    sms,
+    mail,
     ids: new FakeIdProvider(),
     timers: workflowTimers,
     secrets: { releaseCode: env.RELEASE_CODE_SECRET, fieldKey: env.FIELD_KEY },
@@ -45,8 +45,8 @@ export function depsFor(db: Db, sms: SmsSender = smsFor()): Deps {
 }
 
 /** Runs fn with a database connection (through Hyperdrive) and the engine's dependencies. */
-export function withApp<T>(fn: (d: Deps) => Promise<T>, sms?: SmsSender): Promise<T> {
-  return withDb(env.HYPERDRIVE.connectionString, (db) => fn(depsFor(db, sms)));
+export function withApp<T>(fn: (d: Deps) => Promise<T>, mail?: EmailSender): Promise<T> {
+  return withDb(env.HYPERDRIVE.connectionString, (db) => fn(depsFor(db, mail)));
 }
 
 export const isDev = () => env.PARTNER === "fake";

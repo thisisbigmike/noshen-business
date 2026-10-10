@@ -7,3 +7,6 @@ FAKE_PARTNER_SECRET=change-me
 FIELD_KEY=change-me
 # Used by the scripts in scripts/ (migrations, seed, staff); the Worker uses Hyperdrive instead
 DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/noshen
+# Google sign-in (optional): an OAuth client from Google Cloud with redirect URI <APP_URL>/api/auth/callback/google
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=

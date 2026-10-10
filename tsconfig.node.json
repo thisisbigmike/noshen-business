@@ -11,7 +11,7 @@
     "server/db.ts",
     "server/crypto.ts",
     "server/settings.ts",
-    "server/sms.ts",
+    "server/email.ts",
     "server/idcheck.ts"
   ],
   "compilerOptions": {

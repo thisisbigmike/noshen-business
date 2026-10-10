@@ -1,58 +1,68 @@
 import { Form, redirect, useNavigation, data } from "react-router";
 import type { Route } from "./+types/signin";
-import { createAuth } from "../../server/auth";
-import { ConsoleSms } from "../../server/sms";
+import { createAuth, googleEnabled } from "../../server/auth";
+import { ConsoleEmail } from "../../server/email";
 import { optionalUser, withApp, messageOf } from "../../server/web";
 import { setName } from "../../server/engine/sellers";
-import { smsFor, isDev } from "../../server/context";
-import { normalisePhone, displayPhone } from "../../shared/deal";
-import { BottomAction, Button, CodeInput, TextField, TopBar, Info } from "../components/ui";
+import { mailFor, isDev } from "../../server/context";
+import { BottomAction, Button, CodeInput, TextField, TopBar, Info, ErrorText } from "../components/ui";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Sign in · NosHen" }];
 
 const safeNext = (n: string | null) => (n && n.startsWith("/") && !n.startsWith("//") ? n : "/deals");
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+function forwardCookies(res: Response) {
+  const headers = new Headers();
+  for (const c of res.headers.getSetCookie()) headers.append("Set-Cookie", c);
+  return headers;
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const user = await optionalUser(request);
   const next = safeNext(url.searchParams.get("next"));
   if (user && user.full_name) throw redirect(next);
-  return { needsName: !!user && !user.full_name, next };
+  return { needsName: !!user && !user.full_name, next, google: googleEnabled(), dev: isDev(), googleError: url.searchParams.get("error") === "google" };
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const step = String(form.get("step"));
   const next = safeNext(String(form.get("next") ?? ""));
+  const back = `/signin?next=${encodeURIComponent(next)}`;
 
-  if (step === "phone") {
-    const phone = normalisePhone(String(form.get("phone") ?? ""));
-    if (!phone) return { step: "phone" as const, error: "Enter a Nigerian mobile number, like 0803 412 7765." };
-    const sms = smsFor();
+  if (step === "google") {
+    if (!googleEnabled()) return { step: "email" as const, error: "Google sign-in isn't set up yet. Use your email instead." };
+    const res = await createAuth(mailFor()).api.signInSocial({
+      body: { provider: "google", callbackURL: back, errorCallbackURL: `${back}&error=google` }, headers: request.headers, asResponse: true,
+    });
+    const body = (await res.clone().json().catch(() => ({}))) as { url?: string };
+    if (!res.ok || !body.url) return { step: "email" as const, error: "We couldn't reach Google just now. Try again, or use your email." };
+    return redirect(body.url, { headers: forwardCookies(res) });
+  }
+
+  if (step === "email") {
+    const email = String(form.get("email") ?? "").trim().toLowerCase();
+    if (!EMAIL.test(email)) return { step: "email" as const, error: "Enter your email address, like chioma@gmail.com." };
+    const mail = mailFor();
     try {
-      await createAuth(sms).api.sendPhoneNumberOTP({ body: { phoneNumber: phone } });
-    } catch (e) {
-      return { step: "phone" as const, error: "We couldn't send a code just now. Wait a minute and try again." };
+      await createAuth(mail).api.sendVerificationOTP({ body: { email, type: "sign-in" } });
+    } catch {
+      return { step: "email" as const, error: "We couldn't send a code just now. Wait a minute and try again." };
     }
-    const devCode = isDev() && sms instanceof ConsoleSms ? sms.sent.at(-1)?.text.match(/\d{6}/)?.[0] : undefined;
-    return { step: "code" as const, phone, devCode };
+    const devCode = isDev() && mail instanceof ConsoleEmail ? mail.sent.at(-1)?.text.match(/\b\d{6}\b/)?.[0] : undefined;
+    return { step: "code" as const, email, devCode };
   }
 
   if (step === "code") {
-    const phone = String(form.get("phone"));
-    const code = String(form.get("code") ?? "").replace(/\D/g, "");
-    if (code.length !== 6) return { step: "code" as const, phone, error: "Enter all 6 digits." };
-    let res: Response;
-    try {
-      res = await createAuth(smsFor()).api.verifyPhoneNumber({ body: { phoneNumber: phone, code, disableSession: false }, headers: request.headers, asResponse: true });
-    } catch {
-      return { step: "code" as const, phone, error: "That code doesn’t match or has expired. Check it, or ask for a new one." };
-    }
-    if (!res.ok) return { step: "code" as const, phone, error: "That code doesn’t match or has expired. Check it, or ask for a new one." };
-    const headers = new Headers();
-    for (const c of res.headers.getSetCookie()) headers.append("Set-Cookie", c);
-    return redirect(`/signin?next=${encodeURIComponent(next)}`, { headers });
+    const email = String(form.get("email"));
+    const otp = String(form.get("code") ?? "").replace(/\D/g, "");
+    if (otp.length !== 6) return { step: "code" as const, email, error: "Enter all 6 digits." };
+    const res = await createAuth(mailFor()).api.signInEmailOTP({ body: { email, otp }, headers: request.headers, asResponse: true }).catch(() => null);
+    if (!res?.ok) return { step: "code" as const, email, error: "That code doesn’t match or has expired. Check it, or ask for a new one." };
+    return redirect(back, { headers: forwardCookies(res) });
   }
 
   if (step === "name") {
@@ -68,11 +78,22 @@ export async function action({ request }: Route.ActionArgs) {
   return null;
 }
 
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+    </svg>
+  );
+}
+
 export default function SignIn({ loaderData, actionData }: Route.ComponentProps) {
   const nav = useNavigation();
   const busy = nav.state !== "idle";
   const a = actionData as any;
-  const step = loaderData.needsName ? "name" : a?.step === "code" ? "code" : "phone";
+  const step = loaderData.needsName ? "name" : a?.step === "code" ? "code" : "email";
   const formAction = `/signin?next=${encodeURIComponent(loaderData.next)}`;
 
   if (step === "name") {
@@ -81,7 +102,7 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
         <TopBar title="Your name" />
         <main className="page narrow no-tabs stack-4">
           <h1 className="heading">What's your name?</h1>
-          <p className="body muted">Use the name on your bank account. Payments are checked against it, and sellers see your first name.</p>
+          <p className="body muted">Use the name on your bank account. Payments are checked against it, and the other person in a deal sees your first name.</p>
           <input type="hidden" name="step" value="name" />
           <input type="hidden" name="next" value={loaderData.next} />
           <TextField label="Full name" name="name" autoComplete="name" placeholder="Chioma Obi" required error={a?.error} autoFocus />
@@ -94,15 +115,15 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
   if (step === "code") {
     return (
       <Form method="post" action={formAction}>
-        <TopBar title="Sign in" back="/signin" />
+        <TopBar title="Sign in" back={formAction} />
         <main className="page narrow no-tabs stack-4">
-          <h1 className="heading">Enter the 6-digit code</h1>
-          <p className="body muted">We sent it by SMS to {displayPhone(a.phone)}.</p>
+          <h1 className="heading">Check your email</h1>
+          <p className="body muted">We sent a 6-digit code to {a.email}. It expires in 5 minutes.</p>
           <input type="hidden" name="step" value="code" />
-          <input type="hidden" name="phone" value={a.phone} />
+          <input type="hidden" name="email" value={a.email} />
           <input type="hidden" name="next" value={loaderData.next} />
-          <CodeInput name="code" label="SMS code" autoFocus error={a?.error} hint="Didn't get it? Go back and ask for a new code in a minute." />
-          {a?.devCode ? <p className="dev caption">Development: no SMS is sent. Your code is <strong className="tabular">{a.devCode}</strong>.</p> : null}
+          <CodeInput name="code" label="Sign-in code" autoFocus error={a?.error} hint="Not there? Check your spam folder, or go back and ask for a new code." />
+          {a?.devCode ? <p className="dev caption">Development: no email is sent. Your code is <strong className="tabular">{a.devCode}</strong>.</p> : null}
           <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>Continue</Button></BottomAction>
         </main>
       </Form>
@@ -110,19 +131,31 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
   }
 
   return (
-    <Form method="post" action={formAction}>
+    <div>
       <TopBar title="Sign in" back="/" />
       <main className="page narrow no-tabs stack-4">
-        <h1 className="heading">What's your phone number?</h1>
-        <p className="body muted">We'll text you a 6-digit code to sign in.</p>
-        <input type="hidden" name="step" value="phone" />
-        <input type="hidden" name="next" value={loaderData.next} />
-        <TextField label="Phone number" name="phone" type="tel" inputMode="tel" autoComplete="tel-national" placeholder="0803 412 7765"
-          hint="11 digits, starting with 0" error={a?.error} required autoFocus />
-        <Info icon="shield-check">We never show your number to the other person. You talk in the deal chat.</Info>
-        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? "Sending…" : "Send code"}</Button></BottomAction>
+        <h1 className="heading">Sign in to NosHen</h1>
+        <p className="body muted">New here? The same steps create your account.</p>
+        {loaderData.googleError ? <ErrorText>Google sign-in didn't finish. Try again, or use your email.</ErrorText> : null}
+        {loaderData.google ? (
+          <Form method="post" action={formAction}>
+            <input type="hidden" name="step" value="google" />
+            <input type="hidden" name="next" value={loaderData.next} />
+            <button type="submit" className="nh-btn nh-btn-secondary nh-btn-lg nh-btn-block" disabled={busy}><GoogleMark />Continue with Google</button>
+          </Form>
+        ) : loaderData.dev ? (
+          <p className="dev caption">Development: Google sign-in appears here once GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in .dev.vars.</p>
+        ) : null}
+        {loaderData.google ? <div className="row" style={{ gap: 12 }}><hr className="divider grow" /><span className="caption muted">or</span><hr className="divider grow" /></div> : null}
+        <Form method="post" action={formAction} className="stack-4">
+          <input type="hidden" name="step" value="email" />
+          <input type="hidden" name="next" value={loaderData.next} />
+          <TextField label="Email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="chioma@gmail.com"
+            hint="We'll email you a 6-digit code. No password needed." error={a?.step === "email" ? a.error : undefined} required autoFocus={!loaderData.google} />
+          <Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy && nav.formData?.get("step") === "email" ? "Sending…" : "Email me a code"}</Button>
+        </Form>
+        <Info icon="shield-check">We never show your email to the other person. You talk in the deal chat.</Info>
       </main>
-    </Form>
+    </div>
   );
 }
-

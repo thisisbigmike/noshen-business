@@ -5,7 +5,6 @@ import { myListings, sellerSummary } from "../../server/engine/queries";
 import { sellerReady, setListingStatus } from "../../server/engine/sellers";
 import { one } from "../../server/db";
 import { Button, ErrorText, Icon, Info, Kv, TopBar } from "../components/ui";
-import { displayPhone } from "../../shared/deal";
 import { naira } from "../../shared/money";
 
 export const meta = () => [{ title: "Account · NosHen" }];
@@ -46,7 +45,7 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
         <h1 className="heading desktop-only">Account</h1>
         <section className="card">
           <Kv k="Name" v={x.user.full_name ?? "Not added"} />
-          <Kv k="Phone" v={displayPhone(x.user.phone)} />
+          <Kv k="Email" v={x.user.email ?? "Not added"} />
           <Kv k="Rating" v={x.summary.rating ? `${x.summary.rating} from ${x.summary.ratingCount}` : "No ratings yet"} />
           <Kv k="Completed sales" v={String(x.summary.completedDeals)} />
         </section>

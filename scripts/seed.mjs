@@ -29,13 +29,12 @@ if (Number(existing.rows[0].count) > 0) {
 const staffPassword = "noshen-dev-staff";
 const staffId = await createStaff(db, "Tobi Bello", "tobi@noshen.test", "admin", staffPassword);
 
-async function seller(fullName, phone, last4) {
+async function seller(fullName, email, last4) {
   const authId = crypto.randomUUID();
   await db.query(
-    `insert into "user" (id, name, email, "emailVerified", "phoneNumber", "phoneNumberVerified", "createdAt", "updatedAt")
-     values ($1, $2, $3, false, $4, true, now(), now())`, [authId, fullName, `${phone.replace(/\D/g, "")}@phone.noshen.invalid`, phone]);
-  const u = await db.query("insert into users (phone, full_name, auth_user_id, max_deal_kobo, signup_source) values ($1, $2, $3, 200000000, 'seed') returning id",
-    [phone, fullName, authId]);
+    `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") values ($1, $2, $3, true, now(), now())`, [authId, fullName, email]);
+  const u = await db.query("insert into users (email, full_name, auth_user_id, max_deal_kobo, signup_source) values ($1, $2, $3, 200000000, 'seed') returning id",
+    [email, fullName, authId]);
   const id = u.rows[0].id;
   await db.query(`insert into kyc_checks (user_id, type, provider, provider_ref, result, verified_name, checked_at) values ($1, 'nin', 'fake', $2, 'verified', $3, now())`,
     [id, `seed_${id}`, fullName]);
@@ -48,8 +47,8 @@ async function seller(fullName, phone, last4) {
   return id;
 }
 
-const tunde = await seller("Tunde Bakare", "+2348034127701", "1234");
-const kunle = await seller("Kunle Adeyemi", "+2348034124471", "5521");
+const tunde = await seller("Tunde Bakare", "tunde@example.com", "1234");
+const kunle = await seller("Kunle Adeyemi", "kunle@example.com", "5521");
 
 const LISTINGS = [
   [tunde, "phone", "iPhone 13, 128GB", 450000, "good", "Yaba", "352918112047631", "Used for one year. Battery health 86%. No cracks. Comes with the box and cable.", 2],
@@ -69,4 +68,4 @@ for (const [sellerId, cat, title, naira, cond, area, imei, desc, hoursAgo] of LI
     [sellerId, cat, title, desc, naira * 100, cond, area, imei, keys, hoursAgo]);
 }
 await db.end();
-console.log(`Seeded: 2 sellers (Tunde 0803 412 7701, Kunle 0803 412 4471), ${LISTINGS.length} listings, staff admin tobi@noshen.test / ${staffPassword}`);
+console.log(`Seeded: 2 sellers (tunde@example.com, kunle@example.com), ${LISTINGS.length} listings, staff admin tobi@noshen.test / ${staffPassword}`);
