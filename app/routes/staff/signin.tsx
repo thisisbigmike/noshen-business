@@ -1,8 +1,9 @@
-import { Form, redirect, useNavigation } from "react-router";
+import { redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/signin";
 import { createAuth } from "../../../server/auth";
 import { mailFor } from "../../../server/context";
-import { Button, CodeInput, ErrorText, TextField, Wordmark } from "../../components/ui";
+import { Button, CheckedForm, CodeInput, ErrorText, TextField, Wordmark } from "../../components/ui";
+import { emailProblem } from "../../../shared/validate";
 
 export const meta = () => [{ title: "Staff sign in · NosHen" }];
 
@@ -37,7 +38,7 @@ export default function StaffSignIn({ loaderData, actionData }: Route.ComponentP
   const step = actionData?.step ?? loaderData.step;
   return (
     <main className="auth-page">
-      <Form method="post" className="auth-card">
+      <CheckedForm method="post" className="auth-card">
         <Wordmark size="md" />
         {step === "totp" ? (
           <>
@@ -54,13 +55,13 @@ export default function StaffSignIn({ loaderData, actionData }: Route.ComponentP
             <p className="body muted">Staff only. Use your NosHen work email.</p>
             {loaderData.notStaff ? <ErrorText>That account isn't an active staff account.</ErrorText> : null}
             <input type="hidden" name="step" value="password" />
-            <TextField label="Email" name="email" type="email" autoComplete="username" required autoFocus />
-            <TextField label="Password" name="password" type="password" autoComplete="current-password" required error={actionData?.error} />
+            <TextField label="Email" name="email" type="email" autoComplete="username" required autoFocus missing="Enter your NosHen work email." validate={emailProblem} />
+            <TextField label="Password" name="password" type="password" autoComplete="current-password" required error={actionData?.error} missing="Enter your password." />
             <Button type="submit" variant="primary" size="lg" block disabled={busy}>Continue</Button>
           </>
         )}
         <p className="caption muted">Every sign-in and every action you take is recorded in the audit log.</p>
-      </Form>
+      </CheckedForm>
     </main>
   );
 }

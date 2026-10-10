@@ -117,6 +117,7 @@ img { max-width: 100%; display: block; }
 .cat-choice { position: relative; display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); cursor: pointer; box-shadow: var(--shadow-sm); transition: border-color var(--dur-fast), background-color var(--dur-fast); }
 .cat-choice:hover { border-color: var(--primary); }
 .cat-choice input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+fieldset:has(> .nh-field-msg-error) .cat-choice { border-color: var(--dispute); }
 .cat-choice:has(input:checked) { border: 2px solid var(--primary); padding: 9px 11px; background: var(--tint); color: var(--primary-ink); }
 .cat-choice:has(input:focus-visible) { border-color: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent); }
 .cat-icon { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: none; border-radius: 12px; background: var(--tint); color: var(--primary-ink); }
@@ -170,7 +171,9 @@ textarea.nh-input { min-height: 96px; padding: 10px 12px; resize: vertical; line
 .bubble { max-width: 85%; padding: 8px 12px; border-radius: 16px 16px 16px 6px; background: var(--surface); border: 1px solid var(--border); }
 .bubble.mine { align-self: flex-end; border-radius: 16px 16px 6px 16px; background: var(--tint); border-color: transparent; color: var(--primary-ink); }
 .bubble.flagged { border: 2px solid var(--held); }
-.chat-form { display: flex; gap: var(--space-2); }
+.chat-form { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chat-form .nh-field-msg { flex-basis: 100%; }
+.chat-form:has(.nh-field-msg-error) .nh-input { border: 2px solid var(--dispute); }
 
 /* Bottom sheet (confirmations) */
 .sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: rgb(4 20 16 / 0.45); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center; animation: nh-fade var(--dur) var(--ease-out); }

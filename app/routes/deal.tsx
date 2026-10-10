@@ -4,7 +4,7 @@ import type { Route } from "./+types/deal";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "../../server/engine/queries";
 import { acceptDeal, cancelDeal, confirmReceived, declineDeal, markDelivered, rate, sendMessage } from "../../server/engine/deals";
-import { BottomAction, Button, ErrorText, Icon, Info, Kv, MoneyStatus, TextArea, Timeline, TopBar, useEscape } from "../components/ui";
+import { BottomAction, Button, CheckedForm, ErrorText, FieldError, Icon, Info, Kv, MoneyStatus, TextArea, Timeline, TopBar, useEscape } from "../components/ui";
 import { dealSteps, dealText } from "../lib/deal-text";
 import { naira } from "../../shared/money";
 import { disputeReasonLabel, firstName, isOpen } from "../../shared/deal";
@@ -254,12 +254,13 @@ function Chat({ x, other, busy, error }: { x: View; other: string; busy: boolean
       </div>
       {flagged ? <Info icon="alert-triangle" tone="warn"><strong>Only pay through NosHen.</strong> Money sent straight to someone's account isn't protected. If something goes wrong, we can't get it back for you.</Info> : null}
       {open ? (
-        <Form method="post" className="chat-form" key={x.messages.length}>
+        <CheckedForm method="post" className="chat-form" key={x.messages.length}>
           <input type="hidden" name="intent" value="message" />
           <label className="sr-only" htmlFor="body">Message {other}</label>
-          <input id="body" name="body" className="nh-input grow" placeholder={`Message ${other}`} maxLength={2000} autoComplete="off" required />
+          <input id="body" name="body" className="nh-input grow" placeholder={`Message ${other}`} maxLength={2000} autoComplete="off" required data-missing="Type a message before you send it." />
           <Button type="submit" icon="send" disabled={busy}>Send</Button>
-        </Form>
+          <FieldError name="body" />
+        </CheckedForm>
       ) : null}
       <ErrorText>{error}</ErrorText>
     </section>

@@ -5,14 +5,14 @@ import { ConsoleEmail } from "../../server/email";
 import { optionalUser, withApp, messageOf } from "../../server/web";
 import { setName } from "../../server/engine/sellers";
 import { mailFor, isDev } from "../../server/context";
-import { BottomAction, Button, CodeInput, Icon, TextField, TopBar, Info, ErrorText, Wordmark } from "../components/ui";
+import { BottomAction, Button, CheckedForm, CodeInput, Icon, TextField, TopBar, Info, ErrorText, Wordmark } from "../components/ui";
+import { emailProblem, nameProblem } from "../../shared/validate";
 import type { IconName } from "../components/icons";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Sign in · NosHen" }];
 
 const safeNext = (n: string | null) => (n && n.startsWith("/") && !n.startsWith("//") ? n : "/deals");
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 function forwardCookies(res: Response) {
   const headers = new Headers();
@@ -46,7 +46,8 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (step === "email") {
     const email = String(form.get("email") ?? "").trim().toLowerCase();
-    if (!EMAIL.test(email)) return { step: "email" as const, error: "Enter your email address, like chioma@gmail.com." };
+    const problem = emailProblem(email);
+    if (problem) return { step: "email" as const, error: problem };
     const mail = mailFor();
     try {
       await createAuth(mail).api.sendVerificationOTP({ body: { email, type: "sign-in" } });
@@ -127,20 +128,21 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
 
   if (step === "name") {
     return (
-      <Form method="post" action={formAction}>
+      <CheckedForm method="post" action={formAction}>
         <AuthFrame title="Your name" icon="user" heading="What's your name?" sub="Use the name on your bank account. Payments are checked against it, and the other person in a deal sees your first name.">
           <input type="hidden" name="step" value="name" />
           <input type="hidden" name="next" value={loaderData.next} />
-          <TextField label="Full name" name="name" autoComplete="name" placeholder="Chioma Obi" required error={a?.error} autoFocus />
+          <TextField label="Full name" name="name" autoComplete="name" placeholder="Chioma Obi" required error={a?.error} autoFocus
+            missing="Enter your full name, as it is on your bank account." validate={nameProblem} />
           <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>Continue</Button></BottomAction>
         </AuthFrame>
-      </Form>
+      </CheckedForm>
     );
   }
 
   if (step === "code") {
     return (
-      <Form method="post" action={formAction}>
+      <CheckedForm method="post" action={formAction}>
         <AuthFrame title="Sign in" back={formAction} icon="message-circle" heading="Check your email" sub={<>We sent a 6-digit code to <strong className="ink">{a.email}</strong>. It expires in 5 minutes.</>}>
           <input type="hidden" name="step" value="code" />
           <input type="hidden" name="email" value={a.email} />
@@ -149,7 +151,7 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
           {a?.devCode ? <p className="dev caption">Development: no email is sent. Your code is <strong className="tabular">{a.devCode}</strong>.</p> : null}
           <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>Continue</Button></BottomAction>
         </AuthFrame>
-      </Form>
+      </CheckedForm>
     );
   }
 
@@ -166,13 +168,14 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
         <p className="dev caption">Development: Google sign-in appears here once GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in .dev.vars.</p>
       ) : null}
       {loaderData.google ? <div className="or-rule"><span className="caption muted">or</span></div> : null}
-      <Form method="post" action={formAction} className="stack-4">
+      <CheckedForm method="post" action={formAction} className="stack-4">
         <input type="hidden" name="step" value="email" />
         <input type="hidden" name="next" value={loaderData.next} />
         <TextField label="Email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="chioma@gmail.com"
-          hint="We'll email you a 6-digit code. No password needed." error={a?.step === "email" ? a.error : undefined} required autoFocus={!loaderData.google} />
+          hint="We'll email you a 6-digit code. No password needed." error={a?.step === "email" ? a.error : undefined} required autoFocus={!loaderData.google}
+          missing="Enter your email address, so we can send you a code." validate={emailProblem} />
         <Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight={busy ? undefined : "arrow-right"}>{busy && nav.formData?.get("step") === "email" ? "Sending…" : "Email me a code"}</Button>
-      </Form>
+      </CheckedForm>
       <Info icon="shield-check">We never show your email to the other person. You talk in the deal chat.</Info>
       <p className="caption muted consent">By continuing, you agree to NosHen's <Link to="/terms">Terms of Use</Link> and <Link to="/deal-terms">Protected Deal Terms</Link>, and you've read our <Link to="/privacy">Privacy Policy</Link>.</p>
     </AuthFrame>

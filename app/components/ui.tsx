@@ -1,9 +1,10 @@
 // The NosHen design system's components, as typed React. Classes and tokens match design-system/.
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router";
+import { Form, Link, type FormProps } from "react-router";
 import { ICONS, type IconName } from "./icons";
 import { naira } from "../../shared/money";
+import { emailProblem } from "../../shared/validate";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -51,32 +52,118 @@ export function Button({ variant = "secondary", size = "md", block, pill, icon, 
 function FieldMessage({ id, error, hint }: { id: string; error?: string | null; hint?: ReactNode }) {
   if (!error && !hint) return null;
   return (
-    <p id={id} className={cx("nh-field-msg caption", error && "nh-field-msg-error")}>
+    <p id={id} className={cx("nh-field-msg caption", error && "nh-field-msg-error")} role={error ? "alert" : undefined}>
       {error ? <Icon name="alert-triangle" size={16} /> : null}{error || hint}
     </p>
   );
 }
 
-export function TextField({ label, hint, error, className, id, ...rest }: { label: string; hint?: ReactNode; error?: string | null } & InputHTMLAttributes<HTMLInputElement>) {
+// ---------------------------------------------------------------------------
+// Form checks: NosHen's own messages instead of the browser's bubbles
+// ---------------------------------------------------------------------------
+
+const FormErrors = createContext<Record<string, string>>({});
+
+/** The message a CheckedForm is showing for a field, if any. */
+export const useFieldError = (name?: string) => {
+  const errors = useContext(FormErrors);
+  return name ? errors[name] : undefined;
+};
+
+type Checkable = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+
+/** Why a field failed the browser's checks, in words: from the field's own messages first, then sensible defaults. */
+function messageFor(el: Checkable): string {
+  const v = el.validity;
+  const d = el.dataset;
+  const type = (el as HTMLInputElement).type;
+  if (v.valueMissing) return d.missing ?? (type === "radio" ? "Choose one of these to continue." : "Fill this in to continue.");
+  if (v.customError) return el.validationMessage;
+  if (v.typeMismatch && type === "email") return emailProblem(el.value) ?? "Check your email address.";
+  if (v.tooShort) return `This is too short: use at least ${(el as HTMLInputElement).minLength} characters. You've typed ${el.value.length}.`;
+  if (v.tooLong) return `This is too long: use at most ${(el as HTMLInputElement).maxLength} characters.`;
+  return d.invalid ?? "Check this field.";
+}
+
+/**
+ * A React Router Form that, when the browser finds a field it won't send, shows our message under that field
+ * instead of the browser's bubble, puts the cursor in the first one, and updates or clears each message as
+ * the person fixes it. The server checks everything again.
+ */
+export function CheckedForm({ children, onChange, ...props }: FormProps) {
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const firstAt = useRef(0);
+  const onInvalidCapture = (e: FormEvent<HTMLFormElement>) => {
+    const el = e.target as Checkable;
+    if (!el.name) return;
+    e.preventDefault();
+    const msg = messageFor(el);
+    setErrors((p) => (p[el.name] === msg ? p : { ...p, [el.name]: msg }));
+    const now = Date.now();
+    if (now - firstAt.current > 400) {
+      firstAt.current = now;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.focus({ preventScroll: true });
+    }
+  };
+  const recheck = (e: FormEvent<HTMLFormElement>) => {
+    const el = e.target as Checkable;
+    if (!el.name || !(el.name in errors)) return;
+    setErrors((p) => {
+      const next = { ...p };
+      if (el.validity.valid) delete next[el.name];
+      else next[el.name] = messageFor(el);
+      return next;
+    });
+  };
+  return (
+    <FormErrors.Provider value={errors}>
+      <Form {...props} onInvalidCapture={onInvalidCapture} onChange={(e) => { recheck(e); onChange?.(e); }}>{children}</Form>
+    </FormErrors.Provider>
+  );
+}
+
+/** The message for a group of radio buttons or tiles, shown under the group. */
+export function FieldError({ name }: { name: string }) {
+  const error = useFieldError(name);
+  if (!error) return null;
+  return <p className="nh-field-msg nh-field-msg-error caption" role="alert"><Icon name="alert-triangle" size={16} />{error}</p>;
+}
+
+type FieldChecks = {
+  /** What to say when a required field is empty. */
+  missing?: string;
+  /** Returns why the value is wrong, or null. Runs as the person types; the form shows it on submit. */
+  validate?: (value: string) => string | null;
+};
+
+export function TextField({ label, hint, error, className, id, missing, validate, onChange, ...rest }: { label: string; hint?: ReactNode; error?: string | null } & FieldChecks & InputHTMLAttributes<HTMLInputElement>) {
   const auto = useId();
   const fid = id ?? auto;
+  const ref = useRef<HTMLInputElement>(null);
+  const shown = useFieldError(rest.name) ?? error;
+  // Keep the browser's idea of "valid" in step with our check, including for prefilled and controlled values.
+  useEffect(() => { const el = ref.current; if (el && validate) el.setCustomValidity(el.value ? validate(el.value) ?? "" : ""); });
   return (
-    <div className={cx("nh-field", error && "nh-field-error", className)} style={{ maxWidth: "none" }}>
+    <div className={cx("nh-field", shown && "nh-field-error", className)} style={{ maxWidth: "none" }}>
       <label className="nh-field-label label" htmlFor={fid}>{label}</label>
-      <input id={fid} className="nh-input" aria-invalid={error ? true : undefined} aria-describedby={error || hint ? fid + "-msg" : undefined} {...rest} />
-      <FieldMessage id={fid + "-msg"} error={error} hint={hint} />
+      <input id={fid} ref={ref} className="nh-input" aria-invalid={shown ? true : undefined} aria-describedby={shown || hint ? fid + "-msg" : undefined}
+        data-missing={missing} {...rest}
+        onChange={(e) => { if (validate) e.currentTarget.setCustomValidity(e.currentTarget.value ? validate(e.currentTarget.value) ?? "" : ""); onChange?.(e); }} />
+      <FieldMessage id={fid + "-msg"} error={shown} hint={hint} />
     </div>
   );
 }
 
-export function TextArea({ label, hint, error, id, ...rest }: { label: string; hint?: ReactNode; error?: string | null } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function TextArea({ label, hint, error, id, missing, ...rest }: { label: string; hint?: ReactNode; error?: string | null; missing?: string } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
   const auto = useId();
   const fid = id ?? auto;
+  const shown = useFieldError(rest.name) ?? error;
   return (
-    <div className={cx("nh-field", error && "nh-field-error")} style={{ maxWidth: "none" }}>
+    <div className={cx("nh-field", shown && "nh-field-error")} style={{ maxWidth: "none" }}>
       <label className="nh-field-label label" htmlFor={fid}>{label}</label>
-      <textarea id={fid} className="nh-input" {...rest} />
-      <FieldMessage id={fid + "-msg"} error={error} hint={hint} />
+      <textarea id={fid} className="nh-input" aria-invalid={shown ? true : undefined} aria-describedby={shown || hint ? fid + "-msg" : undefined} data-missing={missing} {...rest} />
+      <FieldMessage id={fid + "-msg"} error={shown} hint={hint} />
     </div>
   );
 }
@@ -89,6 +176,12 @@ export function CodeInput({ name, label = "Release code", hint, error, length = 
   const [own, setOwn] = useState("");
   const value = (controlled ?? own).replace(/\D/g, "").slice(0, length);
   const set = (v: string) => { setOwn(v); onChange?.(v); };
+  const input = useRef<HTMLInputElement>(null);
+  const formError = useFieldError(name);
+  const shown = formError ?? error;
+  useEffect(() => {
+    input.current?.setCustomValidity(value.length > 0 && value.length < length ? `Enter all ${length} digits. You've typed ${value.length}, so ${length - value.length} ${length - value.length === 1 ? "is" : "are"} missing.` : "");
+  }, [value, length]);
   // After a wrong code, start fresh: clear the cells, and let the next digit typed into a full field begin again.
   useEffect(() => { if (error) set(""); }, [error]); // eslint-disable-line react-hooks/exhaustive-deps
   const cells = [];
@@ -96,16 +189,17 @@ export function CodeInput({ name, label = "Release code", hint, error, length = 
     cells.push(<span key={i} aria-hidden="true" className={cx("nh-code-cell", i < value.length && "nh-code-cell-filled", i === value.length && "nh-code-cell-active", i === length / 2 && "nh-code-cell-gap")}>{value.charAt(i)}</span>);
   }
   return (
-    <div className={cx("nh-code", error && "nh-code-error")}>
+    <div className={cx("nh-code", shown && "nh-code-error")}>
       <label className="nh-field-label label" htmlFor={id}>{label}</label>
       <div className="nh-code-box">
-        <input id={id} name={name} className="nh-code-input" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*"
-          maxLength={length} value={value} autoFocus={autoFocus} aria-invalid={error ? true : undefined}
+        <input id={id} ref={input} name={name} className="nh-code-input" type="text" inputMode="numeric" autoComplete="one-time-code"
+          maxLength={length} value={value} autoFocus={autoFocus} aria-invalid={shown ? true : undefined} aria-describedby={shown || hint ? id + "-msg" : undefined}
+          required data-missing={`Enter the ${length}-digit ${label.toLowerCase()}.`}
           onChange={(e) => set(e.target.value.replace(/\D/g, "").slice(0, length))}
           onKeyDown={(e) => { if (error && value.length === length && /^\d$/.test(e.key)) { e.preventDefault(); set(e.key); } }} />
         <div className="nh-code-cells release-code">{cells}</div>
       </div>
-      <FieldMessage id={id + "-msg"} error={error} hint={hint} />
+      <FieldMessage id={id + "-msg"} error={shown} hint={hint} />
     </div>
   );
 }

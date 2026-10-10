@@ -3,6 +3,7 @@
 // The keys match the listing_category enum in the database.
 
 import type { DisputeReason } from "./deal";
+import { digitsProblem } from "./validate";
 
 export type CategoryKey = "phone" | "laptop" | "electronics" | "fashion" | "shoes" | "hair" | "beauty" | "jewellery" | "home" | "vehicle" | "baby" | "sports" | "other";
 
@@ -108,6 +109,28 @@ export const reasonsFor = (k: string | null | undefined): DisputeReason[] => cat
 
 /** IMEI, serial or chassis number as stored: no spaces, upper case. */
 export const normaliseId = (v: string) => v.replace(/\s/g, "").toUpperCase();
+
+/** Why an IMEI, serial or chassis number is wrong for this category, or null. */
+export function idProblem(k: string | null | undefined, value: string): string | null {
+  const c = categoryOf(k);
+  if (!c.id) return null;
+  const v = normaliseId(value);
+  if (c.key === "phone") {
+    const p = digitsProblem(v, 15, "IMEI");
+    return p ? `${p} Dial *#06# to see it.` : null;
+  }
+  if (!v) return c.key === "vehicle" ? "Enter the chassis number (VIN) from the vehicle papers." : null;
+  if (c.key === "vehicle") {
+    if (/[^A-Z0-9]/.test(v)) return "Use letters and numbers only, as on the papers. Leave out dashes and dots.";
+    if (v.length < 6) return `That's ${v.length} characters. A chassis number has at least 6 (a modern VIN has 17).`;
+    if (v.length > 20) return `That's ${v.length} characters, more than a chassis number has. Check you've typed it once.`;
+    return null;
+  }
+  if (/[^A-Z0-9-]/.test(v)) return "Use letters, numbers and dashes only, as on the sticker.";
+  if (v.length < 5) return `That's only ${v.length} characters. Serial numbers have at least 5.`;
+  if (v.length > 30) return "That's longer than a serial number. Check you've typed it once.";
+  return null;
+}
 
 /** The three checks before the buyer sees their release code. */
 export function checksFor(k: string | null | undefined, seller: string, id: string | null): [string, string][] {

@@ -1,9 +1,9 @@
-import { Form, redirect, useNavigation } from "react-router";
+import { redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/setup-2fa";
 import { createAuth } from "../../../server/auth";
 import { mailFor } from "../../../server/context";
 import { requireStaff } from "../../../server/web";
-import { Button, CodeInput, ErrorText, Info, TextField, Wordmark } from "../../components/ui";
+import { Button, CheckedForm, CodeInput, ErrorText, Info, TextField, Wordmark } from "../../components/ui";
 
 export const meta = () => [{ title: "Set up two-factor · NosHen staff" }];
 
@@ -38,7 +38,7 @@ export default function Setup2fa({ loaderData, actionData }: Route.ComponentProp
   const secret = a?.uri ? new URL(a.uri).searchParams.get("secret") : null;
   return (
     <main className="auth-page">
-      <Form method="post" className="auth-card">
+      <CheckedForm method="post" className="auth-card">
         <Wordmark size="md" />
         <h1 className="heading">Turn on two-factor sign-in</h1>
         {a?.step === "verify" ? (
@@ -57,12 +57,12 @@ export default function Setup2fa({ loaderData, actionData }: Route.ComponentProp
           <>
             <p className="body muted">{loaderData.name}, staff accounts need a second step at sign-in. Enter your password to start.</p>
             <input type="hidden" name="step" value="password" />
-            <TextField label="Password" name="password" type="password" autoComplete="current-password" required autoFocus />
+            <TextField label="Password" name="password" type="password" autoComplete="current-password" required autoFocus missing="Enter your password to start." />
             <ErrorText>{a?.error}</ErrorText>
             <Button type="submit" variant="primary" size="lg" block disabled={busy}>Continue</Button>
           </>
         )}
-      </Form>
+      </CheckedForm>
     </main>
   );
 }

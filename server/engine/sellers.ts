@@ -3,7 +3,7 @@ import { encryptField, hmac } from "../crypto";
 import { namesMatch } from "./deals";
 import { type Deps, DealError, N, notify, settingsOf } from "./core";
 import type { Condition } from "../../shared/deal";
-import { categoryOf, isCategory, normaliseId, type CategoryKey } from "../../shared/categories";
+import { categoryOf, idProblem, isCategory, normaliseId, type CategoryKey } from "../../shared/categories";
 import { naira } from "../../shared/money";
 
 export async function setName(d: Deps, userId: string, fullName: string) {
@@ -90,7 +90,7 @@ export async function saveDraft(d: Deps, userId: string, listingId: string | nul
     const s = await settingsOf(d);
     if (!(price >= s.deal_min_kobo && price <= s.deal_max_kobo)) throw new DealError("price", `Price between ${naira(s.deal_min_kobo)} and ${naira(s.deal_max_kobo)}.`);
     const imei = cat.id ? normaliseId(input.imeiOrSerial ?? "") : "";
-    if (cat.id && (imei || cat.id.required) && !cat.id.pattern.test(imei)) throw new DealError("imei", cat.id.error);
+    if (cat.id && (imei || cat.id.required) && !cat.id.pattern.test(imei)) throw new DealError("imei", idProblem(cat.key, imei) ?? cat.id.error);
     await d.db.query(
       `update listings set category = $2, title = $3, description = $4, price_kobo = $5, condition = $6, area = $7, imei_or_serial = $8 where id = $1`,
       [listingId, input.category, input.title.trim().slice(0, 80), input.description?.trim().slice(0, 2000) || null, price, input.condition, input.area, imei || null]);

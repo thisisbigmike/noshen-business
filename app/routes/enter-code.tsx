@@ -1,9 +1,9 @@
-import { Form, data, redirect, useNavigation } from "react-router";
+import { data, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/enter-code";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "../../server/engine/queries";
 import { releaseByCode } from "../../server/engine/deals";
-import { BottomAction, Button, CodeInput, Info, MoneyStatus, TopBar } from "../components/ui";
+import { BottomAction, Button, CheckedForm, CodeInput, Info, MoneyStatus, TopBar } from "../components/ui";
 import { naira } from "../../shared/money";
 import { firstName } from "../../shared/deal";
 
@@ -36,7 +36,7 @@ export default function EnterCode({ loaderData: x, actionData }: Route.Component
   const busy = useNavigation().state !== "idle";
   const amount = naira(x.share);
   return (
-    <Form method="post">
+    <CheckedForm method="post">
       <TopBar title="Enter release code" back={`/d/${x.dealId}`} />
       <main className="page narrow no-tabs stack-4">
         <div className="row"><MoneyStatus state="held">{amount} held for you</MoneyStatus></div>
@@ -46,6 +46,6 @@ export default function EnterCode({ loaderData: x, actionData }: Route.Component
         <Info icon="info-circle">If {x.buyer} isn't happy with the item, they won't give you the code. Talk it through, or they can report a problem and a reviewer will decide.</Info>
         <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>Release {amount}</Button></BottomAction>
       </main>
-    </Form>
+    </CheckedForm>
   );
 }
