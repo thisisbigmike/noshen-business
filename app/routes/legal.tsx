@@ -1,6 +1,6 @@
 import { Link, data, useNavigate } from "react-router";
 import type { Route } from "./+types/legal";
-import { withApp } from "../../server/web";
+import { pagePath, withApp } from "../../server/web";
 import { settingsOf } from "../../server/engine/core";
 import { isLegalSlug, renderLegal } from "../../server/legal";
 import { LEGAL_NAV } from "../../shared/legal-pages";
@@ -9,7 +9,8 @@ import { Icon, Info, TopBar } from "../components/ui";
 export const handle = { tabs: false };
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const slug = new URL(request.url).pathname.replace(/^\//, "").replace(/\/$/, "");
+  // pagePath drops the ".data" React Router adds when a link loads the page in the background.
+  const slug = pagePath(request).split("?")[0].replace(/^\//, "").replace(/\/$/, "");
   if (!isLegalSlug(slug)) throw data("Not found", { status: 404 });
   return withApp(async (d) => ({ slug, ...renderLegal(slug, await settingsOf(d)) }));
 }

@@ -46,7 +46,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   let details = "Please try again. If it keeps happening, contact NosHen support.";
   if (isRouteErrorResponse(error)) {
     title = error.status === 404 ? "We can't find that page" : "Something went wrong";
-    details = error.status === 404 ? "The link may be old, or the listing may have been removed." : error.statusText || details;
+    details = error.status === 404 ? "The link may be old, or the page may have moved. Try Browse, or go back to the NosHen home page." : error.statusText || details;
   } else if (import.meta.env.DEV && error instanceof Error) {
     details = error.message;
   }
