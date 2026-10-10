@@ -3,7 +3,7 @@
 // Keys look like seed/<listing>/<shot>, matching scripts/seed.mjs. IMEIs and serials stay masked, as on the
 // listing page, where they are shown only after payment.
 
-type Kind = "phone" | "laptop" | "shoe" | "dress" | "car" | "sofa" | "console";
+type Kind = "phone" | "laptop" | "shoe" | "dress" | "car" | "sofa" | "console" | "wig" | "perfume";
 interface Device {
   kind: Kind;
   backdrop: [string, string];
@@ -26,6 +26,8 @@ const DEVICES: Record<number, Device> = {
   9: { kind: "car", backdrop: ["#e6edf2", "#d0dbe5"], finish: ["#4a6a9b", "#22385a"], screen: ["#9fb3cc", "#5b7398", "#22385a"], masked: "2T1B•••••••••3456" },
   10: { kind: "sofa", backdrop: ["#f1ece4", "#e1d6c6"], finish: ["#a3abb2", "#7f8890"], screen: ["#c9ced3", "#9aa3ab", "#5b646c"], masked: "" },
   11: { kind: "console", backdrop: ["#e9ecf5", "#d3d9ea"], finish: ["#fafaf8", "#e4e5e2"], screen: ["#2b5bd7", "#0a1f6b", "#05103a"], masked: "E7••••••21" },
+  12: { kind: "wig", backdrop: ["#f4e9ef", "#e6d2dd"], finish: ["#2a1d17", "#120c09"], screen: ["#e9c9b0", "#d9b394", "#b98d6c"], masked: "" },
+  13: { kind: "perfume", backdrop: ["#eef1f6", "#d7dde8"], finish: ["#3d5a80", "#1d2d44"], screen: ["#c9d6e8", "#9fb1c9", "#2b3a55"], masked: "" },
 };
 
 const SHOTS: Record<Kind, string[]> = {
@@ -36,6 +38,8 @@ const SHOTS: Record<Kind, string[]> = {
   car: ["Side", "Other side", "Dashboard", "Papers (name covered)", "Wheel and tyre"],
   sofa: ["Front", "Angle", "Fabric close-up", "Care label", "Size"],
   console: ["Front", "Back", "Switched on", "Serial number", "Pads and cables"],
+  wig: ["Front", "Side", "Close-up", "Lace and cap", "Length"],
+  perfume: ["Front", "Back", "Box", "Batch code", "Sealed cap"],
 };
 
 
@@ -361,11 +365,58 @@ function pads(d: Device) {
 <g fill="none" stroke="#2a2f35" stroke-width="7" stroke-linecap="round"><ellipse cx="630" cy="250" rx="60" ry="24"/><ellipse cx="630" cy="242" rx="52" ry="20"/><path d="M576 254 C540 290 520 300 500 336"/></g>`;
 }
 
+// A wig on a mannequin head: long bone-straight hair falling past the shoulders.
+function wig(d: Device) {
+  return `<ellipse cx="400" cy="524" rx="150" ry="14" fill="url(#floor)"/>
+<path d="M340 470 L460 470 L476 520 L324 520 Z" fill="#e8e4df"/>
+<path d="M372 380 C372 430 360 450 340 470 L460 470 C440 450 428 430 428 380 Z" fill="${d.screen[0]}"/>
+<path d="M300 210 C300 140 350 104 400 104 C450 104 500 140 500 210 L512 470 C470 490 440 470 432 430 L428 300 L372 300 L368 430 C360 470 330 490 288 470 Z" fill="url(#fin)"/>
+<ellipse cx="400" cy="250" rx="62" ry="82" fill="${d.screen[0]}"/>
+<path d="M338 236 C340 170 370 150 400 150 C430 150 460 170 462 236 C452 200 430 186 400 186 C370 186 348 200 338 236 Z" fill="url(#fin)"/>
+<path d="M330 170 C326 260 322 380 312 470 M470 170 C474 260 478 380 488 470 M350 150 C344 250 342 380 336 476 M450 150 C456 250 458 380 464 476" stroke="#fff" stroke-opacity="0.10" stroke-width="3" fill="none"/>
+<path d="M318 180 C312 280 306 380 298 460" stroke="#fff" stroke-opacity="0.22" stroke-width="6" fill="none" stroke-linecap="round"/>`;
+}
+
+function lace(d: Device) {
+  let mesh = "";
+  for (let x = 200; x <= 600; x += 14) mesh += `<path d="M${x} 150 L${x + 40} 450" stroke="#c9a88e" stroke-opacity="0.5" stroke-width="1"/>`;
+  for (let y = 150; y <= 450; y += 14) mesh += `<path d="M200 ${y} L600 ${y + 10}" stroke="#c9a88e" stroke-opacity="0.5" stroke-width="1"/>`;
+  return `<rect x="180" y="130" width="440" height="340" rx="30" fill="${d.screen[1]}"/>${mesh}
+<path d="M180 330 C300 300 500 360 620 320 L620 470 L180 470 Z" fill="url(#fin)"/>
+<rect x="250" y="420" width="300" height="34" rx="17" fill="#fff" fill-opacity="0.85"/><text x="400" y="443" text-anchor="middle" ${FONT} font-size="15" font-weight="600" fill="#17201d">13 × 4 HD lace · medium cap</text>`;
+}
+
+function hairLength(d: Device) {
+  let ticks = "";
+  for (let i = 0; i <= 22; i += 2) ticks += `<path d="M560 ${110 + i * 17} h${i % 4 === 0 ? 18 : 10}" stroke="#17201d" stroke-width="2"/>${i % 4 === 0 ? `<text x="586" y="${115 + i * 17}" ${FONT} font-size="13" fill="#17201d">${i}"</text>` : ""}`;
+  return `<path d="M380 100 C330 100 300 130 300 170 C296 300 290 400 280 480 C320 492 360 490 380 470 Z M420 100 C470 100 500 130 500 170 C504 300 510 400 520 480 C480 492 440 490 420 470 Z" fill="url(#fin)"/>
+<rect x="548" y="100" width="6" height="384" rx="3" fill="#17201d" fill-opacity="0.7"/>${ticks}`;
+}
+
+function perfume(d: Device, back = false) {
+  return `<ellipse cx="400" cy="486" rx="130" ry="14" fill="url(#floor)"/>
+<rect x="370" y="140" width="60" height="50" rx="8" fill="#1d2126"/><rect x="380" y="186" width="40" height="22" fill="#8a9096"/>
+<rect x="300" y="200" width="200" height="280" rx="26" fill="url(#fin)" fill-opacity="0.92"/>
+<rect x="312" y="214" width="176" height="252" rx="18" fill="#fff" fill-opacity="0.08"/>
+<path d="M318 220 L350 220 L330 460 L318 460 Z" fill="#fff" fill-opacity="0.22"/>
+${back ? `<rect x="340" y="380" width="120" height="50" rx="6" fill="#fff" fill-opacity="0.85"/><path d="M352 394 h96 M352 406 h70 M352 418 h84" stroke="#17201d" stroke-opacity="0.5" stroke-width="3"/>`
+  : `<rect x="340" y="300" width="120" height="60" rx="4" fill="#fff" fill-opacity="0.9"/><text x="400" y="336" text-anchor="middle" ${FONT} font-size="15" font-weight="700" letter-spacing="3" fill="#1d2d44">EAU DE</text><text x="400" y="352" text-anchor="middle" ${FONT} font-size="10" letter-spacing="2" fill="#1d2d44">PARFUM 100 ML</text>`}`;
+}
+
+function perfumeBox(d: Device) {
+  return `<ellipse cx="400" cy="480" rx="170" ry="16" fill="url(#floor)"/>
+<path d="M290 170 L400 140 L510 170 L400 200 Z" fill="${d.screen[0]}"/>
+<path d="M290 170 L400 200 L400 470 L290 440 Z" fill="${d.screen[1]}"/>
+<path d="M400 200 L510 170 L510 440 L400 470 Z" fill="${d.screen[2]}"/>
+<text x="455" y="330" text-anchor="middle" ${FONT} font-size="16" font-weight="700" letter-spacing="3" fill="#fff" transform="rotate(-15 455 330)">PARFUM</text>
+<path d="M290 170 L400 200 L510 170" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="2"/>`;
+}
+
 export function seedArt(key: string): string {
   const [, listing, shot] = key.split("/");
   const n = Number(listing) || 1;
   const i = Number(shot) || 1;
-  const d = DEVICES[((n - 1) % 11) + 1];
+  const d = DEVICES[((n - 1) % 13) + 1];
   const label = SHOTS[d.kind][(i - 1) % 5];
   let body: string;
   switch (d.kind) {
@@ -375,6 +426,8 @@ export function seedArt(key: string): string {
     case "dress": body = i === 1 ? dress() : i === 2 ? dress(true) : i === 3 ? fabric() : i === 4 ? tagCard("Size", "12", ["UK 12 · EU 40", "100% cotton wax print", "Hand wash"]) : dress(false, false); break;
     case "car": body = i === 1 ? car(d) : i === 2 ? mirror(car(d)) : i === 3 ? dashboard() : i === 4 ? papers(d) : zoom(car(d), 584, 396, 2.6); break;
     case "sofa": body = i === 1 ? sofa(d) : i === 2 ? `<g transform="translate(400 330) skewY(-5) scale(0.86 1) translate(-400 -330)">${sofa(d)}</g>` : i === 3 ? weave(d) : i === 4 ? tagCard("Care label", "Dry clean", ["Polyester fabric", "Hardwood frame", "Keep out of direct sun"]) : sofaSize(d); break;
+    case "wig": body = i === 1 ? wig(d) : i === 2 ? `<g transform="translate(400 300) scale(0.9 1) translate(-400 -300)">${mirror(wig(d))}</g>` : i === 3 ? zoom(wig(d), 312, 390, 2.6) : i === 4 ? lace(d) : hairLength(d); break;
+    case "perfume": body = i === 1 ? perfume(d) : i === 2 ? perfume(d, true) : i === 3 ? perfumeBox(d) : i === 4 ? tagCard("Batch code", "4D21A", ["Printed under the box", "Matches the bottle"]) : zoom(perfume(d), 400, 170, 2.2); break;
     default: body = i === 1 ? consoleFront(d) : i === 2 ? consoleBack(d) : i === 3 ? consoleOn(d) : i === 4 ? serialLabel(d) : pads(d);
   }
   return frame(d, n, i, label, body);

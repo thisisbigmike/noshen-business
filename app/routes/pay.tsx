@@ -57,6 +57,7 @@ export default function Pay({ loaderData: x }: Route.ComponentProps) {
     <div>
       <TopBar title="Pay into NosHen" back={`/d/${deal.id}`} />
       <main className="page narrow no-tabs stack-4">
+        <h1 className="heading desktop-only">Pay into NosHen</h1>
         <nav className="desktop-only caption muted"><Link to="/deals">Deals</Link> / {x.title} / Pay</nav>
         <section className="card stack">
           <div className="row-between wrap"><MoneyStatus state="awaiting" /><span className="caption muted">Pay by {when(new Date(deal.payment_due_at))}</span></div>
@@ -64,7 +65,7 @@ export default function Pay({ loaderData: x }: Route.ComponentProps) {
           <p className="body muted">{x.title} · {x.seller} accepted</p>
           <p className="body">Transfer exactly {due} to the deal account below. We hold it until you have the item.</p>
         </section>
-        {copied ? <Info icon="clock"><strong>Waiting for your transfer.</strong> Bank transfers usually show within a few minutes. We'll text you when it arrives.</Info> : null}
+        {copied ? <Info icon="clock"><strong>Waiting for your transfer.</strong> Bank transfers usually show within a few minutes. We'll email you when it arrives.</Info> : null}
         <section className="card">
           <Kv k="Bank" v={x.partnerBank} />
           <div className="kv" style={{ alignItems: "center" }}><span className="stack"><span className="muted">Deal account number</span><span className="heading tabular">{grouped}</span></span><CopyButton text={acct} onCopied={() => setCopied(true)} /></div>

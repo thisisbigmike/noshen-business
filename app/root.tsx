@@ -13,11 +13,12 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-NG">
+    <html lang="en-NG" data-theme="light">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#0f6e56" />
+        <meta name="color-scheme" content="light" />
         <Meta />
         <Links />
       </head>
@@ -45,6 +46,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
   return (
     <main className="page narrow" style={{ paddingTop: 48 }}>
+      <title>{`${title} · NosHen`}</title>
       <h1 className="heading">{title}</h1>
       <p className="body muted">{details}</p>
       <p><a href="/">Go to NosHen</a></p>

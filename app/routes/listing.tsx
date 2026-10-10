@@ -69,7 +69,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
         <div className="two-col">
           <div className="stack-4">
             <div className="carousel bleed">
-              <div className="track" onScroll={(e) => setPhoto(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
+              <div className="track" tabIndex={0} role="region" aria-label={`Photos, ${photos.length || 0} in all. Use the arrow keys to move between them.`} onScroll={(e) => setPhoto(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
                 {photos.length ? photos.map((k, i) => <img key={k} src={photoUrl(k)} alt={`Photo ${i + 1} of ${photos.length}`} />) : <div className="nh-listing-photo" style={{ width: "100%" }}><Icon name="camera" size={32} label="No photo yet" /></div>}
               </div>
               {photos.length ? <span className="count caption">{photo + 1} / {photos.length}</span> : null}
@@ -111,12 +111,12 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
           </aside>
         </div>
       </main>
-      <div className="mobile-only">
+      <aside className="mobile-only" aria-label="Buy this item">
         <BottomAction staticOnDesktop={false}>
           <p className="caption muted" style={{ textAlign: "center" }}>You pay nothing until {sellerName} accepts.</p>
           {buy}
         </BottomAction>
-      </div>
+      </aside>
     </div>
   );
 }

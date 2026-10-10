@@ -5,7 +5,7 @@ import { requireUser, withApp, messageOf } from "../../server/web";
 import { saveDraft, publish } from "../../server/engine/sellers";
 import { DealError } from "../../server/engine/core";
 import { one } from "../../server/db";
-import { BottomAction, Button, ErrorText, Icon, Info, TextArea, TextField, TopBar } from "../components/ui";
+import { BottomAction, Button, ErrorText, Icon, Info, Select, TextArea, TextField, TopBar } from "../components/ui";
 import { AREAS, CONDITIONS, type Condition } from "../../shared/deal";
 import { CATEGORIES, categoryOf, isCategory, type CategoryKey } from "../../shared/categories";
 import { feeFor, naira } from "../../shared/money";
@@ -62,6 +62,7 @@ export default function SellDetails({ loaderData: { listing: l, min, max, fee },
     <Form method="post">
       <TopBar title={<span>Details <span className="caption muted">Step 2 of 3</span></span>} back="/sell" />
       <main className="page narrow stack-4">
+        <h1 className="heading desktop-only">Details <span className="caption muted">Step 2 of 3</span></h1>
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="label" style={{ marginBottom: 8 }}>What are you selling?</legend>
           <div className="cat-grid">
@@ -83,10 +84,7 @@ export default function SellDetails({ loaderData: { listing: l, min, max, fee },
         </fieldset>
         <TextField label="Price (₦)" name="price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d,]/g, ""))} placeholder="45,000" required
           hint={p >= min && p <= max ? `The buyer pays ${naira(p + feeFor(p, fee))} with NosHen's fee. You get ${naira(p)}.` : `From ${naira(min)} to ${naira(max)}.`} />
-        <div className="nh-field" style={{ maxWidth: "none" }}>
-          <label className="nh-field-label label" htmlFor="area">Area</label>
-          <select id="area" name="area" className="nh-input" defaultValue={l.area}>{AREAS.map((a) => <option key={a}>{a}</option>)}</select>
-        </div>
+        <Select name="area" label="Area" defaultValue={l.area} options={AREAS.map((a) => ({ value: a, label: `${a}, Lagos` }))} />
         {c?.id ? (
           <TextField key={c.key} label={c.id.label} name="imei" inputMode={c.id.numeric ? "numeric" : "text"} autoCapitalize="characters" defaultValue={l.category === c.key ? l.imei_or_serial ?? "" : ""}
             hint={c.id.hint} required={c.id.required} />

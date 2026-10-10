@@ -8,6 +8,7 @@ import { BottomAction, Button, ErrorText, Icon, Kv, TextArea, TopBar, Info } fro
 import { feeFor, naira } from "../../shared/money";
 import { firstName } from "../../shared/deal";
 import { photoUrl } from "../../shared/photos";
+import { categoryOf } from "../../shared/categories";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Buy request · NosHen" }];
@@ -44,6 +45,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
   const { listing: l, seller, fee } = loaderData;
+  const noun = categoryOf(l.category).noun;
   const busy = useNavigation().state !== "idle";
   const name = firstName(seller.name);
   const price = Number(l.price_kobo);
@@ -64,7 +66,7 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
           <label className="choice">
             <input type="radio" name="handover" value="meetup" defaultChecked />
             <span className="stack"><span className="title row"><Icon name="map-pin" size={18} />Meet-up</span>
-              <span className="caption muted">Meet {name} in a public place in {l.area}. Check the {l.category} before you give your code.</span></span>
+              <span className="caption muted">Meet {name} in a public place in {l.area}. Check the {noun} before you give your code.</span></span>
           </label>
           <label className="choice">
             <input type="radio" name="handover" value="delivery" />
@@ -81,7 +83,7 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
         </section>
 
         <TextArea label={`Note to ${name} (optional)`} name="note" placeholder="When and where works for you?" maxLength={500} />
-        <Info icon="shield-check">You pay nothing until {name} accepts. Then you pay NosHen, and we hold the money until you have the {l.category}.</Info>
+        <Info icon="shield-check">You pay nothing until {name} accepts. Then you pay NosHen, and we hold the money until you have the {noun}.</Info>
         <ErrorText>{actionData?.error}</ErrorText>
         {actionData?.needsId ? <Link to={`/account/verify?next=/l/${l.id}/buy`}>Verify your ID</Link> : null}
         <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? "Sending…" : "Send request"}</Button></BottomAction>

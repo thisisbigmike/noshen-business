@@ -1,5 +1,6 @@
 // The NosHen design system's components, as typed React. Classes and tokens match design-system/.
-import { useId, useState, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { ICONS, type IconName } from "./icons";
 import { naira } from "../../shared/money";
@@ -87,6 +88,9 @@ export function CodeInput({ name, label = "Release code", hint, error, length = 
   const id = useId();
   const [own, setOwn] = useState("");
   const value = (controlled ?? own).replace(/\D/g, "").slice(0, length);
+  const set = (v: string) => { setOwn(v); onChange?.(v); };
+  // After a wrong code, start fresh: clear the cells, and let the next digit typed into a full field begin again.
+  useEffect(() => { if (error) set(""); }, [error]); // eslint-disable-line react-hooks/exhaustive-deps
   const cells = [];
   for (let i = 0; i < length; i++) {
     cells.push(<span key={i} aria-hidden="true" className={cx("nh-code-cell", i < value.length && "nh-code-cell-filled", i === value.length && "nh-code-cell-active", i === length / 2 && "nh-code-cell-gap")}>{value.charAt(i)}</span>);
@@ -97,7 +101,8 @@ export function CodeInput({ name, label = "Release code", hint, error, length = 
       <div className="nh-code-box">
         <input id={id} name={name} className="nh-code-input" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*"
           maxLength={length} value={value} autoFocus={autoFocus} aria-invalid={error ? true : undefined}
-          onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, length); setOwn(v); onChange?.(v); }} />
+          onChange={(e) => set(e.target.value.replace(/\D/g, "").slice(0, length))}
+          onKeyDown={(e) => { if (error && value.length === length && /^\d$/.test(e.key)) { e.preventDefault(); set(e.key); } }} />
         <div className="nh-code-cells release-code">{cells}</div>
       </div>
       <FieldMessage id={id + "-msg"} error={error} hint={hint} />
@@ -189,6 +194,175 @@ export function TopBar({ title, back, right }: { title: ReactNode; back?: string
       {right}
     </header>
   );
+}
+
+export interface SelectOption { value: string; label: string; hint?: string }
+
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/**
+ * The app's own dropdown (a listbox): a panel under the field on wide screens, a bottom sheet on phones.
+ * Keyboard: arrows, Home/End, Enter or Space to choose, Escape to close, and type a letter to jump.
+ * It posts like a native field through a hidden input; `submitOnChange` sends its form when a choice is made.
+ */
+export function Select({ name, label, options, defaultValue, value: controlled, onChange, hideLabel, pill, submitOnChange, id }: {
+  name: string; label: string; options: SelectOption[]; defaultValue?: string; value?: string; onChange?: (v: string) => void;
+  hideLabel?: boolean; pill?: boolean; submitOnChange?: boolean; id?: string;
+}) {
+  const auto = useId();
+  const base = id ?? auto;
+  const [own, setOwn] = useState(defaultValue ?? options[0]?.value ?? "");
+  const value = controlled ?? own;
+  // Follow the page when it changes the starting value (for example, a link that drops ?sort=).
+  useEffect(() => { setOwn(defaultValue ?? options[0]?.value ?? ""); }, [defaultValue]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left?: number; right?: number; minWidth?: number }>({});
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const hidden = useRef<HTMLInputElement>(null);
+  const submit = useRef(false);
+  const typed = useRef({ text: "", at: 0 });
+  const selected = Math.max(0, options.findIndex((o) => o.value === value));
+  const current = options[selected];
+
+  const show = (at = selected) => { setActive(at); setOpen(true); };
+  const close = (refocus = true) => { setOpen(false); if (refocus) trigger.current?.focus(); };
+  const choose = (i: number) => {
+    const v = options[i]?.value;
+    if (v === undefined) return;
+    if (v !== value) { setOwn(v); onChange?.(v); if (submitOnChange) submit.current = true; }
+    close();
+  };
+
+  // Send the form after the hidden input holds the new value.
+  useEffect(() => { if (submit.current) { submit.current = false; hidden.current?.form?.requestSubmit(); } }, [value]);
+
+  // The panel lives at the end of <body> (so nothing on the page can cover or clip it) and is placed against the
+  // trigger: below and left-aligned unless that would run off the screen. On phones, CSS makes it a bottom sheet.
+  useIsoLayoutEffect(() => {
+    if (!open || !trigger.current || !list.current) return;
+    const place = () => {
+      const t = trigger.current!.getBoundingClientRect();
+      const panel = list.current!.parentElement!;
+      const h = panel.offsetHeight, w = Math.max(panel.offsetWidth, t.width);
+      const up = t.bottom + h + 12 > window.innerHeight && t.top > h + 12;
+      const right = t.left + w > window.innerWidth - 8;
+      setPos({
+        ...(up ? { bottom: window.innerHeight - t.top + 6 } : { top: t.bottom + 6 }),
+        ...(right ? { right: Math.max(8, window.innerWidth - t.right) } : { left: t.left }),
+        minWidth: t.width,
+      });
+    };
+    place();
+    list.current.focus({ preventScroll: true });
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+  }, [open]);
+
+  // Keep the highlighted option in view by scrolling the list only, never the page.
+  useEffect(() => {
+    const ul = list.current;
+    const li = ul?.querySelector<HTMLElement>(`[data-i="${active}"]`);
+    if (!open || !ul || !li) return;
+    if (li.offsetTop < ul.scrollTop) ul.scrollTop = li.offsetTop;
+    else if (li.offsetTop + li.offsetHeight > ul.scrollTop + ul.clientHeight) ul.scrollTop = li.offsetTop + li.offsetHeight - ul.clientHeight;
+  }, [open, active]);
+
+  // A tap or click anywhere else closes it.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => { const n = e.target as Node; if (!root.current?.contains(n) && !list.current?.parentElement?.contains(n)) close(false); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onTriggerKey = (e: ReactKeyboardEvent) => {
+    if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) { e.preventDefault(); show(e.key === "ArrowUp" ? Math.max(0, selected - 1) : selected); }
+  };
+  const onListKey = (e: ReactKeyboardEvent) => {
+    const last = options.length - 1;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(last, a + 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
+    else if (e.key === "Home") { e.preventDefault(); setActive(0); }
+    else if (e.key === "End") { e.preventDefault(); setActive(last); }
+    else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choose(active); }
+    else if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "Tab") { close(); } // back to the trigger, so Tab carries on from there
+    else if (e.key.length === 1 && /\S/.test(e.key)) {
+      const now = Date.now();
+      typed.current = { text: (now - typed.current.at < 700 ? typed.current.text : "") + e.key.toLowerCase(), at: now };
+      const hit = options.findIndex((o) => o.label.toLowerCase().startsWith(typed.current.text));
+      if (hit >= 0) setActive(hit);
+    }
+  };
+
+  return (
+    <div className={cx("nh-field nh-select", pill && "nh-select-pill")} style={{ maxWidth: "none" }} ref={root}>
+      <span className={cx("nh-field-label label", hideLabel && "sr-only")} id={base + "-label"}>{label}</span>
+      <input type="hidden" name={name} value={value} ref={hidden} />
+      <button type="button" ref={trigger} id={base + "-button"} className="nh-select-trigger" aria-haspopup="listbox" aria-expanded={open}
+        aria-controls={open ? base + "-list" : undefined} aria-labelledby={`${base}-label ${base}-button`} onClick={() => (open ? close() : show())} onKeyDown={onTriggerKey}>
+        <span className="nh-select-value">{current?.label ?? "Choose"}</span>
+        <Icon name="chevron-down" size={18} className="nh-select-chev" />
+      </button>
+      {open ? createPortal(
+        <>
+          <div className="nh-select-backdrop" aria-hidden="true" onPointerDown={() => close(false)} />
+          <div className={cx("nh-select-pop", pos.bottom !== undefined && "up", pos.right !== undefined && "right")} style={pos}>
+            <p className="nh-select-head label" aria-hidden="true">{label}</p>
+            <ul role="listbox" ref={list} id={base + "-list"} tabIndex={-1} aria-labelledby={base + "-label"}
+              aria-activedescendant={`${base}-opt-${active}`} onKeyDown={onListKey}>
+              {options.map((o, i) => (
+                <li key={o.value} id={`${base}-opt-${i}`} data-i={i} role="option" aria-selected={i === selected}
+                  className="nh-option" data-active={i === active} onPointerMove={() => setActive(i)} onClick={() => choose(i)}>
+                  <span className="stack" style={{ gap: 0, minWidth: 0 }}>
+                    <span>{o.label}</span>
+                    {o.hint ? <span className="caption muted">{o.hint}</span> : null}
+                  </span>
+                  {i === selected ? <Icon name="check" size={18} className="nh-option-check" /> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>,
+        document.body,
+      ) : null}
+    </div>
+  );
+}
+
+/** A photo field that looks like the rest of the app: a tappable area, then how many photos are chosen. */
+export function PhotoPicker({ name, label, hint, max = 8 }: { name: string; label: string; hint?: ReactNode; max?: number }) {
+  const id = useId();
+  const [files, setFiles] = useState<string[]>([]);
+  return (
+    <div className="nh-field" style={{ maxWidth: "none" }}>
+      <span className="nh-field-label label" id={id + "-label"}>{label}</span>
+      <label className={cx("photo-picker", files.length > 0 && "has-files")} htmlFor={id}>
+        <span className="photo-picker-icon"><Icon name={files.length ? "check" : "camera"} size={22} /></span>
+        <span className="stack" style={{ gap: 0, minWidth: 0 }}>
+          <span className="body ink">{files.length ? `${files.length} photo${files.length > 1 ? "s" : ""} chosen` : "Add photos"}</span>
+          <span className="caption muted photo-picker-names">{files.length ? files.join(", ") : `Up to ${max}. Tap to choose or take them.`}</span>
+        </span>
+        <input id={id} name={name} type="file" accept="image/*" multiple className="sr-only" aria-labelledby={id + "-label"}
+          onChange={(e) => setFiles([...(e.currentTarget.files ?? [])].slice(0, max).map((f) => f.name))} />
+      </label>
+      {hint ? <p className="nh-field-msg caption">{hint}</p> : null}
+    </div>
+  );
+}
+
+/** Closes a dialog or sheet when Escape is pressed, unless it's busy. */
+export function useEscape(open: boolean, close: () => void, busy = false) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !busy) close(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, busy]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export function BottomAction({ children, staticOnDesktop = true }: { children: ReactNode; staticOnDesktop?: boolean }) {

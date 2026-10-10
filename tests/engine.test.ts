@@ -41,12 +41,14 @@ describe("listings across the marketplace", () => {
   const draft = (seller: string, input: Partial<Parameters<typeof saveDraft>[4] & object>) =>
     saveDraft(w.d, seller, null, ["a", "b", "c"], { category: "other", title: "Something", priceNaira: 20_000, condition: "good", area: "Yaba", ...input } as any);
 
-  it("publishes clothes and shoes without an ID number", async () => {
+  it("publishes clothes, shoes and hair without an ID number", async () => {
     const seller = await verifiedSeller(w, "Kunle Adeyemi");
     const dress = await draft(seller, { category: "fashion", title: "Ankara maxi dress, size 12", priceNaira: 18_000 });
     expect(await publish(w.d, seller, dress)).toBe("live");
     const shoes = await draft(seller, { category: "shoes", title: "Nike Air Force 1, size 43", priceNaira: 45_000 });
     expect(await publish(w.d, seller, shoes)).toBe("live");
+    const wig = await draft(seller, { category: "hair", title: "Bone straight wig, 22 inches", priceNaira: 185_000 });
+    expect(await publish(w.d, seller, wig)).toBe("live");
   });
 
   it("needs a chassis number for a car, and takes prices up to ₦20,000,000", async () => {

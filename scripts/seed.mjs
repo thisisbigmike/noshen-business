@@ -1,5 +1,5 @@
 // Development data: Tunde's iPhone 13 from the Claude Design screens and ten more Lagos listings across the
-// marketplace (phones, laptops, shoes, clothes, a car, a sofa, a console), two sellers who pass the ID and
+// marketplace (phones, laptops, shoes, clothes, hair, perfume, a car, a sofa, a console), two sellers who pass the ID and
 // bank checks, and a staff admin. Safe to run again: it only adds what is missing.
 import pg from "pg";
 import { webcrypto as crypto } from "node:crypto";
@@ -66,6 +66,8 @@ const LISTINGS = [
   [kunle, "vehicle", "Toyota Corolla 2014, automatic", 9800000, "good", "Ikeja", "2T1BURHE0EC123456", "Foreign used, cleared 2021. 84,000 km. AC works, new tyres. Papers complete.", 20],
   [tunde, "home", "3-seater fabric sofa, grey", 250000, "good", "Gbagada", null, "Two years old, no tears. Hardwood frame. You arrange pickup.", 30],
   [kunle, "electronics", "PlayStation 5 with two pads", 650000, "like_new", "Victoria Island", "E7K4QX2021", "Disc edition. Two pads, HDMI and power cables. No faults.", 9],
+  [tunde, "hair", "Bone straight wig, 22 inches", 185000, "like_new", "Lekki", null, "100% human hair, 13x4 HD lace, medium cap. Worn twice, washed and restyled.", 3],
+  [kunle, "beauty", "Eau de parfum, 100ml, sealed", 65000, "new", "Ikeja", null, "Sealed in the box. Batch code matches the bottle. Bought in Dubai last month.", 5],
 ];
 let n = 0;
 let added = 0;

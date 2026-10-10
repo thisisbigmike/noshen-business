@@ -1,7 +1,8 @@
 /* NosHen landing page. Colours, type and spacing come from tokens.css. Motion is decoration only:
    everything reads the same with prefers-reduced-motion, and scroll reveals need no JavaScript. */
 
-.landing { display: flex; flex-direction: column; overflow-x: clip; }
+.landing, .landing-main { display: flex; flex-direction: column; }
+.landing { overflow-x: clip; }
 .lp-inner { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 var(--space-4); }
 .landing-top { justify-content: space-between; z-index: 30; padding: 0 6px 0 16px; }
 .landing-top nav { gap: 14px; }
@@ -91,7 +92,7 @@
 .cat-tile-icon { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; margin-bottom: 6px; border-radius: 14px; background: var(--tint); color: var(--primary-ink); transition: background-color var(--dur-fast), color var(--dur-fast); }
 .cat-tile:hover .cat-tile-icon { background: var(--primary); color: var(--on-primary); }
 @media (min-width: 1024px) {
-  .cat-rail { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); margin: 0; padding: 4px 0 10px; overflow: visible; }
+  .cat-rail { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin: 0; padding: 4px 0 10px; overflow: visible; }
   .cat-tile { width: auto; }
 }
 
@@ -101,16 +102,16 @@
 .seg.seg-4 button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; }
 .seg.seg-4 button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lp-checks li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.lp-checks[role="tabpanel"] li { animation: lp-in 360ms var(--ease-out) both; }
-.lp-checks[role="tabpanel"] li:nth-child(2) { animation-delay: 50ms; }
-.lp-checks[role="tabpanel"] li:nth-child(3) { animation-delay: 100ms; }
+.check-tabs .lp-checks li { animation: lp-in 360ms var(--ease-out) both; }
+.check-tabs .lp-checks li:nth-child(2) { animation-delay: 50ms; }
+.check-tabs .lp-checks li:nth-child(3) { animation-delay: 100ms; }
 @media (max-width: 479px) { .seg.seg-4 button .nh-icon { display: none; } .seg.seg-4 button { font-size: 12px; padding: 0 4px; } }
-@media (prefers-reduced-motion: reduce) { .lp-checks[role="tabpanel"] li { animation: none; } .cat-tile { transition: none; } .cat-tile:hover { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .check-tabs .lp-checks li { animation: none; } .cat-tile { transition: none; } .cat-tile:hover { transform: none; } }
 
 /* ---------------------------------------------------------------- Problem bento */
 .bento { display: grid; grid-template-columns: 1fr; gap: 14px; }
 .bento-card { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 22px; border-radius: var(--radius-xl); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
-.bento-n { position: absolute; top: 10px; right: 18px; font-family: var(--font-display); font-weight: 600; font-size: 56px; line-height: 1; letter-spacing: -0.04em; color: color-mix(in srgb, var(--ink) 6%, transparent); }
+.bento-card[data-n]::after { content: attr(data-n); position: absolute; top: 10px; right: 18px; font-family: var(--font-display); font-weight: 600; font-size: 56px; line-height: 1; letter-spacing: -0.04em; color: color-mix(in srgb, var(--ink) 6%, transparent); }
 .bento-answer { background: radial-gradient(120% 120% at 100% 0%, var(--deep-2), var(--deep)); border-color: transparent; color: var(--on-deep); }
 .bento-answer .lp-icon { background: rgb(255 255 255 / 0.1); color: #7ce3c9; }
 .bento-answer .body { color: var(--on-deep-muted); }
@@ -169,12 +170,6 @@
 [data-theme="dark"] .share-preview { background: #1f3a2a; color: #e8efec; }
 [data-theme="dark"] .share-preview .caption { color: #a3b0ab; }
 [data-theme="dark"] .share-thumb { background: rgb(255 255 255 / 0.08); color: #7ce3c9; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .share-preview { background: #1f3a2a; color: #e8efec; }
-  :root:not([data-theme="light"]) .share-preview .caption { color: #a3b0ab; }
-  :root:not([data-theme="light"]) .share-thumb { background: rgb(255 255 255 / 0.08); color: #7ce3c9; }
-}
-
 /* ---------------------------------------------------------------- Disputes and fee calculator */
 .lp-steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 14px; }
 .lp-steps li { position: relative; padding-left: 44px; counter-increment: s; }

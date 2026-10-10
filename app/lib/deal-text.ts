@@ -29,7 +29,7 @@ export interface DealText {
 
 const d = (x: string | Date | null | undefined) => (x ? new Date(x) : null);
 
-export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buyer: string; seller: string }, paidKobo: number, extra: { decisionDue?: string | Date | null; evidenceDue?: string | Date | null; bankLast4?: string | null } = {}, now = new Date()): DealText {
+export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buyer: string; seller: string }, paidKobo: number, extra: { decisionDue?: string | Date | null; evidenceDue?: string | Date | null; bankLast4?: string | null; endedBy?: "buyer" | "seller" | "system" | null } = {}, now = new Date()): DealText {
   const buyer = firstName(names.buyer);
   const seller = firstName(names.seller);
   const due = Number(deal.amount_due_kobo);
@@ -50,7 +50,7 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
     case "held": {
       if (deal.review_hold) {
         return role === "buyer"
-          ? { chip, amountKobo: paidKobo, amountSuffix: "held", next: "We're checking your payment and will text you. Don't meet yet." }
+          ? { chip, amountKobo: paidKobo, amountSuffix: "held", next: "We're checking your payment and will email you. Don't meet yet." }
           : { chip, amountKobo: share, amountSuffix: "held", next: "NosHen is checking this payment. Don't hand over yet." };
       }
       if (deal.handover === "delivery" && deal.delivered_at) {
@@ -73,7 +73,7 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
     case "released":
       return role === "buyer"
         ? { chip: { state: "released", word: "Deal closed" }, amountKobo: share, amountSuffix: `released to ${seller}`, next: "The deal is closed. Your rating helps other buyers decide." }
-        : { chip, amountKobo: share, amountSuffix: "released", next: `Your payout${extra.bankLast4 ? ` to ••${extra.bankLast4}` : ""} is on its way. We'll text you when it lands.` };
+        : { chip, amountKobo: share, amountSuffix: "released", next: `Your payout${extra.bankLast4 ? ` to ••${extra.bankLast4}` : ""} is on its way. We'll email you when it lands.` };
     case "paid_out":
       return role === "buyer"
         ? { chip: { state: "released", word: "Deal closed" }, amountKobo: share, amountSuffix: `released to ${seller}`, next: "The deal is closed. Your rating helps other buyers decide." }
@@ -82,10 +82,22 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
       return role === "buyer"
         ? { chip, amountKobo: paidKobo || due, amountSuffix: "refunded", next: "Refunded to the account you paid from. Bank transfers usually arrive within minutes." }
         : { chip, amountKobo: share, next: "This deal was cancelled and the buyer was refunded." };
-    case "declined":
+    case "declined": {
+      // Who ended it: the buyer cancelling, the seller declining, or the clock running out.
+      const by = extra.endedBy;
+      if (by === "buyer") return role === "buyer"
+        ? { chip: { state: "awaiting", word: "Cancelled" }, amountKobo: due, next: "You cancelled this request. Nothing was paid." }
+        : { chip: { state: "awaiting", word: "Cancelled" }, amountKobo: share, next: `${buyer} cancelled the request. Nothing was paid.` };
+      if (by === "seller") return role === "buyer"
+        ? { chip, amountKobo: due, next: `${seller} declined. Nothing was paid.` }
+        : { chip, amountKobo: share, next: "You declined this request. Nothing was paid." };
+      if (by === "system") return role === "buyer"
+        ? { chip: { state: "awaiting", word: "Expired" }, amountKobo: due, next: "The request ran out of time. Nothing was paid." }
+        : { chip: { state: "awaiting", word: "Expired" }, amountKobo: share, next: "This request ran out of time. Nothing was paid." };
       return role === "buyer"
         ? { chip, amountKobo: due, next: `${seller} declined, or the time ran out. Nothing was paid.` }
         : { chip, amountKobo: share, next: "This request was declined or expired." };
+    }
   }
 }
 

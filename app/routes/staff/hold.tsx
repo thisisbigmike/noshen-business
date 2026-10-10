@@ -37,10 +37,10 @@ export default function Hold({ loaderData: v, actionData }: Route.ComponentProps
   const pay = v.payments[0];
   const buyer = firstName(v.buyer.name), seller = firstName(v.seller.name);
   const flagged = v.messages.filter((m: any) => m.sender_id === v.deal.buyer_id).slice(-1)[0];
-  if (!v.deal.review_hold) return <><nav className="caption muted"><Link to="/staff">Queues</Link> / Review holds</nav><Info icon="circle-check">This hold has been resolved.</Info></>;
+  if (!v.deal.review_hold) return <><nav className="caption muted" aria-label="Breadcrumb"><Link to="/staff">Queues</Link> / Review holds</nav><Info icon="circle-check">This hold has been resolved.</Info></>;
   return (
     <>
-      <nav className="caption muted"><Link to="/staff">Queues</Link> / Review holds</nav>
+      <nav className="caption muted" aria-label="Breadcrumb"><Link to="/staff">Queues</Link> / Review holds</nav>
       <header className="stack">
         <div className="row"><MoneyStatus state="held">Held · review hold</MoneyStatus></div>
         <p className="caption muted">Deal {v.deal.id.slice(0, 8).toUpperCase()} · {v.listing.title} · {buyer} buying from {seller}</p>

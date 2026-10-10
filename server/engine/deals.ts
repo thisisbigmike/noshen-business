@@ -213,7 +213,7 @@ async function onCollection(d: Deps, partnerEventId: string, event: Extract<Part
 
     const seller = firstName(await userName(tx.db, deal.seller_id));
     if (hold) {
-      await notify(d, tx, deal.buyer_id, deal.id, "payment_review", "Your payment arrived. We're checking it and will text you. Don't meet yet.");
+      await notify(d, tx, deal.buyer_id, deal.id, "payment_review", "Your payment arrived. We're checking it and will email you. Don't meet yet.");
       await notify(d, tx, deal.seller_id, deal.id, "payment_review", "A payment arrived, and NosHen is checking it. Don't hand over yet.");
     } else {
       await notify(d, tx, deal.buyer_id, deal.id, "payment_held", `${naira(event.data.amount_kobo)} is held safely. Your release code is in the app. Meet ${seller} by ${when(handoverDue, now)}.`);

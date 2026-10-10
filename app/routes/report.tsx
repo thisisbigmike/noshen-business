@@ -5,7 +5,7 @@ import { requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "../../server/engine/queries";
 import { reportProblem } from "../../server/engine/disputes";
 import { storePhoto } from "../../server/photos";
-import { BottomAction, Button, ErrorText, Info, MoneyStatus, TextArea, TopBar } from "../components/ui";
+import { BottomAction, Button, ErrorText, Info, MoneyStatus, TextArea, TopBar, useEscape, PhotoPicker } from "../components/ui";
 import { naira } from "../../shared/money";
 import { disputeReasonLabel, firstName, type DisputeReason } from "../../shared/deal";
 import { reasonsFor, reportExample } from "../../shared/categories";
@@ -21,7 +21,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     if (!v || v.deal.buyer_id !== user.id) throw data("Not found", { status: 404 });
     if (v.deal.state !== "held") throw redirect(`/d/${params.id}`);
     const paid = v.payments.reduce((s: number, p: any) => s + Number(p.amount_kobo), 0);
-    return { dealId: v.deal.id, paid, seller: firstName(v.seller.name), category: v.listing.category as string };
+    return { dealId: v.deal.id, paid, seller: firstName(v.seller.name), category: v.listing.category as string, handover: v.deal.handover as string };
   });
 }
 
@@ -47,38 +47,36 @@ export default function Report({ loaderData: x, actionData }: Route.ComponentPro
   const busy = useNavigation().state !== "idle";
   const [reason, setReason] = useState<string>("");
   const [confirm, setConfirm] = useState(false);
+  useEscape(confirm, () => setConfirm(false), busy);
   const label = reason ? disputeReasonLabel(reason) : undefined;
   const now = new Date();
   return (
     <Form method="post" encType="multipart/form-data">
       <TopBar title="Report a problem" back={`/d/${x.dealId}`} />
       <main className="page narrow no-tabs stack-4">
+        <h1 className="heading desktop-only">Report a problem</h1>
         <div className="row"><MoneyStatus state="held">{naira(x.paid)} held</MoneyStatus></div>
         <Info icon="lock">The money stays held while a reviewer looks at this. {x.seller} can't be paid until they decide.</Info>
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="label" style={{ marginBottom: 8 }}>What's wrong?</legend>
-          {reasonsFor(x.category).map((k) => (
+          {reasonsFor(x.category).filter((k) => k !== "not_delivered" || x.handover === "delivery").map((k) => (
             <label key={k} className="choice"><input type="radio" name="reason" value={k} checked={reason === k} onChange={() => setReason(k)} required /><span className="body">{disputeReasonLabel(k)}</span></label>
           ))}
         </fieldset>
         <TextArea label="What happened" name="description" maxLength={2000} placeholder={reportExample(x.category)} />
-        <div className="nh-field" style={{ maxWidth: "none" }}>
-          <label className="nh-field-label label" htmlFor="photos">Add photos</label>
-          <input id="photos" name="photos" type="file" accept="image/*" multiple className="nh-input" style={{ paddingTop: 10 }} />
-          <p className="caption muted">A photo of the problem helps the reviewer decide faster.</p>
-        </div>
+        <PhotoPicker name="photos" label="Photos (optional)" hint="A photo of the problem helps the reviewer decide faster." />
         <ErrorText>{actionData?.error}</ErrorText>
         <BottomAction><Button variant="danger" size="lg" block disabled={!reason} onClick={() => setConfirm(true)}>Report and freeze the money</Button></BottomAction>
       </main>
       {confirm ? (
         <div className="sheet-backdrop" onClick={() => setConfirm(false)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="freeze-title">
+          <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="freeze-title">
             <MoneyStatus state="dispute">Freeze {naira(x.paid)}</MoneyStatus>
             <h2 id="freeze-title" className="heading">Freeze the money?</h2>
             <p className="body">{x.seller} won't be paid while a reviewer looks at this. You both have until {when(addHours(now, 24), now)} to add photos or notes. A reviewer decides by {when(addHours(now, 72), now)}.</p>
             <p className="body"><span className="muted">Reason:</span> {label}</p>
             <Button type="submit" variant="danger" size="lg" block disabled={busy}>Report and freeze the money</Button>
-            <Button size="lg" block onClick={() => setConfirm(false)}>Go back</Button>
+            <Button size="lg" block autoFocus disabled={busy} onClick={() => setConfirm(false)}>Go back</Button>
           </div>
         </div>
       ) : null}

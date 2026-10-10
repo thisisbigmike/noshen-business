@@ -57,6 +57,37 @@
 .nh-code-error .nh-code-cell { border-color: var(--dispute); }
 @media (max-width: 380px) { .nh-code-cell { width: 40px; height: 52px; } }
 
+/* Select: the app's own dropdown. A panel on wide screens, a bottom sheet on phones. */
+.nh-select { position: relative; }
+.nh-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 48px; padding: 0 12px 0 14px; border: 1px solid var(--ink-muted); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); font-family: var(--font-sans); font-size: 16px; text-align: left; cursor: pointer; transition: border-color var(--dur-fast), box-shadow var(--dur) var(--ease-out); }
+.nh-select-trigger:hover { border-color: var(--ink); }
+.nh-select-trigger:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.nh-select-trigger[aria-expanded="true"] { border-color: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent); }
+.nh-select-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nh-select-chev { color: var(--ink-muted); transition: transform var(--dur) var(--ease-out); }
+.nh-select-trigger[aria-expanded="true"] .nh-select-chev { transform: rotate(180deg); color: var(--primary); }
+.nh-select-pill .nh-select-trigger { border-color: var(--border); border-radius: var(--radius-full); box-shadow: var(--shadow-sm); padding: 0 12px 0 16px; }
+.nh-select-pill .nh-select-trigger:hover { border-color: var(--primary); }
+.nh-select-pop { position: fixed; z-index: 60; width: max-content; max-width: min(340px, calc(100vw - 24px)); padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-lg); animation: nh-pop-in 160ms var(--ease-out); transform-origin: top left; }
+.nh-select-pop.up { transform-origin: bottom left; }
+.nh-select-pop.right { transform-origin: top right; }
+.nh-select-pop ul { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; outline: none; overscroll-behavior: contain; }
+.nh-select-head { display: none; margin: 0; }
+.nh-option { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 12px; border-radius: 10px; color: var(--ink); cursor: pointer; user-select: none; }
+.nh-option[data-active="true"] { background: var(--tint); }
+.nh-option[aria-selected="true"] { color: var(--primary-ink); font-weight: 600; }
+.nh-option-check { margin-left: auto; color: var(--primary); }
+.nh-select-backdrop { position: fixed; inset: 0; z-index: 59; background: transparent; }
+@keyframes nh-pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+@media (max-width: 639px) {
+  .nh-select-backdrop { background: rgb(4 20 16 / 0.35); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); animation: nh-fade 200ms var(--ease-out); }
+  .nh-select-pop, .nh-select-pop.up, .nh-select-pop.right { top: auto !important; left: 10px !important; right: 10px !important; bottom: calc(10px + env(safe-area-inset-bottom)) !important; min-width: 0 !important; width: auto; max-width: none; padding: 8px 8px 10px; border-radius: var(--radius-xl); animation: nh-sheet 300ms var(--ease-out); }
+  .nh-select-pop ul { max-height: 55vh; }
+  .nh-select-head { display: block; padding: 10px 12px 8px; color: var(--ink-muted); }
+  .nh-option { min-height: 52px; font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .nh-select-pop, .nh-select-backdrop { animation: none; } .nh-select-chev { transition: none; } }
+
 /* Money status chip */
 .nh-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: var(--radius-full); white-space: nowrap; }
 .nh-status-held { background: var(--held-soft); color: var(--held); }

@@ -4,7 +4,7 @@ import type { Route } from "./+types/deal";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "../../server/engine/queries";
 import { acceptDeal, cancelDeal, confirmReceived, declineDeal, markDelivered, rate, sendMessage } from "../../server/engine/deals";
-import { BottomAction, Button, ErrorText, Icon, Info, Kv, MoneyStatus, TextArea, Timeline, TopBar } from "../components/ui";
+import { BottomAction, Button, ErrorText, Icon, Info, Kv, MoneyStatus, TextArea, Timeline, TopBar, useEscape } from "../components/ui";
 import { dealSteps, dealText } from "../lib/deal-text";
 import { naira } from "../../shared/money";
 import { disputeReasonLabel, firstName, isOpen } from "../../shared/deal";
@@ -57,10 +57,17 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 export default function Deal({ loaderData: x, actionData }: Route.ComponentProps) {
   const { deal, role, names, listing } = x;
-  const busy = useNavigation().state !== "idle";
+  const nav = useNavigation();
+  const busy = nav.state !== "idle";
   const [cancelOpen, setCancelOpen] = useState(false);
+  const cancelling = busy && nav.formData?.get("intent") === "cancel";
+  // Close the confirm sheet once the cancel has gone through (the deal's state changes) or failed (the error shows on the page).
+  useEffect(() => { setCancelOpen(false); }, [deal.state]);
+  useEffect(() => { if (actionData?.intent === "cancel") setCancelOpen(false); }, [actionData]);
+  useEscape(cancelOpen, () => setCancelOpen(false), cancelling);
   const other = firstName(x.otherName);
-  const t = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4 });
+  const endedBy = [...x.events].reverse().find((e: any) => e.to_state === "declined")?.actor ?? null;
+  const t = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4, endedBy });
   const steps = dealSteps(deal, role, names, x.events, x.dispute);
 
   // Keep the page current while waiting on the other person or the bank.
@@ -79,6 +86,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
       <TopBar title={`Deal with ${other}`} back="/deals" />
       <main className="page no-tabs">
         <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/deals">Deals</Link> / {role === "buyer" ? "Buying" : "Selling"} / {listing.title}</nav>
+        <h1 className="heading desktop-only">Deal with {other}</h1>
         <div className="two-col">
           <div className="stack-4">
             <section className={`card stack money-card money-${t.chip.state}${t.chip.state === "held" ? " beam" : ""}`} aria-label="Where the money is">
@@ -123,18 +131,18 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
           </aside>
         </div>
       </main>
-      {actions.length ? <div className="mobile-only"><BottomAction staticOnDesktop={false}>{actions}</BottomAction></div> : null}
+      {actions.length ? <aside className="mobile-only" aria-label="What you can do now"><BottomAction staticOnDesktop={false}>{actions}</BottomAction></aside> : null}
 
       {cancelOpen ? (
-        <div className="sheet-backdrop" onClick={() => setCancelOpen(false)}>
-          <Form method="post" className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="cancel-title">
+        <div className="sheet-backdrop" onClick={() => !cancelling && setCancelOpen(false)}>
+          <Form method="post" className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="cancel-title">
             <input type="hidden" name="intent" value="cancel" />
-            <h2 id="cancel-title" className="heading">Cancel this deal?</h2>
+            <h2 id="cancel-title" className="heading">{deal.state === "requested" && role === "buyer" ? "Cancel this request?" : "Cancel this deal?"}</h2>
             <p className="body">{deal.state === "held"
               ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee included, to the account you paid from.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
               : "Nothing has been paid, so there's nothing to refund."}</p>
-            <Button type="submit" variant="danger" size="lg" block disabled={busy}>Cancel deal</Button>
-            <Button size="lg" block onClick={() => setCancelOpen(false)}>Keep the deal</Button>
+            <Button type="submit" variant="danger" size="lg" block disabled={busy}>{cancelling ? "Cancelling…" : deal.state === "requested" && role === "buyer" ? "Cancel request" : "Cancel deal"}</Button>
+            <Button size="lg" block autoFocus disabled={cancelling} onClick={() => setCancelOpen(false)}>{deal.state === "requested" && role === "buyer" ? "Keep the request" : "Keep the deal"}</Button>
           </Form>
         </div>
       ) : null}

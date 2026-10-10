@@ -4,7 +4,7 @@ import { requireUser, withApp, messageOf } from "../../server/web";
 import { addBankAccount, sellerReady, setName, verifiedName, verifyId } from "../../server/engine/sellers";
 import { one } from "../../server/db";
 import { isDev } from "../../server/context";
-import { BottomAction, Button, ErrorText, Info, TextField, TopBar } from "../components/ui";
+import { BottomAction, Button, ErrorText, Info, Select, TextField, TopBar } from "../components/ui";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Verify · NosHen" }];
@@ -73,10 +73,7 @@ export default function Verify({ loaderData: x, actionData }: Route.ComponentPro
         ) : null}
         {step === "bank" ? (
           <>
-            <div className="nh-field" style={{ maxWidth: "none" }}>
-              <label className="nh-field-label label" htmlFor="bank">Bank</label>
-              <select id="bank" name="bank" className="nh-input" defaultValue="058">{BANKS.map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select>
-            </div>
+            <Select name="bank" label="Bank" defaultValue="058" options={BANKS.map(([c, n]) => ({ value: c, label: n }))} />
             <TextField label="Account number" name="account" inputMode="numeric" maxLength={10} autoComplete="off" hint="10 digits" required error={err("bank")} />
             {x.dev ? <p className="dev caption">Development: the pretend bank says every account belongs to the name on your NosHen account.</p> : null}
           </>

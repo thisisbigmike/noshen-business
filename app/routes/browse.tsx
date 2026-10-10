@@ -2,7 +2,7 @@ import { Form, Link, useSearchParams } from "react-router";
 import type { Route } from "./+types/browse";
 import { withApp } from "../../server/web";
 import { browse, areasWithListings } from "../../server/engine/queries";
-import { Button, Icon, ListingCard, ProtectionBadge, Wordmark } from "../components/ui";
+import { Button, Icon, ListingCard, ProtectionBadge, Select, Wordmark } from "../components/ui";
 import { ago } from "../../shared/time";
 import { CATEGORIES, categoryOf, isCategory } from "../../shared/categories";
 import { photoUrl } from "../../shared/photos";
@@ -78,12 +78,11 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
                   {f.cat ? <input type="hidden" name="cat" value={f.cat} /> : null}
                   {f.area ? <input type="hidden" name="area" value={f.area} /> : null}
                   {f.q ? <input type="hidden" name="q" value={f.q} /> : null}
-                  <label className="sr-only" htmlFor="sort">Sort</label>
-                  <select id="sort" name="sort" className="nh-input sort-select" defaultValue={f.sort} onChange={(e) => e.currentTarget.form?.requestSubmit()}>
-                    <option value="">Newest first</option>
-                    <option value="price_asc">Price: low to high</option>
-                    <option value="price_desc">Price: high to low</option>
-                  </select>
+                  <Select name="sort" label="Sort" hideLabel pill submitOnChange defaultValue={f.sort} options={[
+                    { value: "", label: "Newest first" },
+                    { value: "price_asc", label: "Price: low to high" },
+                    { value: "price_desc", label: "Price: high to low" },
+                  ]} />
                 </Form>
               </div>
             </div>

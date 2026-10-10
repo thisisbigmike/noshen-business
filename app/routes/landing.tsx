@@ -54,7 +54,7 @@ const STEPS: [IconName, string, string][] = [
 
 const faq = (min: number, max: number): [string, string][] => [
   ["Is NosHen a bank?", "No. A licensed partner bank holds the money. NosHen runs the deal steps and tells the bank where the money goes, and keeps a record of every naira."],
-  ["What can I buy and sell?", `Almost anything you can hand over in Lagos: phones, laptops, electronics, clothes, shoes, cars, furniture and more, from ${naira(min)} to ${naira(max)}. Not allowed: anything illegal, stolen or fake, weapons, drugs, or live animals.`],
+  ["What can I buy and sell?", `Almost anything you can hand over in Lagos: phones, laptops, electronics, clothes, shoes, hair and wigs, beauty products, watches and jewellery, baby things, sports gear, furniture, cars and more, from ${naira(min)} to ${naira(max)}. Not allowed: anything illegal, stolen or fake, weapons, drugs, or live animals.`],
   ["What if the seller never shows up?", "If the hand-over hasn't happened within 72 hours of your payment, cancel the deal and get everything back, fee included."],
   ["What if it's fake, faulty or not as described?", "Don't give your code. Report a problem in the app and the money stays frozen. You both add photos or notes, and a NosHen reviewer decides within 72 hours and tells you both why."],
   ["Can I pay the seller directly to save the fee?", "You can, but that money isn't protected. If something goes wrong, NosHen can't get it back for you."],
@@ -72,6 +72,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
         </nav>
       </header>
 
+      <main id="main" className="landing-main">
       <Hero live={x.live} />
       <LiveStrip items={x.recent} />
       <CategoryRail counts={x.counts} />
@@ -85,8 +86,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
           </div>
           <div className="bento">
             {PROBLEMS.map(([icon, title, body], i) => (
-              <div key={title} className="bento-card reveal">
-                <span className="bento-n" aria-hidden="true">0{i + 1}</span>
+              <div key={title} className="bento-card reveal" data-n={`0${i + 1}`}>
                 <span className="lp-icon warn"><Icon name={icon} /></span>
                 <p className="title">{title}</p>
                 <p className="body muted">{body}</p>
@@ -206,6 +206,8 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
         </div>
       </section>
 
+      </main>
+
       <footer className="landing-footer">
         <div className="lp-inner footer-grid">
           <div className="stack"><Wordmark size="sm" /><p className="caption muted">Your money is held until you have the item. Lagos, Nigeria.</p></div>
@@ -234,7 +236,7 @@ function Hero({ live }: { live: number }) {
         <div className="hero-copy">
           <p className="live-pill"><span className="live-dot" aria-hidden="true" />{live ? `${live} items for sale in Lagos now` : "Buy and sell anything in Lagos"}</p>
           <h1 id="hero-title" className="hero-title">Your money is <span className="mark">held<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 14 C 50 4, 120 4, 197 10" /></svg></span> until you have the item.</h1>
-          <p className="hero-sub">The safe way to buy and sell anything in Lagos, from phones and shoes to sofas and cars. You pay NosHen, a licensed partner bank holds the money, and the seller is paid only when you've checked the item.</p>
+          <p className="hero-sub">The safe way to buy and sell anything in Lagos, from phones, hair and shoes to sofas and cars. You pay NosHen, a licensed partner bank holds the money, and the seller is paid only when you've checked the item.</p>
           <div className="hero-ctas">
             <Button variant="primary" size="lg" pill icon="search" to="/browse">See what's for sale</Button>
             <Button size="lg" pill icon="plus" to="/sell">Sell with protection</Button>
@@ -445,11 +447,13 @@ function CheckTabs() {
           <button key={k} type="button" role="tab" id={`ct-${k}`} aria-selected={tab === k} aria-controls="ct-panel" onClick={() => setTab(k)}><Icon name={icon} size={16} /><span>{label}</span></button>
         ))}
       </div>
-      <ul className="lp-checks" id="ct-panel" role="tabpanel" aria-labelledby={`ct-${tab}`} key={tab}>
-        {items.map(([label, hint]) => (
-          <li key={label}><span><Icon name="check" size={16} /></span><div><p className="body ink">{label}.</p><p className="caption muted">{hint}</p></div></li>
-        ))}
-      </ul>
+      <div id="ct-panel" role="tabpanel" aria-labelledby={`ct-${tab}`}>
+        <ul className="lp-checks" key={tab}>
+          {items.map(([label, hint]) => (
+            <li key={label}><span><Icon name="check" size={16} /></span><div><p className="body ink">{label}.</p><p className="caption muted">{hint}</p></div></li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

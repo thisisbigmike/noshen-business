@@ -4,6 +4,9 @@
 
 begin;
 
+-- Money already held by real deals, so the ledger check also works on a database that isn't empty.
+create temp table baseline as select ledger_held_kobo as held from held_funds_check;
+
 create function pg_temp.expect_error(stmt text, label text) returns void language plpgsql as $$
 begin
   begin
@@ -102,7 +105,7 @@ insert into ledger_entries (txn_id, account, deal_id, debit_kobo, credit_kobo) v
 update deals set state = 'held', handover_due_at = now() + interval '72 hours' where id = '00000000-0000-0000-0000-0000000000d1';
 set constraints ledger_entries_balanced immediate;
 set constraints ledger_entries_balanced deferred;
-select pg_temp.expect((select ledger_held_kobo = open_deals_kobo and ledger_held_kobo = 45675000 from held_funds_check),
+select pg_temp.expect((select ledger_held_kobo = open_deals_kobo and ledger_held_kobo = (select held from baseline) + 45675000 from held_funds_check),
                       'held funds in the ledger equal money paid into open deals');
 
 -- An unbalanced posting is refused when it is checked.

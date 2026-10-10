@@ -33,7 +33,7 @@ export default function Queues({ loaderData: q }: Route.ComponentProps) {
         <h2 className="title">Disputes</h2>
         {q.disputes.length === 0 ? <p className="caption muted">Nothing waiting in this queue.</p> : (
           <table className="table">
-            <thead><tr><th>Time left</th><th>Case</th><th>Amount</th><th>Money</th><th /></tr></thead>
+            <thead><tr><th>Time left</th><th>Case</th><th>Amount</th><th>Money</th><th><span className="sr-only">Open</span></th></tr></thead>
             <tbody>{q.disputes.map((x: any) => (
               <tr key={x.id}>
                 <td><p className="label">{left(x.decision_due_at)}</p><p className="caption muted">Decide by {when(new Date(x.decision_due_at))}</p></td>
@@ -50,7 +50,7 @@ export default function Queues({ loaderData: q }: Route.ComponentProps) {
         <h2 className="title">Review holds</h2>
         {q.holds.length === 0 ? <p className="caption muted">Nothing waiting in this queue.</p> : (
           <table className="table">
-            <thead><tr><th>Held since</th><th>Case</th><th>Amount</th><th /></tr></thead>
+            <thead><tr><th>Held since</th><th>Case</th><th>Amount</th><th><span className="sr-only">Open</span></th></tr></thead>
             <tbody>{q.holds.map((x: any) => (
               <tr key={x.id}>
                 <td>{when(new Date(x.state_changed_at))}</td>

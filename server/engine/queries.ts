@@ -49,6 +49,7 @@ export interface DealListItem {
   price_kobo: string; amount_due_kobo: string; seller_share_kobo: string; handover: "meetup" | "delivery";
   request_expires_at: Date; payment_due_at: Date | null; handover_due_at: Date | null; release_due_at: Date | null;
   delivered_at: Date | null; review_hold: boolean; created_at: Date; updated_at: Date; decision_due_at: Date | null;
+  ended_by?: "buyer" | "seller" | "system" | null;
 }
 
 export async function dealsFor(db: Db, userId: string): Promise<DealListItem[]> {
@@ -57,7 +58,8 @@ export async function dealsFor(db: Db, userId: string): Promise<DealListItem[]> 
        coalesce(case when d.buyer_id = $1 then s.full_name else b.full_name end, 'Someone') as other,
        d.price_kobo, d.amount_due_kobo, d.seller_share_kobo, d.handover, d.request_expires_at, d.payment_due_at,
        d.handover_due_at, d.release_due_at, d.delivered_at, d.review_hold, d.created_at, d.updated_at,
-       (select decision_due_at from disputes x where x.deal_id = d.id) as decision_due_at
+       (select decision_due_at from disputes x where x.deal_id = d.id) as decision_due_at,
+       (select e.actor from deal_events e where e.deal_id = d.id and e.to_state = 'declined' order by e.id desc limit 1) as ended_by
      from deals d join listings l on l.id = d.listing_id join users b on b.id = d.buyer_id join users s on s.id = d.seller_id
      where d.buyer_id = $1 or d.seller_id = $1
      order by d.updated_at desc`, [userId]);

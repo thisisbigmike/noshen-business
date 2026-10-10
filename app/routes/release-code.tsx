@@ -35,6 +35,7 @@ export default function ReleaseCodePage({ loaderData: x }: Route.ComponentProps)
     <div>
       <TopBar title="Release code" back={`/d/${x.dealId}`} />
       <main className="page narrow no-tabs stack-4">
+        <h1 className="heading desktop-only">Release code</h1>
         <div className="row"><MoneyStatus state="held">{naira(x.paid)} held</MoneyStatus></div>
         <section className="card">
           <p className="label" style={{ marginBottom: 4 }}>Check the {noun} first</p>
