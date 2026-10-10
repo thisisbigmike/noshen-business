@@ -34,7 +34,7 @@ export function Wordmark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
 
 type BtnProps = {
   variant?: "primary" | "secondary" | "danger";
-  size?: "md" | "lg";
+  size?: "sm" | "md" | "lg";
   block?: boolean;
   pill?: boolean;
   icon?: IconName;

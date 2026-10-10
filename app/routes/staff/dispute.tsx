@@ -48,7 +48,7 @@ export default function Dispute({ loaderData: v, actionData }: Route.ComponentPr
   const outcome = choice === "refund_buyer" ? `Refund ${buyer} ${naira(paid)}` : `Release ${naira(v.deal.seller_share_kobo)} to ${seller}`;
   return (
     <>
-      <nav className="caption muted" aria-label="Breadcrumb"><Link to="/staff">Queues</Link> / Disputes</nav>
+      <nav className="caption muted" aria-label="Breadcrumb"><Link to="/staff">Dashboard</Link> / Disputes</nav>
       <header className="stack">
         <p className="caption muted">Deal {v.deal.id.slice(0, 8).toUpperCase()} · {v.deal.handover === "meetup" ? "Meet-up" : "Delivery"} · {v.listing.area}</p>
         <h1 className="heading">{v.listing.title}: {buyer} vs {seller}</h1>

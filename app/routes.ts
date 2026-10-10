@@ -31,6 +31,8 @@ export default [
     route("staff", "routes/staff/queues.tsx"),
     route("staff/disputes/:id", "routes/staff/dispute.tsx"),
     route("staff/holds/:id", "routes/staff/hold.tsx"),
+    route("staff/listings", "routes/staff/listings.tsx"),
+    route("staff/users", "routes/staff/users.tsx"),
     route("staff/money", "routes/staff/money.tsx"),
     route("staff/audit", "routes/staff/audit.tsx"),
   ]),

@@ -171,3 +171,65 @@ export async function holdReview(db: Db, dealId: string) {
   const buyerPhone = await one(db, "select phone, created_at from users where id = $1", [v.deal.buyer_id]);
   return { ...v, buyerKycName: kyc?.verified_name ?? null, buyerCompleted: Number(buyerDeals?.n ?? 0), buyerSince: buyerPhone?.created_at };
 }
+
+/** The staff dashboard's headline numbers, the last 14 days of deals (Lagos days), and live listings by category. */
+export async function adminOverview(db: Db) {
+  const k = await one<Record<string, string>>(db,
+    `select (select ledger_held_kobo from held_funds_check) as held_kobo,
+            (select count(*) from deals where state in ('requested', 'accepted', 'held', 'disputed')) as open_deals,
+            (select count(*) from deals where state in ('released', 'paid_out') and state_changed_at > now() - interval '7 days') as completed_7d,
+            (select coalesce(sum(price_kobo), 0) from deals where state in ('released', 'paid_out') and state_changed_at > now() - interval '7 days') as sold_kobo_7d,
+            (select coalesce(sum(e.credit_kobo - e.debit_kobo), 0) from ledger_entries e where e.account = 'fee_revenue' and e.at > now() - interval '7 days') as fees_7d,
+            (select count(*) from users) as users_total,
+            (select count(*) from users where created_at > now() - interval '7 days') as users_7d,
+            (select count(*) from listings where status = 'live') as live_listings,
+            (select count(*) from listings where published_at > now() - interval '7 days') as listings_7d`);
+  const days = await many<{ day: string; started: string; completed: string }>(db,
+    `select to_char(d at time zone 'Africa/Lagos', 'YYYY-MM-DD') as day,
+            (select count(*) from deals x where x.created_at >= d and x.created_at < d + interval '1 day') as started,
+            (select count(*) from deals x where x.state in ('released', 'paid_out') and x.state_changed_at >= d and x.state_changed_at < d + interval '1 day') as completed
+     from generate_series(date_trunc('day', now(), 'Africa/Lagos') - interval '13 days', date_trunc('day', now(), 'Africa/Lagos'), interval '1 day') d`);
+  const byCategory = await many<{ category: string; n: string }>(db,
+    "select category, count(*) as n from listings where status = 'live' group by category order by count(*) desc");
+  const n = (v: string | undefined) => Number(v ?? 0);
+  return {
+    heldKobo: n(k?.held_kobo), openDeals: n(k?.open_deals), completed7d: n(k?.completed_7d), soldKobo7d: n(k?.sold_kobo_7d),
+    fees7d: n(k?.fees_7d), usersTotal: n(k?.users_total), users7d: n(k?.users_7d), liveListings: n(k?.live_listings), listings7d: n(k?.listings_7d),
+    days: days.map((d) => ({ day: d.day, started: n(d.started), completed: n(d.completed) })),
+    byCategory: byCategory.map((c) => ({ category: c.category, n: n(c.n) })),
+  };
+}
+
+/** People on NosHen, newest first, with what staff need at a glance. */
+export async function staffUsers(db: Db, q: string) {
+  const p: unknown[] = [];
+  let where = "";
+  if (q.trim()) { p.push(`%${q.trim()}%`); where = "where u.full_name ilike $1 or u.email ilike $1"; }
+  return many(db,
+    `select u.id, u.full_name, u.email, u.status, u.created_at, u.max_deal_kobo,
+            exists (select 1 from kyc_checks k where k.user_id = u.id and k.result = 'verified') as id_verified,
+            exists (select 1 from bank_accounts b where b.user_id = u.id and b.is_default and b.removed_at is null) as bank_ok,
+            (select count(*) from listings l where l.seller_id = u.id and l.status = 'live') as live_listings,
+            (select count(*) from deals d where d.buyer_id = u.id) as bought,
+            (select count(*) from deals d where d.seller_id = u.id) as sold
+     from users u ${where} order by u.created_at desc limit 200`, p);
+}
+
+const LISTING_STATUSES = ["live", "paused", "sold", "removed", "blocked"];
+
+/** Listings for moderation, newest first. Drafts are left out. */
+export async function staffListings(db: Db, f: { q?: string; status?: string; cat?: string }) {
+  const where = ["l.status <> 'draft'"];
+  const p: unknown[] = [];
+  if (f.status && LISTING_STATUSES.includes(f.status)) { p.push(f.status); where.push(`l.status = $${p.length}`); }
+  if (isCategory(f.cat)) { p.push(f.cat); where.push(`l.category = $${p.length}`); }
+  if (f.q?.trim()) { p.push(`%${f.q.trim()}%`); where.push(`(l.title ilike $${p.length} or u.full_name ilike $${p.length})`); }
+  const rows = await many(db,
+    `select l.id, l.title, l.category, l.price_kobo, l.status, l.area, l.photo_keys, l.published_at, l.created_at,
+            u.full_name as seller, u.email as seller_email,
+            (select count(*) from deals d where d.listing_id = l.id and d.state in ('requested', 'accepted', 'held', 'disputed')) as open_deals
+     from listings l join users u on u.id = l.seller_id
+     where ${where.join(" and ")} order by coalesce(l.published_at, l.created_at) desc limit 200`, p);
+  const counts = await many<{ status: string; n: string }>(db, "select status, count(*) as n from listings where status <> 'draft' group by status");
+  return { rows, counts: Object.fromEntries(counts.map((c) => [c.status, Number(c.n)])) as Record<string, number> };
+}

@@ -8,6 +8,8 @@ import { sweep } from "../server/engine/sweep";
 import { DealError } from "../server/engine/core";
 import { feeFor, naira } from "../shared/money";
 import { saveDraft, publish } from "../server/engine/sellers";
+import { moderateListing } from "../server/engine/staff";
+import { adminOverview, staffListings, staffUsers } from "../server/engine/queries";
 
 let w: TestWorld;
 let staffId: string;
@@ -224,5 +226,41 @@ describe("timers", () => {
     await markDelivered(w.d, seller, dealId);
     await confirmReceived(w.d, buyer, dealId);
     expect(await stateOf(w, dealId)).toBe("released");
+  });
+});
+
+describe("staff console", () => {
+  it("removes a listing with a reason the seller sees, and logs it", async () => {
+    const seller = await verifiedSeller(w, "Removed Seller");
+    const listing = await liveListing(w, seller, 40_000, "Replica designer bag");
+    await expect(moderateListing(w.d, staffId, listing, "remove", "no")).rejects.toThrow("Write a reason");
+    await moderateListing(w.d, staffId, listing, "remove", "Counterfeit designer goods are prohibited");
+    expect((await w.db.query("select status from listings where id = $1", [listing])).rows[0].status).toBe("removed");
+    const note = (await w.db.query("select params from notifications where user_id = $1 and template = 'listing_removed' and channel = 'in_app'", [seller])).rows[0];
+    expect(note.params.text).toContain("Counterfeit designer goods are prohibited");
+    const log = (await w.db.query("select action from staff_actions where target_id = $1", [listing])).rows;
+    expect(log.map((r) => r.action)).toEqual(["remove_listing"]);
+    await expect(moderateListing(w.d, staffId, listing, "remove", "Again, to be sure")).rejects.toThrow("Only live");
+  });
+
+  it("approves a listing held for checks, and only that", async () => {
+    const seller = await verifiedSeller(w, "Held Seller");
+    const listing = await liveListing(w, seller, 40_000, "Held phone");
+    await expect(moderateListing(w.d, staffId, listing, "approve", "Looks fine to me")).rejects.toThrow("Only listings held");
+    await w.db.query("update listings set status = 'blocked' where id = $1", [listing]);
+    await moderateListing(w.d, staffId, listing, "approve", "IMEI checked, not reported stolen");
+    expect((await w.db.query("select status from listings where id = $1", [listing])).rows[0].status).toBe("live");
+  });
+
+  it("counts the dashboard numbers and finds people and listings", async () => {
+    const o = await adminOverview(w.db);
+    expect(o.days).toHaveLength(14);
+    expect(o.liveListings).toBeGreaterThan(0);
+    expect(o.byCategory.reduce((a, c) => a + c.n, 0)).toBe(o.liveListings);
+    const people = await staffUsers(w.db, "held sell");
+    expect(people.map((u: any) => u.full_name)).toContain("Held Seller");
+    const found = await staffListings(w.db, { q: "replica", status: "removed" });
+    expect(found.rows.map((r: any) => r.title)).toEqual(["Replica designer bag"]);
+    expect(found.counts.removed).toBeGreaterThan(0);
   });
 });
