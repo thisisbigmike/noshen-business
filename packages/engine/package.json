@@ -1,0 +1,13 @@
+{
+  "name": "@noshen/engine",
+  "private": true,
+  "type": "module",
+  "description": "The money engine both sites share: deals, ledger, disputes, sellers, staff actions, and the database.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@noshen/shared": "workspace:*",
+    "pg": "^8.23.1"
+  }
+}

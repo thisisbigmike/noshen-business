@@ -1,0 +1,7 @@
+# Copy to .dev.vars: the staff site's local secrets. Never commit .dev.vars.
+# Its own sign-in secret: in production never the same as the customer site's.
+BETTER_AUTH_SECRET=change-me
+# These two must match the customer site's: staff decisions read the same deals and bank details.
+RELEASE_CODE_SECRET=change-me
+FIELD_KEY=change-me
+FAKE_PARTNER_SECRET=change-me

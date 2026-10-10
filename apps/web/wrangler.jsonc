@@ -1,0 +1,40 @@
+/**
+ * The customer site (noshen.com): buying, selling and deals. See README.md for the production setup.
+ * The staff site is a separate Worker (apps/admin) with its own address, secrets and database login.
+ * Local development: `pnpm dev` from the repo root.
+ */
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "noshen-web",
+  "compatibility_date": "2026-10-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./workers/app.ts",
+  // Run the Worker near the database (Neon, London), not near each user.
+  "placement": { "mode": "smart" },
+  "observability": { "enabled": true },
+  "upload_source_maps": true,
+  "vars": {
+    "APP_URL": "http://localhost:5173",
+    // "fake" until the payment partner is chosen; see server/partner/.
+    "PARTNER": "fake",
+    "PARTNER_BANK_NAME": "Test Bank (fake partner)",
+    // "console" prints emails to the log and shows sign-in codes on screen in development.
+    "EMAIL": "console",
+    "ID_PROVIDER": "fake"
+  },
+  // Production: `wrangler hyperdrive create noshen-web-db --connection-string=<noshen_web login> --caching-disabled`.
+  // It connects as the customer site's own database login (noshen_web, see db/roles.sql), never the owner.
+  // Query caching must stay off: money reads may never be stale (TRD, "Caching and load balancing").
+  // Local: `pnpm dev` sets the connection from .dev.vars (scripts/dev.mjs).
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "00000000000000000000000000000000",
+      "localConnectionString": "postgres://postgres:postgres@127.0.0.1:5432/noshen"
+    }
+  ],
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],
+  "workflows": [{ "name": "noshen-deal-timers", "binding": "DEAL_TIMERS", "class_name": "DealTimers" }],
+  // The stuck-deal sweep: the safety net behind every timer.
+  "triggers": { "crons": ["*/15 * * * *"] }
+}

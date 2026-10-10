@@ -169,6 +169,95 @@ importers:
       better-auth:
         specifier: ^1.7.7
         version: 1.7.7(pg@8.23.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3(@types/node@22.20.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)))
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+    devDependencies:
+      '@noshen/engine':
+        specifier: workspace:*
+        version: link:packages/engine
+      '@noshen/shared':
+        specifier: workspace:*
+        version: link:packages/shared
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      '@types/pg':
+        specifier: ^8.15.6
+        version: 8.23.1
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.2.7
+        version: 19.3.0(@types/react@19.3.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@22.20.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2))
+
+  apps/admin:
+    dependencies:
+      '@noshen/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@noshen/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@noshen/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      better-auth:
+        specifier: ^1.7.7
+        version: 1.7.7(pg@8.23.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3(@types/node@22.20.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)))
+      hono:
+        specifier: ^4.13.13
+        version: 4.13.13
+      isbot:
+        specifier: ^5.1.36
+        version: 5.2.2
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      react:
+        specifier: ^19.2.8
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.3.0(react@19.3.0)
+      react-router:
+        specifier: ^8.4.0
+        version: 8.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+    devDependencies:
+      '@cloudflare/vite-plugin':
+        specifier: ^1.63.1
+        version: 1.63.1(@types/node@22.20.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2))(wrangler@4.149.0(@types/node@22.20.5))
+      '@react-router/dev':
+        specifier: ^8.4.0
+        version: 8.4.0(react-router@8.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(supports-color@10.2.2)(typescript@5.9.3)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2))(wrangler@4.149.0(@types/node@22.20.5))
+      vite:
+        specifier: ^8.0.3
+        version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)
+      wrangler:
+        specifier: ^4.149.0
+        version: 4.149.0(@types/node@22.20.5)
+
+  apps/web:
+    dependencies:
+      '@noshen/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@noshen/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@noshen/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      better-auth:
+        specifier: ^1.7.7
+        version: 1.7.7(pg@8.23.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3(@types/node@22.20.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)))
       hono:
         specifier: ^4.13.13
         version: 4.13.13
@@ -197,30 +286,38 @@ importers:
       '@react-router/dev':
         specifier: ^8.4.0
         version: 8.4.0(react-router@8.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(supports-color@10.2.2)(typescript@5.9.3)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2))(wrangler@4.149.0(@types/node@22.20.5))
-      '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
-      '@types/pg':
-        specifier: ^8.15.6
-        version: 8.23.1
-      '@types/react':
-        specifier: ^19.2.18
-        version: 19.3.0
-      '@types/react-dom':
-        specifier: ^19.2.7
-        version: 19.3.0(@types/react@19.3.0)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
       vite:
         specifier: ^8.0.3
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@types/node@22.20.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2))
       wrangler:
         specifier: ^4.149.0
         version: 4.149.0(@types/node@22.20.5)
+
+  packages/engine:
+    dependencies:
+      '@noshen/shared':
+        specifier: workspace:*
+        version: link:../shared
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+
+  packages/shared: {}
+
+  packages/ui:
+    dependencies:
+      '@noshen/shared':
+        specifier: workspace:*
+        version: link:../shared
+      react:
+        specifier: ^19.2.8
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.3.0(react@19.3.0)
+      react-router:
+        specifier: ^8.4.0
+        version: 8.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
 
 packages:
 

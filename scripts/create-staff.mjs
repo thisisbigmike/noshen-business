@@ -1,6 +1,6 @@
-// Creates a staff account (reviewer or admin) that signs in to /staff with email and password.
+// Creates a staff account (reviewer or admin) that signs in to the staff site (apps/admin) with email and password.
 // Usage: pnpm staff:create "Tobi Bello" tobi@noshen.ng admin
-// The password is printed once. Staff must turn on two-factor at first sign-in.
+// The password is printed once. Staff sign in on the staff site (apps/admin) and must turn on two-factor at first sign-in.
 import pg from "pg";
 import { hashPassword } from "better-auth/crypto";
 import { databaseUrl } from "./db-url.mjs";

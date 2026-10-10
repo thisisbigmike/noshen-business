@@ -1,0 +1,20 @@
+{
+  "name": "@noshen/ui",
+  "private": true,
+  "type": "module",
+  "description": "NosHen's components, icons, theme switch and styles, shared by the customer site and the staff site.",
+  "exports": {
+    "./ui": "./src/ui.tsx",
+    "./theme": "./src/theme.tsx",
+    "./icons": "./src/icons.ts",
+    "./styles/*": "./styles/*"
+  },
+  "dependencies": {
+    "@noshen/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router": "^8.4.0"
+  }
+}

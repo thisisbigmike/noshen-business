@@ -1,12 +1,12 @@
-# Copy to .dev.vars for local development. Never commit .dev.vars.
+# Copy to .dev.vars for the scripts in scripts/ (migrations, roles, seed, staff, dev). Never commit .dev.vars.
+# Each site has its own secrets in apps/web/.dev.vars and apps/admin/.dev.vars (see the .example files there).
 # Generate secrets with: openssl rand -base64 32
-BETTER_AUTH_SECRET=change-me
-RELEASE_CODE_SECRET=change-me
-FAKE_PARTNER_SECRET=change-me
-# 32 random bytes, base64: encrypts bank account numbers
-FIELD_KEY=change-me
-# Used by the scripts in scripts/ (migrations, seed, staff); the Worker uses Hyperdrive instead
+
+# The database owner: runs migrations and grants. The sites never use this login.
 DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/noshen
-# Google sign-in (optional): an OAuth client from Google Cloud with redirect URI <APP_URL>/api/auth/callback/google
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
+# The two sites' own database logins, created by `pnpm db:roles`. Generate with: openssl rand -hex 16
+WEB_DB_PASSWORD=change-me
+ADMIN_DB_PASSWORD=change-me
+# Must match apps/web/.dev.vars: the seed encrypts bank account numbers with it.
+FIELD_KEY=change-me
+RELEASE_CODE_SECRET=change-me

@@ -1,0 +1,47 @@
+/**
+ * The staff site (admin.noshen.com): disputes, review holds, listings, people, money and the audit log.
+ * A separate Worker from the customer site (apps/web), with its own address, sign-in secret, cookies
+ * and database login. In production it only answers requests that Cloudflare Access let through.
+ * Local development: `pnpm dev:admin` from the repo root (http://localhost:5174).
+ */
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "noshen-admin",
+  "compatibility_date": "2026-10-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./workers/app.ts",
+  "placement": { "mode": "smart" },
+  "observability": { "enabled": true },
+  "upload_source_maps": true,
+  // Production: add the staff site's address, for example
+  // "routes": [{ "pattern": "admin.noshen.com", "custom_domain": true }],
+  // and turn off the workers.dev address so Cloudflare Access can't be gone around.
+  "workers_dev": true,
+  "vars": {
+    // The customer site, for links in emails and "open listing" links.
+    "APP_URL": "http://localhost:5173",
+    // This site. Sign-in only accepts requests from here.
+    "ADMIN_URL": "http://localhost:5174",
+    // Cloudflare Access (Zero Trust → Access → Applications). Both must be set in production:
+    // on an https address the site refuses every request until they are. See README, "Staff site".
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": "",
+    "PARTNER": "fake",
+    "PARTNER_BANK_NAME": "Test Bank (fake partner)",
+    "EMAIL": "console",
+    "ID_PROVIDER": "fake"
+  },
+  // Production: `wrangler hyperdrive create noshen-admin-db --connection-string=<noshen_admin login> --caching-disabled`.
+  // Its own database login (noshen_admin, see db/roles.sql), separate from the customer site's.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "00000000000000000000000000000000",
+      "localConnectionString": "postgres://postgres:postgres@127.0.0.1:5432/noshen"
+    }
+  ],
+  // The same bucket as the customer site: staff look at listing photos and dispute evidence.
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],
+  // Deadlines set by staff decisions (refunds, payouts). The customer site's 15-minute sweep is the safety net.
+  "workflows": [{ "name": "noshen-admin-deal-timers", "binding": "DEAL_TIMERS", "class_name": "DealTimers" }]
+}

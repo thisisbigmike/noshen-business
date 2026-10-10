@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { world, person, verifiedSeller, liveListing, pay, settleAll, balances, stateOf, type TestWorld } from "./helpers";
 import {
   requestDeal, acceptDeal, releaseByCode, releaseCodeForBuyer, markDelivered, confirmReceived, cancelDeal, handlePartnerEvent, sendMessage, rate,
-} from "../server/engine/deals";
-import { reportProblem, decideDispute, resolveReviewHold, addEvidence } from "../server/engine/disputes";
-import { sweep } from "../server/engine/sweep";
-import { DealError } from "../server/engine/core";
-import { feeFor, naira } from "../shared/money";
-import { saveDraft, publish } from "../server/engine/sellers";
-import { moderateListing } from "../server/engine/staff";
-import { adminOverview, staffListings, staffUsers } from "../server/engine/queries";
+} from "@noshen/engine/deals";
+import { reportProblem, decideDispute, resolveReviewHold, addEvidence } from "@noshen/engine/disputes";
+import { sweep } from "@noshen/engine/sweep";
+import { DealError } from "@noshen/engine/core";
+import { feeFor, naira } from "@noshen/shared/money";
+import { saveDraft, publish } from "@noshen/engine/sellers";
+import { moderateListing } from "@noshen/engine/staff";
+import { adminOverview, staffListings, staffUsers } from "@noshen/engine/queries";
 
 let w: TestWorld;
 let staffId: string;

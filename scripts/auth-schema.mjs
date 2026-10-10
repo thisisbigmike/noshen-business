@@ -1,4 +1,4 @@
-// Used only to generate Better Auth's tables (db/migrations/0002). The app's real config is server/auth.ts.
+// Used only to generate Better Auth's tables (db/migrations/0002). The real configs are apps/web/server/auth.ts (customers) and apps/admin/server/auth.ts (staff).
 import { betterAuth } from "better-auth";
 import { phoneNumber, twoFactor } from "better-auth/plugins";
 import pg from "pg";

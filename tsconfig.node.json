@@ -1,32 +1,17 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "./tsconfig.base.json",
   "include": [
-    "vite.config.ts",
-    "react-router.config.ts",
     "vitest.config.ts",
     "tests/**/*",
-    "shared/**/*",
-    "server/engine/**/*",
-    "server/partner/**/*",
-    "server/db.ts",
-    "server/crypto.ts",
-    "server/settings.ts",
-    "server/email.ts",
-    "server/idcheck.ts"
+    "packages/shared/src/**/*",
+    "packages/engine/src/**/*",
+    "apps/admin/server/access-jwt.ts"
   ],
+  // These need the Workers runtime; each site's own check covers them.
+  "exclude": ["packages/engine/src/context.ts", "packages/engine/src/photos.ts", "packages/engine/src/timers.ts"],
   "compilerOptions": {
     "composite": true,
-    "strict": true,
-    "types": [
-      "node"
-    ],
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
-    "target": "ES2022",
-    "module": "ES2022",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": false
+    "types": ["node"],
+    "lib": ["ES2022", "DOM"]
   }
 }

@@ -1,11 +1,5 @@
 {
+  // For editors. `pnpm typecheck` checks each site with its own config, then the tests.
   "files": [],
-  "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.cloudflare.json" }],
-  "compilerOptions": {
-    "checkJs": true,
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true
-  }
+  "references": [{ "path": "./apps/web" }, { "path": "./apps/admin" }, { "path": "./tsconfig.node.json" }]
 }

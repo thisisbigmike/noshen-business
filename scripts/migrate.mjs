@@ -16,4 +16,10 @@ for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
   console.log("done");
 }
 console.log("database is up to date");
+// Keep the two sites' database logins in step with any new tables (see db/roles.sql).
+const roles = await client.query("select count(*)::int as n from pg_roles where rolname in ('noshen_web', 'noshen_admin')");
+if (roles.rows[0].n === 2) {
+  await client.query(readFileSync(new URL("../db/roles.sql", import.meta.url), "utf8"));
+  console.log("site logins updated (db/roles.sql)");
+}
 await client.end();

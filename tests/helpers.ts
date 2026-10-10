@@ -1,11 +1,11 @@
 import pg from "pg";
-import { FakePartner } from "../server/partner/fake";
-import type { PartnerEvent } from "../server/partner/types";
-import { ConsoleEmail } from "../server/email";
-import { FakeIdProvider } from "../server/idcheck";
-import type { Deps, TimerKind } from "../server/engine/core";
-import { handlePartnerEvent } from "../server/engine/deals";
-import { saveDraft, publish, setName, verifyId, addBankAccount } from "../server/engine/sellers";
+import { FakePartner } from "@noshen/engine/partner/fake";
+import type { PartnerEvent } from "@noshen/engine/partner/types";
+import { ConsoleEmail } from "@noshen/engine/email";
+import { FakeIdProvider } from "@noshen/engine/idcheck";
+import type { Deps, TimerKind } from "@noshen/engine/core";
+import { handlePartnerEvent } from "@noshen/engine/deals";
+import { saveDraft, publish, setName, verifyId, addBankAccount } from "@noshen/engine/sellers";
 import { testDatabaseUrl } from "./global-setup";
 
 export interface TestWorld {

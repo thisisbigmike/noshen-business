@@ -1,0 +1,10 @@
+# Copy to .dev.vars: the customer site's local secrets. Never commit .dev.vars.
+# Generate secrets with: openssl rand -base64 32
+BETTER_AUTH_SECRET=change-me
+RELEASE_CODE_SECRET=change-me
+FAKE_PARTNER_SECRET=change-me
+# 32 random bytes, base64: encrypts bank account numbers. The staff site uses the same value.
+FIELD_KEY=change-me
+# Google sign-in (optional): an OAuth client from Google Cloud with redirect URI <APP_URL>/api/auth/callback/google
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=

@@ -1,0 +1,7 @@
+{
+  "name": "@noshen/shared",
+  "private": true,
+  "type": "module",
+  "description": "Rules and words used in the browser and on the server: money, categories, deal states, dates, field checks.",
+  "exports": { "./*": "./src/*.ts" }
+}
