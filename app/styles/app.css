@@ -104,7 +104,19 @@ img { max-width: 100%; display: block; }
 .chips::-webkit-scrollbar { display: none; }
 .chip { flex: none; display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow-sm); transition: background-color var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast); }
 .chip:hover { border-color: var(--primary); color: var(--ink); }
+.chip .nh-icon { margin-left: -2px; margin-right: 6px; opacity: 0.85; }
 .chip[aria-current="true"] { border-color: var(--ink); background: var(--ink); color: var(--canvas); }
+
+/* Category picker: icon tiles, two across on phones. */
+.cat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.cat-choice { position: relative; display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); cursor: pointer; box-shadow: var(--shadow-sm); transition: border-color var(--dur-fast), background-color var(--dur-fast); }
+.cat-choice:hover { border-color: var(--primary); }
+.cat-choice input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.cat-choice:has(input:checked) { border: 2px solid var(--primary); padding: 9px 11px; background: var(--tint); color: var(--primary-ink); }
+.cat-choice:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.cat-icon { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: none; border-radius: 12px; background: var(--tint); color: var(--primary-ink); }
+.cat-choice:has(input:checked) .cat-icon { background: var(--primary); color: var(--on-primary); }
+@media (min-width: 640px) { .cat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } .cat-choice { flex-direction: column; align-items: flex-start; } }
 
 textarea.nh-input { min-height: 96px; padding: 10px 12px; resize: vertical; line-height: 22px; }
 select.nh-input { appearance: auto; }

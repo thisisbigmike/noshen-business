@@ -38,6 +38,8 @@ export const DISPUTE_REASONS = [
   ["not_working", "Not working"],
   ["locked", "Locked to another account"],
   ["imei_mismatch", "IMEI doesn’t match"],
+  ["counterfeit", "Fake, not original"],
+  ["documents_mismatch", "Papers don’t match the car"],
   ["not_delivered", "Not delivered"],
   ["other", "Other"],
 ] as const;
@@ -47,10 +49,10 @@ export type DisputeReason = (typeof DISPUTE_REASONS)[number][0];
 export const disputeReasonLabel = (r: string) => DISPUTE_REASONS.find(([k]) => k === r)?.[1] ?? r;
 
 export const CONDITIONS = [
-  ["new", "New", "Never used, in its box."],
-  ["like_new", "Like new", "No marks, works perfectly."],
-  ["good", "Good", "Works fully, light signs of use."],
-  ["fair", "Fair", "Works, with visible wear."],
+  ["new", "New", "Never used, with tags or in its box."],
+  ["like_new", "Like new", "Used a little, no marks or wear."],
+  ["good", "Good", "Works or wears well, light signs of use."],
+  ["fair", "Fair", "Visible wear, priced for it."],
 ] as const;
 
 export type Condition = (typeof CONDITIONS)[number][0];

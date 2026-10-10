@@ -7,6 +7,7 @@ import { releaseCodeForBuyer } from "../../server/engine/deals";
 import { Info, ReleaseCode, TopBar, MoneyStatus } from "../components/ui";
 import { naira } from "../../shared/money";
 import { firstName } from "../../shared/deal";
+import { categoryOf, checksFor } from "../../shared/categories";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Release code · NosHen" }];
@@ -26,23 +27,20 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export default function ReleaseCodePage({ loaderData: x }: Route.ComponentProps) {
-  const [checks, setChecks] = useState({ on: false, lock: false, imei: false });
-  const all = checks.on && checks.lock && checks.imei;
-  const items: [keyof typeof checks, string, string][] = [
-    ["on", "It switches on and works", x.category === "phone" ? "Make a call. Try the camera and the screen." : "Open a few apps. Check the keyboard, screen and charging."],
-    ["lock", "It isn’t locked to someone else’s account", x.category === "phone" ? `Settings should show no other Apple ID or Google account. Ask ${x.seller} to sign out in front of you.` : `No other user account or activation lock. Ask ${x.seller} to sign out in front of you.`],
-    ["imei", x.category === "phone" ? "The IMEI matches the listing" : "The serial number matches the listing", x.category === "phone" ? `Dial *#06#. It should show ${x.imei ?? "the IMEI on the listing"}.` : `It should be ${x.imei ?? "the serial number on the listing"}.`],
-  ];
+  const items = checksFor(x.category, x.seller, x.imei);
+  const [checks, setChecks] = useState<boolean[]>(items.map(() => false));
+  const all = checks.every(Boolean);
+  const noun = categoryOf(x.category).noun;
   return (
     <div>
       <TopBar title="Release code" back={`/d/${x.dealId}`} />
       <main className="page narrow no-tabs stack-4">
         <div className="row"><MoneyStatus state="held">{naira(x.paid)} held</MoneyStatus></div>
         <section className="card">
-          <p className="label" style={{ marginBottom: 4 }}>Check the {x.category} first</p>
-          {items.map(([k, label, hint]) => (
-            <label key={k} className="check">
-              <input type="checkbox" checked={checks[k]} onChange={() => setChecks({ ...checks, [k]: !checks[k] })} />
+          <p className="label" style={{ marginBottom: 4 }}>Check the {noun} first</p>
+          {items.map(([label, hint], i) => (
+            <label key={label} className="check">
+              <input type="checkbox" checked={checks[i]} onChange={() => setChecks(checks.map((c, j) => (j === i ? !c : c)))} />
               <span className="stack" style={{ gap: 2 }}><span className="body">{label}</span><span className="caption muted">{hint}</span></span>
             </label>
           ))}

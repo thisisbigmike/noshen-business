@@ -7,7 +7,8 @@ import { reportProblem } from "../../server/engine/disputes";
 import { storePhoto } from "../../server/photos";
 import { BottomAction, Button, ErrorText, Info, MoneyStatus, TextArea, TopBar } from "../components/ui";
 import { naira } from "../../shared/money";
-import { DISPUTE_REASONS, firstName, type DisputeReason } from "../../shared/deal";
+import { disputeReasonLabel, firstName, type DisputeReason } from "../../shared/deal";
+import { reasonsFor, reportExample } from "../../shared/categories";
 import { when, addHours } from "../../shared/time";
 
 export const handle = { tabs: false };
@@ -20,7 +21,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     if (!v || v.deal.buyer_id !== user.id) throw data("Not found", { status: 404 });
     if (v.deal.state !== "held") throw redirect(`/d/${params.id}`);
     const paid = v.payments.reduce((s: number, p: any) => s + Number(p.amount_kobo), 0);
-    return { dealId: v.deal.id, paid, seller: firstName(v.seller.name) };
+    return { dealId: v.deal.id, paid, seller: firstName(v.seller.name), category: v.listing.category as string };
   });
 }
 
@@ -46,7 +47,7 @@ export default function Report({ loaderData: x, actionData }: Route.ComponentPro
   const busy = useNavigation().state !== "idle";
   const [reason, setReason] = useState<string>("");
   const [confirm, setConfirm] = useState(false);
-  const label = DISPUTE_REASONS.find(([k]) => k === reason)?.[1];
+  const label = reason ? disputeReasonLabel(reason) : undefined;
   const now = new Date();
   return (
     <Form method="post" encType="multipart/form-data">
@@ -56,11 +57,11 @@ export default function Report({ loaderData: x, actionData }: Route.ComponentPro
         <Info icon="lock">The money stays held while a reviewer looks at this. {x.seller} can't be paid until they decide.</Info>
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="label" style={{ marginBottom: 8 }}>What's wrong?</legend>
-          {DISPUTE_REASONS.map(([k, l]) => (
-            <label key={k} className="choice"><input type="radio" name="reason" value={k} checked={reason === k} onChange={() => setReason(k)} required /><span className="body">{l}</span></label>
+          {reasonsFor(x.category).map((k) => (
+            <label key={k} className="choice"><input type="radio" name="reason" value={k} checked={reason === k} onChange={() => setReason(k)} required /><span className="body">{disputeReasonLabel(k)}</span></label>
           ))}
         </fieldset>
-        <TextArea label="What happened" name="description" maxLength={2000} placeholder="For example: the IMEI on the phone ends in 4410, the listing says 7631." />
+        <TextArea label="What happened" name="description" maxLength={2000} placeholder={reportExample(x.category)} />
         <div className="nh-field" style={{ maxWidth: "none" }}>
           <label className="nh-field-label label" htmlFor="photos">Add photos</label>
           <input id="photos" name="photos" type="file" accept="image/*" multiple className="nh-input" style={{ paddingTop: 10 }} />

@@ -1,4 +1,4 @@
-// Runs db/tests.sql (23 checks of the schema's money rules) against the database. It rolls back.
+// Runs db/tests.sql (the schema's money and listing rules) against the database. It rolls back.
 import { readFileSync } from "node:fs";
 import pg from "pg";
 import { databaseUrl } from "./db-url.mjs";

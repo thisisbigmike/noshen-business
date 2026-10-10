@@ -7,6 +7,7 @@ import { settingsOf } from "../../server/engine/core";
 import { Avatar, BottomAction, Button, Icon, Kv, ProtectionBadge, TopBar, Wordmark } from "../components/ui";
 import { feeFor, naira } from "../../shared/money";
 import { CONDITIONS, firstName } from "../../shared/deal";
+import { categoryOf } from "../../shared/categories";
 import { ago } from "../../shared/time";
 import { photoUrl } from "../../shared/photos";
 
@@ -49,6 +50,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   const sellerName = firstName(seller.name);
   const condition = CONDITIONS.find(([k]) => k === l.condition);
   const price = Number(l.price_kobo);
+  const cat = categoryOf(l.category);
   const status = l.status !== "live" ? (l.status === "sold" ? "This item has been sold." : "This listing is paused.") : null;
 
   const buy = mine ? (
@@ -63,7 +65,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
     <div>
       <TopBar title={<Wordmark size="sm" />} back="/browse" right={<Link className="caption" style={{ padding: "0 8px" }} to="/browse">See more listings</Link>} />
       <main className="page flush no-tabs">
-        <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/browse">Browse</Link> / {l.category === "phone" ? "Phones" : "Laptops"} / {l.area}</nav>
+        <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/browse">Browse</Link> / <Link to={`/browse?cat=${cat.key}`}>{cat.label}</Link> / {l.area}</nav>
         <div className="two-col">
           <div className="stack-4">
             <div className="carousel bleed">
@@ -90,10 +92,11 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
               </div>
             </section>
             <section className="card stack">
-              <h2 className="title">About this {l.category}</h2>
+              <h2 className="title">About this {cat.noun === "pair" ? "pair" : cat.noun}</h2>
+              <Kv k="Category" v={cat.label} />
               <Kv k="Condition" v={`${condition?.[1]}: ${condition?.[2]}`} />
               <Kv k="Area" v={`${l.area}, Lagos`} />
-              <Kv k={l.category === "phone" ? "IMEI" : "Serial number"} v="Shown to you after you pay, so you can check it at the hand-over" />
+              {cat.id && l.imei_or_serial ? <Kv k={cat.id.label.replace(" (optional)", "")} v="Shown to you after you pay, so you can check it at the hand-over" /> : null}
               {l.description ? <><p className="label" style={{ marginTop: 8 }}>From {sellerName}</p><p className="body">{l.description}</p></> : null}
             </section>
           </div>

@@ -1,8 +1,10 @@
 import { inTx, one } from "../db";
 import { encryptField, hmac } from "../crypto";
 import { namesMatch } from "./deals";
-import { type Deps, DealError, N, notify } from "./core";
+import { type Deps, DealError, N, notify, settingsOf } from "./core";
 import type { Condition } from "../../shared/deal";
+import { categoryOf, isCategory, normaliseId, type CategoryKey } from "../../shared/categories";
+import { naira } from "../../shared/money";
 
 export async function setName(d: Deps, userId: string, fullName: string) {
   const name = fullName.trim().replace(/\s+/g, " ");
@@ -60,7 +62,7 @@ export async function sellerReady(d: Deps, userId: string) {
 }
 
 export interface ListingInput {
-  category: "phone" | "laptop";
+  category: CategoryKey;
   title: string;
   description?: string;
   priceNaira: number;
@@ -82,10 +84,13 @@ export async function saveDraft(d: Deps, userId: string, listingId: string | nul
   if (photoKeys.length) await d.db.query("update listings set photo_keys = $2 where id = $1", [listingId, photoKeys]);
   if (input) {
     const price = Math.round(input.priceNaira * 100);
-    if (!input.title?.trim() || input.title.trim().length < 3) throw new DealError("title", "Give it a title, like “iPhone 13, 128GB”.");
-    if (!(price >= 2_000_000 && price <= 200_000_000)) throw new DealError("price", "Price between ₦20,000 and ₦2,000,000.");
-    const imei = (input.imeiOrSerial ?? "").replace(/\s/g, "");
-    if (input.category === "phone" && !/^\d{15}$/.test(imei)) throw new DealError("imei", "The IMEI has 15 digits. Dial *#06# to see it.");
+    if (!isCategory(input.category)) throw new DealError("category", "Choose what you're selling.");
+    const cat = categoryOf(input.category);
+    if (!input.title?.trim() || input.title.trim().length < 3) throw new DealError("title", `Give it a title, like “${cat.titleExample}”.`);
+    const s = await settingsOf(d);
+    if (!(price >= s.deal_min_kobo && price <= s.deal_max_kobo)) throw new DealError("price", `Price between ${naira(s.deal_min_kobo)} and ${naira(s.deal_max_kobo)}.`);
+    const imei = cat.id ? normaliseId(input.imeiOrSerial ?? "") : "";
+    if (cat.id && (imei || cat.id.required) && !cat.id.pattern.test(imei)) throw new DealError("imei", cat.id.error);
     await d.db.query(
       `update listings set category = $2, title = $3, description = $4, price_kobo = $5, condition = $6, area = $7, imei_or_serial = $8 where id = $1`,
       [listingId, input.category, input.title.trim().slice(0, 80), input.description?.trim().slice(0, 2000) || null, price, input.condition, input.area, imei || null]);
@@ -108,7 +113,7 @@ export async function publish(d: Deps, userId: string, listingId: string): Promi
       : null;
     const status = dup ? "blocked" : "live";
     await tx.db.query("update listings set status = $2, published_at = now() where id = $1", [listingId, status]);
-    if (dup) await notify(d, tx, userId, null, "listing_review", "We're checking your listing because the same IMEI is on another live listing.");
+    if (dup) await notify(d, tx, userId, null, "listing_review", `We're checking your listing because the same ${categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "number"} is on another live listing.`);
     return status as "live" | "blocked";
   });
 }

@@ -39,7 +39,7 @@ export default function Deals({ loaderData }: Route.ComponentProps) {
       </div>
       {list.length === 0 ? (
         <div className="card stack" style={{ alignItems: "flex-start" }}>
-          {tab === "selling" ? <><p className="body">You're not selling anything yet. List a phone or laptop and share the link.</p><Button variant="primary" to="/sell">Sell something</Button></>
+          {tab === "selling" ? <><p className="body">You're not selling anything yet. List something and share the link.</p><Button variant="primary" to="/sell">Sell something</Button></>
             : <><p className="body">You haven't bought anything with NosHen yet.</p><Button to="/browse">Browse listings</Button></>}
         </div>
       ) : null}

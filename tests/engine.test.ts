@@ -7,6 +7,7 @@ import { reportProblem, decideDispute, resolveReviewHold, addEvidence } from "..
 import { sweep } from "../server/engine/sweep";
 import { DealError } from "../server/engine/core";
 import { feeFor, naira } from "../shared/money";
+import { saveDraft, publish } from "../server/engine/sellers";
 
 let w: TestWorld;
 let staffId: string;
@@ -33,6 +34,37 @@ describe("fees", () => {
     expect(feeFor(2_000_000)).toBe(50_000);         // ₦20,000 → ₦500 minimum
     expect(feeFor(200_000_000)).toBe(750_000);      // ₦2,000,000 → ₦7,500 maximum
     expect(naira(45_675_000)).toBe("₦456,750");
+  });
+});
+
+describe("listings across the marketplace", () => {
+  const draft = (seller: string, input: Partial<Parameters<typeof saveDraft>[4] & object>) =>
+    saveDraft(w.d, seller, null, ["a", "b", "c"], { category: "other", title: "Something", priceNaira: 20_000, condition: "good", area: "Yaba", ...input } as any);
+
+  it("publishes clothes and shoes without an ID number", async () => {
+    const seller = await verifiedSeller(w, "Kunle Adeyemi");
+    const dress = await draft(seller, { category: "fashion", title: "Ankara maxi dress, size 12", priceNaira: 18_000 });
+    expect(await publish(w.d, seller, dress)).toBe("live");
+    const shoes = await draft(seller, { category: "shoes", title: "Nike Air Force 1, size 43", priceNaira: 45_000 });
+    expect(await publish(w.d, seller, shoes)).toBe("live");
+  });
+
+  it("needs a chassis number for a car, and takes prices up to ₦20,000,000", async () => {
+    const seller = await verifiedSeller(w, "Kunle Adeyemi");
+    await expect(draft(seller, { category: "vehicle", title: "Toyota Corolla 2014", priceNaira: 9_800_000 })).rejects.toThrow(/chassis number/);
+    const car = await draft(seller, { category: "vehicle", title: "Toyota Corolla 2014", priceNaira: 9_800_000, imeiOrSerial: "2t1b urhe0ec 123456" });
+    expect(await publish(w.d, seller, car)).toBe("live");
+    const stored = (await w.db.query("select imei_or_serial from listings where id = $1", [car])).rows[0].imei_or_serial;
+    expect(stored).toBe("2T1BURHE0EC123456");
+    await expect(draft(seller, { category: "vehicle", title: "Lexus RX 2020", priceNaira: 30_000_000, imeiOrSerial: "JTJHZ1234567" })).rejects.toThrow(/₦20,000,000/);
+    await expect(draft(seller, { category: "fashion", title: "Socks", priceNaira: 2_000 })).rejects.toThrow(/₦5,000/);
+  });
+
+  it("refuses a live car listing without a chassis number at the database too", async () => {
+    const seller = await verifiedSeller(w, "Kunle Adeyemi");
+    await expect(w.db.query(
+      `insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys, status) values ($1, 'vehicle', 'No papers', 500000000, 'good', 'Ikeja', '{a,b,c}', 'live')`, [seller],
+    )).rejects.toThrow(/listings_vehicle_chassis/);
   });
 });
 

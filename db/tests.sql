@@ -45,6 +45,10 @@ select pg_temp.expect_error($$
   insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys, status)
   values ('00000000-0000-0000-0000-00000000000c', 'phone', 'No IMEI', 40000000, 'good', 'Ikeja', '{p1,p2,p3}', 'live') $$,
   'a live phone listing without an IMEI');
+select pg_temp.expect_error($$
+  insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys, status)
+  values ('00000000-0000-0000-0000-00000000000c', 'vehicle', 'No chassis number', 500000000, 'good', 'Ikeja', '{p1,p2,p3}', 'live') $$,
+  'a live car listing without a chassis number');
 select pg_temp.expect_error($$ insert into users (phone) values ('08030000004') $$, 'a phone number not in +234 format');
 
 -- 2. Deals: who and what

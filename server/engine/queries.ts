@@ -1,6 +1,7 @@
 import type { Db } from "../db";
 import { many, one } from "../db";
 import type { DealState } from "../../shared/deal";
+import { isCategory } from "../../shared/categories";
 
 export interface SellerSummary {
   id: string; name: string; idVerified: boolean; rating: number | null; ratingCount: number; completedDeals: number;
@@ -26,7 +27,7 @@ export async function listingView(db: Db, id: string) {
 export async function browse(db: Db, f: { cat?: string; area?: string; sort?: string; q?: string }) {
   const where = ["status = 'live'"];
   const p: unknown[] = [];
-  if (f.cat === "phone" || f.cat === "laptop") { p.push(f.cat); where.push(`category = $${p.length}`); }
+  if (isCategory(f.cat)) { p.push(f.cat); where.push(`category = $${p.length}`); }
   if (f.area) { p.push(f.area); where.push(`area = $${p.length}`); }
   if (f.q) { p.push(`%${f.q}%`); where.push(`title ilike $${p.length}`); }
   const order = f.sort === "price_asc" ? "price_kobo asc" : f.sort === "price_desc" ? "price_kobo desc" : "published_at desc";

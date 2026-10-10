@@ -17,8 +17,8 @@ export interface Settings {
 }
 
 const DEFAULTS: Settings = {
-  deal_min_kobo: 2_000_000,
-  deal_max_kobo: 200_000_000,
+  deal_min_kobo: 500_000,
+  deal_max_kobo: 2_000_000_000,
   fee: DEFAULT_FEE,
   request_ttl_hours: 12,
   payment_ttl_hours: 24,

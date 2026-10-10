@@ -6,6 +6,7 @@ import { one } from "../../server/db";
 import { BottomAction, Button, Icon, Info, ProtectionBadge, TopBar } from "../components/ui";
 import { naira } from "../../shared/money";
 import { photoUrl } from "../../shared/photos";
+import { categoryOf } from "../../shared/categories";
 
 export const meta = () => [{ title: "Share · Sell · NosHen" }];
 
@@ -27,7 +28,7 @@ export default function Share({ loaderData: { listing: l, url } }: Route.Compone
     return (
       <main className="page narrow stack-4">
         <h1 className="heading">We're checking your listing</h1>
-        <Info icon="info-circle" tone="warn">The same IMEI is on another live listing, so a NosHen reviewer will check it. We'll text you.</Info>
+        <Info icon="info-circle" tone="warn">The same {categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "number"} is on another live listing, so a NosHen reviewer will check it. We'll email you.</Info>
       </main>
     );
   }

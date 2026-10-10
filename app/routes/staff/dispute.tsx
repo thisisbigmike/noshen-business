@@ -9,6 +9,7 @@ import { naira } from "../../../shared/money";
 import { CONDITIONS, disputeReasonLabel, firstName } from "../../../shared/deal";
 import { left, when } from "../../../shared/time";
 import { photoUrl } from "../../../shared/photos";
+import { categoryOf } from "../../../shared/categories";
 
 export const meta = () => [{ title: "Dispute · NosHen staff" }];
 
@@ -75,7 +76,8 @@ export default function Dispute({ loaderData: v, actionData }: Route.ComponentPr
             <p className="body">{v.listing.title}</p>
             <p className="caption muted">{naira(v.listing.price_kobo)} · {CONDITIONS.find(([c]) => c === v.listing.condition)?.[1]} condition · {v.listing.area}</p>
             {v.listing.description ? <p className="body">“{v.listing.description}”</p> : null}
-            <Kv k={v.listing.category === "phone" ? "IMEI" : "Serial number"} v={v.listing.imei_or_serial ?? "—"} />
+            <Kv k="Category" v={categoryOf(v.listing.category).label} />
+            <Kv k={categoryOf(v.listing.category).id?.label.replace(" (optional)", "") ?? "ID number"} v={v.listing.imei_or_serial ?? "—"} />
           </div>
         </section>
         <section className="stack-4">

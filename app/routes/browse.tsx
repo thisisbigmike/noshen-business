@@ -4,10 +4,11 @@ import { withApp } from "../../server/web";
 import { browse, areasWithListings } from "../../server/engine/queries";
 import { Button, Icon, ListingCard, ProtectionBadge, Wordmark } from "../components/ui";
 import { ago } from "../../shared/time";
+import { CATEGORIES, categoryOf, isCategory } from "../../shared/categories";
 import { photoUrl } from "../../shared/photos";
 
 export const meta: Route.MetaFunction = () => [
-  { title: "NosHen: buy and sell phones and laptops in Lagos, protected" },
+  { title: "NosHen: buy and sell anything in Lagos, protected" },
   { name: "description", content: "Every deal is protected: your money is held until you have the item." },
 ];
 
@@ -25,12 +26,15 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
     if (v) p.set(k, v); else p.delete(k);
     return `?${p.toString()}`;
   };
-  const cats: [string, string][] = [["", "All"], ["phone", "Phones"], ["laptop", "Laptops"]];
+
   const filters = (
     <div className="stack-4">
       <div className="stack">
         <p className="label">Category</p>
-        <div className="chips">{cats.map(([v, l]) => <Link key={v} to={link("cat", v)} className="chip" aria-current={f.cat === v ? "true" : undefined}>{l}</Link>)}</div>
+        <div className="chips cat-chips">
+          <Link to={link("cat", "")} className="chip" aria-current={!f.cat ? "true" : undefined}><Icon name="layout-grid" size={16} />All</Link>
+          {CATEGORIES.map((c) => <Link key={c.key} to={link("cat", c.key)} className="chip" aria-current={f.cat === c.key ? "true" : undefined}><Icon name={c.icon} size={16} />{c.label}</Link>)}
+        </div>
       </div>
       <div className="stack">
         <p className="label">Area</p>
@@ -39,7 +43,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
           {areas.map((a) => <Link key={a} to={link("area", a)} className="chip" aria-current={f.area === a ? "true" : undefined}>{a}</Link>)}
         </div>
       </div>
-      <p className="caption muted">Deals start at ₦20,000.</p>
+
     </div>
   );
   const search = (
@@ -49,7 +53,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
       {f.sort ? <input type="hidden" name="sort" value={f.sort} /> : null}
       <Icon name="search" size={20} />
       <label className="sr-only" htmlFor="q">Search listings</label>
-      <input id="q" name="q" type="search" defaultValue={f.q} placeholder="Search iPhone, MacBook, Samsung…" autoComplete="off" />
+      <input id="q" name="q" type="search" defaultValue={f.q} placeholder="Search phones, shoes, cars, sofas…" autoComplete="off" />
       {f.q ? <Link to={link("q", "")} className="search-clear" aria-label="Clear search"><Icon name="x" size={16} /></Link> : null}
     </Form>
   );
@@ -65,7 +69,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
           <div className="stack-4">
             <div className="browse-head">
               <div className="stack">
-                <h1 className="heading">{f.q ? `Results for “${f.q}”` : "Phones and laptops in Lagos"}</h1>
+                <h1 className="heading">{f.q ? `Results for “${f.q}”` : isCategory(f.cat) ? `${categoryOf(f.cat).label} in Lagos` : "For sale in Lagos"}</h1>
                 <p className="caption muted">{listings.length} listing{listings.length === 1 ? "" : "s"}. Every deal is protected: your money is held until you have the item.</p>
               </div>
               <div className="row browse-tools">
@@ -89,7 +93,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
                 <span className="empty-icon"><Icon name="search" size={26} /></span>
                 <p className="title">Nothing here yet</p>
                 <p className="body muted">Try another search or area, or list something yourself.</p>
-                <Button variant="primary" pill to="/sell" icon="plus">Sell a phone or laptop</Button>
+                <Button variant="primary" pill to="/sell" icon="plus">Sell something</Button>
               </div>
             ) : (
               <div className="grid-cards">

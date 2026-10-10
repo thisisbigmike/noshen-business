@@ -8,12 +8,13 @@ import { Avatar, Button, DealCard, Icon, ReleaseCode, Wordmark } from "../compon
 import type { IconName } from "../components/icons";
 import { dealAmounts, feeFor, naira, type FeeRule } from "../../shared/money";
 import { photoUrl } from "../../shared/photos";
+import { CATEGORIES, checksFor } from "../../shared/categories";
 import "../styles/landing.css";
 
 export const handle = { tabs: false };
 
 export const meta: Route.MetaFunction = ({ loaderData }) => {
-  const title = "NosHen: buy and sell phones and laptops in Lagos, protected";
+  const title = "NosHen: buy and sell anything in Lagos, protected";
   const desc = "Your money is held by a licensed partner bank until you have the item. The seller is paid when you give them your release code.";
   return [
     { title },
@@ -30,16 +31,18 @@ export async function loader({ request }: Route.LoaderArgs) {
     const s = await settingsOf(d);
     const recent = await many<{ id: string; title: string; area: string; price_kobo: string; photo_keys: string[] | null }>(d.db,
       "select id, title, area, price_kobo, photo_keys from listings where status = 'live' order by published_at desc limit 12");
-    const live = await many<{ n: string }>(d.db, "select count(*) as n from listings where status = 'live'");
+    const byCat = await many<{ category: string; n: string }>(d.db, "select category, count(*) as n from listings where status = 'live' group by category");
+    const counts = Object.fromEntries(byCat.map((r) => [r.category, Number(r.n)]));
+    const live = byCat.reduce((t, r) => t + Number(r.n), 0);
     const user = await optionalUser(request, d);
-    return { fee: s.fee, live: Number(live[0]?.n ?? 0), recent, signedIn: !!user, origin: new URL(request.url).origin };
+    return { fee: s.fee, min: s.deal_min_kobo, max: s.deal_max_kobo, live, counts, recent, signedIn: !!user, origin: new URL(request.url).origin };
   });
 }
 
 const PROBLEMS: [IconName, string, string][] = [
-  ["alert-triangle", "Pay first", "The seller disappears, or sends a fake or a different phone."],
+  ["alert-triangle", "Pay first", "The seller disappears, or sends something fake or different."],
   ["cash", "Hand over first", "The \"payment\" turns out to be a fake transfer alert."],
-  ["map-pin", "Meet with cash", "You carry a phone's worth of cash across Lagos to meet a stranger."],
+  ["map-pin", "Meet with cash", "You carry the full price in cash across Lagos to meet a stranger."],
 ];
 
 const STEPS: [IconName, string, string][] = [
@@ -49,13 +52,13 @@ const STEPS: [IconName, string, string][] = [
   ["circle-check", "The seller is paid", "Give the seller your 6-digit release code, or confirm the delivery. The payout starts within minutes."],
 ];
 
-const FAQ: [string, string][] = [
+const faq = (min: number, max: number): [string, string][] => [
   ["Is NosHen a bank?", "No. A licensed partner bank holds the money. NosHen runs the deal steps and tells the bank where the money goes, and keeps a record of every naira."],
+  ["What can I buy and sell?", `Almost anything you can hand over in Lagos: phones, laptops, electronics, clothes, shoes, cars, furniture and more, from ${naira(min)} to ${naira(max)}. Not allowed: anything illegal, stolen or fake, weapons, drugs, or live animals.`],
   ["What if the seller never shows up?", "If the hand-over hasn't happened within 72 hours of your payment, cancel the deal and get everything back, fee included."],
-  ["What if the phone is fake, faulty or locked?", "Don't give your code. Report a problem in the app and the money stays frozen. You both add photos or notes, and a NosHen reviewer decides within 72 hours and tells you both why."],
+  ["What if it's fake, faulty or not as described?", "Don't give your code. Report a problem in the app and the money stays frozen. You both add photos or notes, and a NosHen reviewer decides within 72 hours and tells you both why."],
   ["Can I pay the seller directly to save the fee?", "You can, but that money isn't protected. If something goes wrong, NosHen can't get it back for you."],
   ["How do sellers get paid?", "To a bank account in their own name, checked against their NIN or BVN. The payout starts within minutes of the release code."],
-  ["What can I buy and sell?", "Used phones and laptops in Lagos, from ₦20,000 to ₦2,000,000. More categories and cities will follow."],
 ];
 
 export default function Landing({ loaderData: x }: Route.ComponentProps) {
@@ -71,6 +74,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
 
       <Hero live={x.live} />
       <LiveStrip items={x.recent} />
+      <CategoryRail counts={x.counts} />
 
       <section className="lp-band" aria-labelledby="problem-title">
         <div className="lp-inner">
@@ -104,12 +108,8 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
           <div className="stack-4 reveal">
             <p className="lp-eyebrow">At the meet-up</p>
             <h2 id="code-title" className="lp-h2">Your code moves the money</h2>
-            <p className="lp-lede">Your 6-digit release code is only in your NosHen app, never in an SMS or email. Before you show it, check three things:</p>
-            <ul className="lp-checks">
-              <li><span><Icon name="check" size={16} /></span>It switches on and works.</li>
-              <li><span><Icon name="check" size={16} /></span>It isn't locked to someone else's account.</li>
-              <li><span><Icon name="check" size={16} /></span>The IMEI matches the listing. Dial *#06# to see it.</li>
-            </ul>
+            <p className="lp-lede">Your 6-digit release code is only in your NosHen app, never in an SMS or email. Before you show it, the app walks you through three checks for what you're buying:</p>
+            <CheckTabs />
             <p className="body muted">Happy? Read out your code and the seller types it in. Not happy? Keep your code and report a problem. The money stays held.</p>
           </div>
           <div className="code-stage reveal">
@@ -150,7 +150,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
               </ul>
               <div className="share-preview" aria-label="Example of a shared link">
                 <span className="share-thumb"><Icon name="device-mobile" size={22} /></span>
-                <div className="grow"><p className="label">iPhone 13, 128GB · ₦450,000</p><p className="caption muted">Yaba, Lagos. Protected by NosHen.</p></div>
+                <div className="grow"><p className="label">Nike Air Force 1, size 43 · ₦45,000</p><p className="caption muted">Lekki, Lagos. Protected by NosHen.</p></div>
                 <Icon name="brand-whatsapp" size={20} className="wa-ico" />
               </div>
               <Button variant="primary" pill to="/sell" iconRight="arrow-right">Start selling</Button>
@@ -171,7 +171,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
             </ol>
             <p className="body muted">If the seller doesn't hand over within 72 hours of your payment, you can cancel and get everything back, fee included.</p>
           </div>
-          <FeeCalculator fee={x.fee} id="fee-title" />
+          <FeeCalculator fee={x.fee} min={x.min} max={x.max} id="fee-title" />
         </div>
       </section>
 
@@ -183,7 +183,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
             <p className="body muted">Still unsure? Start with a small deal and watch every step for yourself.</p>
           </div>
           <div className="faq stack">
-            {FAQ.map(([q, a]) => (
+            {faq(x.min, x.max).map(([q, a]) => (
               <details key={q} className="faq-item reveal">
                 <summary className="title">{q}<span className="faq-plus" aria-hidden="true"><Icon name="plus" size={18} /></span></summary>
                 <p className="body muted">{a}</p>
@@ -197,10 +197,10 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
         <div className="final-glow" aria-hidden="true" />
         <div className="lp-inner final-inner reveal">
           <Seal className="final-seal" />
-          <h2 id="final-title" className="final-title">Your next phone deal, protected.</h2>
+          <h2 id="final-title" className="final-title">Your next deal, protected.</h2>
           <p className="final-sub">You pay nothing until the seller accepts. Fee: {x.fee.percent}%, from {naira(x.fee.min_kobo)} to {naira(x.fee.max_kobo)}.</p>
           <div className="hero-ctas" style={{ justifyContent: "center" }}>
-            <Button variant="primary" size="lg" pill to="/browse" iconRight="arrow-right">Browse phones and laptops</Button>
+            <Button variant="primary" size="lg" pill to="/browse" iconRight="arrow-right">See what's for sale</Button>
             <Link to="/sell" className="nh-btn nh-btn-lg nh-btn-pill ghost-light">Sell with protection</Link>
           </div>
         </div>
@@ -232,11 +232,11 @@ function Hero({ live }: { live: number }) {
       <div className="hero-grid" aria-hidden="true" />
       <div className="lp-inner hero-layout">
         <div className="hero-copy">
-          <p className="live-pill"><span className="live-dot" aria-hidden="true" />{live ? `${live} phones and laptops for sale in Lagos now` : "Phones and laptops in Lagos"}</p>
+          <p className="live-pill"><span className="live-dot" aria-hidden="true" />{live ? `${live} items for sale in Lagos now` : "Buy and sell anything in Lagos"}</p>
           <h1 id="hero-title" className="hero-title">Your money is <span className="mark">held<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 14 C 50 4, 120 4, 197 10" /></svg></span> until you have the item.</h1>
-          <p className="hero-sub">The safe way to buy and sell used phones and laptops in Lagos. You pay NosHen, a licensed partner bank holds the money, and the seller is paid only when you've checked the item.</p>
+          <p className="hero-sub">The safe way to buy and sell anything in Lagos, from phones and shoes to sofas and cars. You pay NosHen, a licensed partner bank holds the money, and the seller is paid only when you've checked the item.</p>
           <div className="hero-ctas">
-            <Button variant="primary" size="lg" pill icon="search" to="/browse">Browse phones and laptops</Button>
+            <Button variant="primary" size="lg" pill icon="search" to="/browse">See what's for sale</Button>
             <Button size="lg" pill icon="plus" to="/sell">Sell with protection</Button>
           </div>
           <ul className="hero-facts">
@@ -372,7 +372,11 @@ function useTween(target: number, ms = 450) {
   return v;
 }
 
-function FeeCalculator({ fee: rule, id }: { fee: FeeRule; id: string }) {
+function FeeCalculator({ fee: rule, min, max, id }: { fee: FeeRule; min: number; max: number; id: string }) {
+  // The slider moves on a log scale, so ₦5,000 shoes and a ₦20m car both get room. Prices snap to round numbers.
+  const lo = Math.log(min / 100), hi = Math.log(max / 100);
+  const toPrice = (t: number) => { const v = Math.exp(lo + (hi - lo) * (t / 1000)); const step = v < 100_000 ? 1_000 : v < 1_000_000 ? 5_000 : v < 5_000_000 ? 50_000 : 100_000; return Math.min(max / 100, Math.max(min / 100, Math.round(v / step) * step)); };
+  const toT = (p: number) => Math.round(((Math.log(p) - lo) / (hi - lo)) * 1000);
   const [price, setPrice] = useState(450_000);
   const [sellerPays, setSellerPays] = useState(false);
   const priceKobo = price * 100;
@@ -381,16 +385,16 @@ function FeeCalculator({ fee: rule, id }: { fee: FeeRule; id: string }) {
   const shownFee = useTween(fee);
   const shownDue = useTween(dueKobo);
   const shownShare = useTween(sellerShareKobo);
-  const pct = ((price - 20_000) / (2_000_000 - 20_000)) * 100;
+  const pct = toT(price) / 10;
   return (
     <div className="fee-calc reveal">
       <h2 id={id} className="lp-h3">What it costs</h2>
       <p className="body muted">{rule.percent}% of the price, at least {naira(rule.min_kobo)} and at most {naira(rule.max_kobo)}. Listing and browsing are free.</p>
       <label className="fee-price" htmlFor="fee-range">
-        <span className="caption muted">Price of the phone or laptop</span>
+        <span className="caption muted">Price of the item</span>
         <span className="fee-big tabular">{naira(priceKobo)}</span>
       </label>
-      <input id="fee-range" type="range" min={20_000} max={2_000_000} step={5_000} value={price} onChange={(e) => setPrice(Number(e.target.value))}
+      <input id="fee-range" type="range" min={0} max={1000} step={1} value={toT(price)} onChange={(e) => setPrice(toPrice(Number(e.target.value)))}
         className="range" style={{ ["--pct" as string]: `${pct}%` }} aria-valuetext={naira(priceKobo)} />
       <div className="seg" role="radiogroup" aria-label="Who pays the fee">
         <button type="button" role="radio" aria-checked={!sellerPays} onClick={() => setSellerPays(false)}>Buyer pays the fee</button>
@@ -402,6 +406,50 @@ function FeeCalculator({ fee: rule, id }: { fee: FeeRule; id: string }) {
         <div className="kv total"><span>The seller gets</span><span className="tabular">{naira(shownShare)}</span></div>
       </div>
       <p className="caption muted">You pay nothing until the seller accepts.</p>
+    </div>
+  );
+}
+
+/** Tiles that open Browse on one category, with how many are live in each. */
+function CategoryRail({ counts }: { counts: Record<string, number> }) {
+  return (
+    <section className="cat-rail-wrap" aria-labelledby="cats-title">
+      <div className="lp-inner">
+        <h2 id="cats-title" className="label cats-title">Shop by category</h2>
+        <ul className="cat-rail">
+          {CATEGORIES.map((c) => (
+            <li key={c.key}>
+              <Link to={`/browse?cat=${c.key}`} className="cat-tile">
+                <span className="cat-tile-icon"><Icon name={c.icon} size={24} /></span>
+                <span className="label">{c.label}</span>
+                <span className="caption muted">{counts[c.key] ? `${counts[c.key]} for sale` : "Be the first"}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+const CHECK_TABS: [string, string, IconName][] = [["phone", "Phones", "device-mobile"], ["fashion", "Clothes", "shirt"], ["vehicle", "Cars", "car"], ["home", "Home", "sofa"]];
+
+/** The release-code checklist changes with what you're buying. */
+function CheckTabs() {
+  const [tab, setTab] = useState(CHECK_TABS[0][0]);
+  const items = checksFor(tab, "the seller", null);
+  return (
+    <div className="check-tabs">
+      <div className="seg seg-4" role="tablist" aria-label="What you're buying">
+        {CHECK_TABS.map(([k, label, icon]) => (
+          <button key={k} type="button" role="tab" id={`ct-${k}`} aria-selected={tab === k} aria-controls="ct-panel" onClick={() => setTab(k)}><Icon name={icon} size={16} /><span>{label}</span></button>
+        ))}
+      </div>
+      <ul className="lp-checks" id="ct-panel" role="tabpanel" aria-labelledby={`ct-${tab}`} key={tab}>
+        {items.map(([label, hint]) => (
+          <li key={label}><span><Icon name="check" size={16} /></span><div><p className="body ink">{label}.</p><p className="caption muted">{hint}</p></div></li>
+        ))}
+      </ul>
     </div>
   );
 }

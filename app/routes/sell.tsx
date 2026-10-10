@@ -8,7 +8,6 @@ import { BottomAction, Button, ErrorText, Icon, Info, TopBar } from "../componen
 import { photoUrl } from "../../shared/photos";
 
 export const meta = () => [{ title: "Sell · NosHen" }];
-const LABELS = ["Front", "Back", "Screen on", "IMEI screen", "Box and cable", "Side", "Detail", "Detail"];
 
 export async function loader({ request }: Route.LoaderArgs) {
   return withApp(async (d) => {
@@ -65,8 +64,8 @@ export default function Sell({ loaderData: x, actionData }: Route.ComponentProps
         <div className="photo-grid">
           {x.photos.map((k, i) => (
             <div key={k} className="photo-slot">
-              <img src={photoUrl(k)} alt={LABELS[i]} />
-              <span className="tag">{i === 0 ? "Cover" : LABELS[i]}</span>
+              <img src={photoUrl(k)} alt={`Photo ${i + 1}`} />
+              {i === 0 ? <span className="tag">Cover</span> : null}
               <Form method="post" style={{ position: "absolute", top: 4, right: 4 }}>
                 <input type="hidden" name="intent" value="remove" /><input type="hidden" name="key" value={k} />
                 <button className="icon-btn" style={{ width: 32, height: 32, background: "var(--surface)" }} aria-label={`Remove photo ${i + 1}`}><Icon name="x" size={16} /></button>
@@ -85,10 +84,10 @@ export default function Sell({ loaderData: x, actionData }: Route.ComponentProps
           ) : null}
         </div>
         <p className="caption muted">{n} added. You can add up to 8.</p>
-        <Info icon="info-circle"><strong>Add a photo of the IMEI screen.</strong> Dial *#06# and take a screenshot. Buyers check the number at the hand-over, so it builds trust.</Info>
+        <Info icon="info-circle"><strong>Show what a buyer will check.</strong> The IMEI screen for a phone (dial *#06#), the size label for clothes and shoes, the papers for a car (cover your personal details). It builds trust.</Info>
         <section className="card stack">
           <p className="label">Photo tips</p>
-          <p className="body muted">Use daylight. No filters or stickers. Show the front, back and sides, and any scratches. Honest photos mean fewer problems later.</p>
+          <p className="body muted">Use daylight. No filters or stickers. Show the front, back and sides, and any marks or damage. Honest photos mean fewer problems later.</p>
         </section>
         <ErrorText>{(actionData as any)?.error}</ErrorText>
         <BottomAction>
