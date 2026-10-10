@@ -15,7 +15,8 @@
     "db:seed": "node scripts/seed.mjs",
     "db:test": "node scripts/db-test.mjs",
     "test": "vitest run",
-    "staff:create": "node scripts/create-staff.mjs"
+    "staff:create": "node scripts/create-staff.mjs",
+    "staff:password": "node scripts/staff-password.mjs"
   },
   "dependencies": {
     "better-auth": "^1.7.7",
