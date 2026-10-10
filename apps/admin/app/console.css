@@ -145,3 +145,7 @@
   .console-main, .bar, .hbar-track span, .auth-card > * { animation: none; }
   .kpi-link:hover, .queue-tile.hot:hover { transform: none; }
 }
+
+/* Two-factor setup: the QR code stays dark on white in both themes, with room around it, so phones can read it. */
+.totp-qr { align-self: center; width: min(232px, 100%); padding: 8px; border-radius: 16px; background: #fff; box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
+.totp-qr svg { display: block; width: 100%; height: auto; image-rendering: pixelated; }
