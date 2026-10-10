@@ -52,8 +52,8 @@
       // No per-version preview addresses: the staff site has exactly one address, behind Access.
       "preview_urls": false,
       "vars": {
-        "APP_URL": "https://noshen-web.__SUBDOMAIN__.workers.dev",
-        "ADMIN_URL": "https://noshen-admin.__SUBDOMAIN__.workers.dev",
+        "APP_URL": "https://noshen-web.egbo2255.workers.dev",
+        "ADMIN_URL": "https://noshen-admin.egbo2255.workers.dev",
         // From Cloudflare Zero Trust → Access → Applications. Until both are set, the site refuses every request.
         "ACCESS_TEAM_DOMAIN": "",
         "ACCESS_AUD": "",
@@ -62,7 +62,7 @@
         "EMAIL": "none",
         "ID_PROVIDER": "fake"
       },
-      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "__ADMIN_HYPERDRIVE_ID__" }],
+      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "50eda60146f14d95afdbf83685c361b3" }],
       "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],
       "workflows": [{ "name": "noshen-admin-deal-timers", "binding": "DEAL_TIMERS", "class_name": "DealTimers" }]
     }
