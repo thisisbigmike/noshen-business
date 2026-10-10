@@ -4,7 +4,7 @@ import type { Route } from "./+types/listing";
 import { optionalUser, withApp } from "../../server/web";
 import { listingView } from "../../server/engine/queries";
 import { settingsOf } from "../../server/engine/core";
-import { Avatar, BottomAction, Button, Icon, Kv, ProtectionBadge, TopBar } from "../components/ui";
+import { Avatar, BottomAction, Button, Icon, Kv, ProtectionBadge, TopBar, Wordmark } from "../components/ui";
 import { feeFor, naira } from "../../shared/money";
 import { CONDITIONS, firstName } from "../../shared/deal";
 import { ago } from "../../shared/time";
@@ -61,16 +61,17 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
 
   return (
     <div>
-      <TopBar title={<span className="row"><span className="nh-wordmark nh-wordmark-sm">NosHen</span></span>} back="/browse" right={<Link className="caption" style={{ padding: "0 8px" }} to="/browse">See more listings</Link>} />
+      <TopBar title={<Wordmark size="sm" />} back="/browse" right={<Link className="caption" style={{ padding: "0 8px" }} to="/browse">See more listings</Link>} />
       <main className="page flush no-tabs">
         <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/browse">Browse</Link> / {l.category === "phone" ? "Phones" : "Laptops"} / {l.area}</nav>
         <div className="two-col">
           <div className="stack-4">
-            <div className="carousel" style={{ margin: "0 -16px" }}>
+            <div className="carousel bleed">
               <div className="track" onScroll={(e) => setPhoto(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
                 {photos.length ? photos.map((k, i) => <img key={k} src={photoUrl(k)} alt={`Photo ${i + 1} of ${photos.length}`} />) : <div className="nh-listing-photo" style={{ width: "100%" }}><Icon name="camera" size={32} label="No photo yet" /></div>}
               </div>
               {photos.length ? <span className="count caption">{photo + 1} / {photos.length}</span> : null}
+              {photos.length > 1 ? <span className="dots" aria-hidden="true">{photos.map((k, i) => <span key={k} className={i === photo ? "on" : undefined} />)}</span> : null}
             </div>
             <div className="stack mobile-only">
               <h1 className="title">{l.title}</h1>

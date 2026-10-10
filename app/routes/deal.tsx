@@ -81,7 +81,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
         <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/deals">Deals</Link> / {role === "buyer" ? "Buying" : "Selling"} / {listing.title}</nav>
         <div className="two-col">
           <div className="stack-4">
-            <section className="card stack" aria-label="Where the money is">
+            <section className={`card stack money-card money-${t.chip.state}${t.chip.state === "held" ? " beam" : ""}`} aria-label="Where the money is">
               <div className="row-between wrap">
                 <MoneyStatus state={t.chip.state}>{t.chip.word}</MoneyStatus>
                 {t.deadline ? <span className="caption muted row"><Icon name="clock" size={16} />{t.deadline}</span> : null}

@@ -5,7 +5,8 @@ import { ConsoleEmail } from "../../server/email";
 import { optionalUser, withApp, messageOf } from "../../server/web";
 import { setName } from "../../server/engine/sellers";
 import { mailFor, isDev } from "../../server/context";
-import { BottomAction, Button, CodeInput, TextField, TopBar, Info, ErrorText } from "../components/ui";
+import { BottomAction, Button, CodeInput, Icon, TextField, TopBar, Info, ErrorText, Wordmark } from "../components/ui";
+import type { IconName } from "../components/icons";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Sign in · NosHen" }];
@@ -89,6 +90,34 @@ function GoogleMark() {
   );
 }
 
+/** Sign-in steps sit in one card; on wide screens a panel beside it repeats the promise. */
+function AuthFrame({ title, back, icon, heading, sub, children }: { title: string; back?: string; icon: IconName; heading: string; sub: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div>
+      <TopBar title={title} back={back} />
+      <main className="auth-wrap">
+        <div className="auth-box stack-4">
+          <span className="auth-icon"><Icon name={icon} size={26} /></span>
+          <div className="stack">
+            <h1 className="heading">{heading}</h1>
+            <p className="body muted">{sub}</p>
+          </div>
+          {children}
+        </div>
+        <aside className="auth-aside" aria-hidden="true">
+          <Wordmark size="md" />
+          <p className="auth-aside-title">Your money is held until you have the item.</p>
+          <ul>
+            <li><Icon name="building-bank" size={18} />A licensed partner bank holds every payment.</li>
+            <li><Icon name="shield-lock" size={18} />Your release code lives only in the app.</li>
+            <li><Icon name="scale" size={18} />A real person decides any problem within 72 hours.</li>
+          </ul>
+        </aside>
+      </main>
+    </div>
+  );
+}
+
 export default function SignIn({ loaderData, actionData }: Route.ComponentProps) {
   const nav = useNavigation();
   const busy = nav.state !== "idle";
@@ -99,15 +128,12 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
   if (step === "name") {
     return (
       <Form method="post" action={formAction}>
-        <TopBar title="Your name" />
-        <main className="page narrow no-tabs stack-4">
-          <h1 className="heading">What's your name?</h1>
-          <p className="body muted">Use the name on your bank account. Payments are checked against it, and the other person in a deal sees your first name.</p>
+        <AuthFrame title="Your name" icon="user" heading="What's your name?" sub="Use the name on your bank account. Payments are checked against it, and the other person in a deal sees your first name.">
           <input type="hidden" name="step" value="name" />
           <input type="hidden" name="next" value={loaderData.next} />
           <TextField label="Full name" name="name" autoComplete="name" placeholder="Chioma Obi" required error={a?.error} autoFocus />
           <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>Continue</Button></BottomAction>
-        </main>
+        </AuthFrame>
       </Form>
     );
   }
@@ -115,47 +141,39 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
   if (step === "code") {
     return (
       <Form method="post" action={formAction}>
-        <TopBar title="Sign in" back={formAction} />
-        <main className="page narrow no-tabs stack-4">
-          <h1 className="heading">Check your email</h1>
-          <p className="body muted">We sent a 6-digit code to {a.email}. It expires in 5 minutes.</p>
+        <AuthFrame title="Sign in" back={formAction} icon="message-circle" heading="Check your email" sub={<>We sent a 6-digit code to <strong className="ink">{a.email}</strong>. It expires in 5 minutes.</>}>
           <input type="hidden" name="step" value="code" />
           <input type="hidden" name="email" value={a.email} />
           <input type="hidden" name="next" value={loaderData.next} />
           <CodeInput name="code" label="Sign-in code" autoFocus error={a?.error} hint="Not there? Check your spam folder, or go back and ask for a new code." />
           {a?.devCode ? <p className="dev caption">Development: no email is sent. Your code is <strong className="tabular">{a.devCode}</strong>.</p> : null}
           <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>Continue</Button></BottomAction>
-        </main>
+        </AuthFrame>
       </Form>
     );
   }
 
   return (
-    <div>
-      <TopBar title="Sign in" back="/" />
-      <main className="page narrow no-tabs stack-4">
-        <h1 className="heading">Sign in to NosHen</h1>
-        <p className="body muted">New here? The same steps create your account.</p>
-        {loaderData.googleError ? <ErrorText>Google sign-in didn't finish. Try again, or use your email.</ErrorText> : null}
-        {loaderData.google ? (
-          <Form method="post" action={formAction}>
-            <input type="hidden" name="step" value="google" />
-            <input type="hidden" name="next" value={loaderData.next} />
-            <button type="submit" className="nh-btn nh-btn-secondary nh-btn-lg nh-btn-block" disabled={busy}><GoogleMark />Continue with Google</button>
-          </Form>
-        ) : loaderData.dev ? (
-          <p className="dev caption">Development: Google sign-in appears here once GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in .dev.vars.</p>
-        ) : null}
-        {loaderData.google ? <div className="row" style={{ gap: 12 }}><hr className="divider grow" /><span className="caption muted">or</span><hr className="divider grow" /></div> : null}
-        <Form method="post" action={formAction} className="stack-4">
-          <input type="hidden" name="step" value="email" />
+    <AuthFrame title="Sign in" back="/" icon="shield-check" heading="Sign in to NosHen" sub="New here? The same steps create your account.">
+      {loaderData.googleError ? <ErrorText>Google sign-in didn't finish. Try again, or use your email.</ErrorText> : null}
+      {loaderData.google ? (
+        <Form method="post" action={formAction}>
+          <input type="hidden" name="step" value="google" />
           <input type="hidden" name="next" value={loaderData.next} />
-          <TextField label="Email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="chioma@gmail.com"
-            hint="We'll email you a 6-digit code. No password needed." error={a?.step === "email" ? a.error : undefined} required autoFocus={!loaderData.google} />
-          <Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy && nav.formData?.get("step") === "email" ? "Sending…" : "Email me a code"}</Button>
+          <button type="submit" className="nh-btn nh-btn-secondary nh-btn-lg nh-btn-block" disabled={busy}><GoogleMark />Continue with Google</button>
         </Form>
-        <Info icon="shield-check">We never show your email to the other person. You talk in the deal chat.</Info>
-      </main>
-    </div>
+      ) : loaderData.dev ? (
+        <p className="dev caption">Development: Google sign-in appears here once GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in .dev.vars.</p>
+      ) : null}
+      {loaderData.google ? <div className="or-rule"><span className="caption muted">or</span></div> : null}
+      <Form method="post" action={formAction} className="stack-4">
+        <input type="hidden" name="step" value="email" />
+        <input type="hidden" name="next" value={loaderData.next} />
+        <TextField label="Email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="chioma@gmail.com"
+          hint="We'll email you a 6-digit code. No password needed." error={a?.step === "email" ? a.error : undefined} required autoFocus={!loaderData.google} />
+        <Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight={busy ? undefined : "arrow-right"}>{busy && nav.formData?.get("step") === "email" ? "Sending…" : "Email me a code"}</Button>
+      </Form>
+      <Info icon="shield-check">We never show your email to the other person. You talk in the deal chat.</Info>
+    </AuthFrame>
   );
 }

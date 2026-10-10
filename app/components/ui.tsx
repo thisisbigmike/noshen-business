@@ -15,22 +15,35 @@ export function Icon({ name, size = 20, label, className }: { name: IconName; si
   );
 }
 
+/** The favicon's shield on a rounded square, then the name. */
 export function Wordmark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
-  return <span className={`nh-wordmark nh-wordmark-${size}`}>NosHen</span>;
+  return (
+    <span className={`nh-wordmark nh-wordmark-${size}`}>
+      <svg className="nh-wordmark-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="9" fill="var(--primary)" />
+        <g transform="translate(4 4)" fill="none" stroke="var(--on-primary)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          {ICONS["shield-check"].map((d) => <path key={d} d={d} />)}
+        </g>
+      </svg>
+      NosHen
+    </span>
+  );
 }
 
 type BtnProps = {
   variant?: "primary" | "secondary" | "danger";
   size?: "md" | "lg";
   block?: boolean;
+  pill?: boolean;
   icon?: IconName;
+  iconRight?: IconName;
   to?: string;
 } & ButtonHTMLAttributes<HTMLButtonElement>;
 
-export function Button({ variant = "secondary", size = "md", block, icon, to, className, children, ...rest }: BtnProps) {
-  const cls = cx("nh-btn", `nh-btn-${variant}`, `nh-btn-${size}`, block && "nh-btn-block", className);
-  const inner = <>{icon ? <Icon name={icon} size={18} /> : null}{children}</>;
-  if (to) return <Link to={to} className={cls} style={{ textDecoration: "none" }}>{inner}</Link>;
+export function Button({ variant = "secondary", size = "md", block, pill, icon, iconRight, to, className, children, ...rest }: BtnProps) {
+  const cls = cx("nh-btn", `nh-btn-${variant}`, `nh-btn-${size}`, block && "nh-btn-block", pill && "nh-btn-pill", className);
+  const inner = <>{icon ? <Icon name={icon} size={18} /> : null}{children}{iconRight ? <Icon name={iconRight} size={18} /> : null}</>;
+  if (to) return <Link to={to} className={cls}>{inner}</Link>;
   return <button type="button" className={cls} {...rest}>{inner}</button>;
 }
 
@@ -76,7 +89,7 @@ export function CodeInput({ name, label = "Release code", hint, error, length = 
   const value = (controlled ?? own).replace(/\D/g, "").slice(0, length);
   const cells = [];
   for (let i = 0; i < length; i++) {
-    cells.push(<span key={i} aria-hidden="true" className={cx("nh-code-cell", i < value.length && "nh-code-cell-filled", i === length / 2 && "nh-code-cell-gap")}>{value.charAt(i)}</span>);
+    cells.push(<span key={i} aria-hidden="true" className={cx("nh-code-cell", i < value.length && "nh-code-cell-filled", i === value.length && "nh-code-cell-active", i === length / 2 && "nh-code-cell-gap")}>{value.charAt(i)}</span>);
   }
   return (
     <div className={cx("nh-code", error && "nh-code-error")}>
@@ -107,7 +120,7 @@ export function MoneyStatus({ state, children }: { state: MoneyState; children?:
   return <span className={`nh-status nh-status-${state} label`}><Icon name={s.icon} size={16} />{children ?? s.word}</span>;
 }
 
-export function ProtectionBadge({ variant = "tint", children }: { variant?: "tint" | "brand"; children?: ReactNode }) {
+export function ProtectionBadge({ variant = "tint", children }: { variant?: "tint" | "brand" | "glass"; children?: ReactNode }) {
   return <span className={`nh-badge nh-badge-${variant} label`}><Icon name="shield-check" size={16} />{children ?? "Protected by NosHen"}</span>;
 }
 
@@ -115,12 +128,14 @@ export function ListingCard({ title, priceKobo, area, posted, imageUrl, href }: 
   const meta = [area, posted].filter(Boolean).join(" · ");
   return (
     <Link className="nh-listing" to={href}>
-      <div className="nh-listing-photo">{imageUrl ? <img src={imageUrl} alt="" loading="lazy" /> : <Icon name="camera" size={32} label="No photo yet" />}</div>
+      <div className="nh-listing-photo">
+        {imageUrl ? <img src={imageUrl} alt="" loading="lazy" /> : <Icon name="camera" size={32} label="No photo yet" />}
+        <ProtectionBadge variant="glass">Protected</ProtectionBadge>
+      </div>
       <div className="nh-listing-body">
         <p className="nh-listing-title title">{title}</p>
         <p className="nh-listing-price heading">{naira(priceKobo)}</p>
         {meta ? <p className="nh-listing-meta caption"><Icon name="map-pin" size={16} />{meta}</p> : null}
-        <ProtectionBadge />
       </div>
     </Link>
   );
@@ -141,21 +156,22 @@ export function DealCard({ state, word, amountKobo, item, counterpart, deadline,
       {children ? <div className="nh-deal-actions">{children}</div> : null}
     </>
   );
+  const cls = cx("nh-deal", `nh-deal-${state}`, state === "held" && "beam");
   return href
-    ? <Link to={href} className="nh-deal" style={{ textDecoration: "none", maxWidth: "none" }} aria-label={`Deal: ${item}`}>{body}</Link>
-    : <section className="nh-deal" style={{ maxWidth: "none" }} aria-label={`Deal: ${item}`}>{body}</section>;
+    ? <Link to={href} className={cls} style={{ textDecoration: "none", maxWidth: "none" }} aria-label={`Deal: ${item}`}>{body}</Link>
+    : <section className={cls} style={{ maxWidth: "none" }} aria-label={`Deal: ${item}`}>{body}</section>;
 }
 
 export function ReleaseCode({ code, defaultRevealed = false, help }: { code: string; defaultRevealed?: boolean; help?: string }) {
   const [shown, setShown] = useState(defaultRevealed);
-  const half = Math.ceil(code.length / 2);
   return (
-    <div className="nh-release" style={{ maxWidth: "none" }}>
-      <p className="nh-release-label label">Your release code</p>
-      <p className="nh-release-code release-code" aria-live="polite" aria-label={shown ? "Release code " + code.split("").join(" ") : "Release code hidden"}>
-        {shown ? code.slice(0, half) + " " + code.slice(half) : "••• •••"}
+    <div className={cx("nh-release", shown ? "nh-release-shown" : "nh-release-hidden")} style={{ maxWidth: "none" }}>
+      <p className="nh-release-label label"><Icon name="shield-lock" size={16} />Your release code</p>
+      <p className="nh-release-code" aria-live="polite">
+        {code.split("").map((c, i) => <span key={`${i}-${shown}`} className="nh-release-digit" aria-hidden="true">{shown ? c : "•"}</span>)}
+        <span className="sr-only">{shown ? "Release code " + code.split("").join(" ") : "Release code hidden"}</span>
       </p>
-      <Button onClick={() => setShown(!shown)}>{shown ? "Hide code" : "Show code"}</Button>
+      <Button icon={shown ? "eye-off" : "eye"} onClick={() => setShown(!shown)}>{shown ? "Hide code" : "Show code"}</Button>
       <p className="nh-release-help caption">{help ?? "Give this code to the seller only after you have checked the item. It releases your money."}</p>
     </div>
   );
