@@ -272,7 +272,7 @@
   .seal.hero-seal { right: -6px; bottom: 64px; }
 }
 @media (min-width: 1024px) and (max-width: 1279px) {
-  .fc-seller { top: auto; bottom: 150px; right: -14px; }
+  .fc-seller { top: auto; bottom: 62px; right: -14px; }
   .fc-seller .caption { display: none; }
   .seal.hero-seal { top: -8px; bottom: auto; right: -12px; width: 96px; height: 96px; }
   .seal.hero-seal .seal-core { inset: 27px; }
