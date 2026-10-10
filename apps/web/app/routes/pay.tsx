@@ -76,7 +76,7 @@ export default function Pay({ loaderData: x }: Route.ComponentProps) {
         <p className="caption muted">{x.partnerBank}, our licensed partner, holds the money. {x.seller} can't touch it until you {deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}.</p>
         {x.dev ? (
           <div className="dev stack">
-            <p className="label">Development only: pretend to be your bank</p>
+            <p className="label">Test mode: no real money moves. Pretend to be your bank:</p>
             <div className="row wrap"><Button onClick={() => simulate(false)}>Send {due} from my account</Button><Button onClick={() => simulate(true)}>Send from someone else's account</Button></div>
             {devMsg ? <p className="caption">{devMsg}</p> : null}
           </div>

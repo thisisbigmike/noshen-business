@@ -21,9 +21,15 @@ const hmac = async (t) => Buffer.from(await crypto.subtle.sign("HMAC", hmacKey, 
 
 const db = new pg.Client({ connectionString: databaseUrl() });
 await db.connect();
+// The test admin's password is written right here, so it's created only in a database on this computer.
+// Online databases get real staff accounts from `pnpm staff:create` instead.
+const local = ["localhost", "127.0.0.1", "::1"].includes(new URL(databaseUrl()).hostname);
 const staffPassword = "noshen-dev-staff";
-const existingStaff = await db.query("select id from staff where email = 'tobi@noshen.test'");
-const staffId = existingStaff.rows[0]?.id ?? await createStaff(db, "Tobi Bello", "tobi@noshen.test", "admin", staffPassword);
+let staffId = null;
+if (local) {
+  const existingStaff = await db.query("select id from staff where email = 'tobi@noshen.test'");
+  staffId = existingStaff.rows[0]?.id ?? await createStaff(db, "Tobi Bello", "tobi@noshen.test", "admin", staffPassword);
+}
 
 // Seed sellers may take deals up to ₦20,000,000, so the demo car can be bought.
 const SELLER_LIMIT_KOBO = 2_000_000_000;
@@ -46,7 +52,7 @@ async function seller(fullName, email, last4) {
   await db.query(
     `insert into bank_accounts (user_id, bank_code, account_number_enc, account_number_hmac, account_last4, account_name, name_matches_id, is_default, verified_at)
      values ($1, '058', $2, $3, $4, $5, true, true, now())`, [id, await encrypt(number), await hmac(`acct:${number}`), number.slice(-4), fullName.toUpperCase()]);
-  await db.query(`insert into staff_actions (staff_id, action, target_type, target_id, reason, payload) values ($1, 'set_limit', 'user', $2, $3, '{"max_deal_kobo": 2000000000}')`,
+  if (staffId) await db.query(`insert into staff_actions (staff_id, action, target_type, target_id, reason, payload) values ($1, 'set_limit', 'user', $2, $3, '{"max_deal_kobo": 2000000000}')`,
     [staffId, id, "Seed data: established seller with completed deals"]);
   return id;
 }
@@ -83,4 +89,5 @@ for (const [sellerId, cat, title, naira, cond, area, imei, desc, hoursAgo] of LI
     [sellerId, cat, title, desc, naira * 100, cond, area, imei, keys, hoursAgo]);
 }
 await db.end();
-console.log(`Seed: ${added} new listing(s), ${LISTINGS.length} in all. Sellers tunde@example.com and kunle@example.com; staff admin tobi@noshen.test / ${staffPassword}`);
+console.log(`Seed: ${added} new listing(s), ${LISTINGS.length} in all. Sellers tunde@example.com and kunle@example.com.` +
+  (local ? ` Staff admin tobi@noshen.test / ${staffPassword}` : " No staff account (online database): use pnpm staff:create."));

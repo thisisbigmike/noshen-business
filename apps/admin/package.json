@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "react-router dev --port 5174 --strictPort",
     "build": "react-router build",
-    "deploy": "react-router build && wrangler deploy",
+    "deploy": "CLOUDFLARE_ENV=production react-router build && wrangler deploy",
     "typecheck": "wrangler types && react-router typegen && tsc -p tsconfig.json",
     "cf-typegen": "wrangler types"
   },

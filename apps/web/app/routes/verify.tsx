@@ -69,14 +69,14 @@ export default function Verify({ loaderData: x, actionData }: Route.ComponentPro
               <label className="choice grow"><input type="radio" name="type" value="bvn" /><span className="body">BVN</span></label>
             </fieldset>
             <TextField label="Number" name="number" inputMode="numeric" maxLength={11} autoComplete="off" hint="11 digits" required error={err("id")} missing="Enter your NIN or BVN. It has 11 digits." validate={(v) => digitsProblem(v, 11, "NIN or BVN")} />
-            {x.dev ? <p className="dev caption">Development: the identity check is pretend. Any 11 digits pass, with the name on your account.</p> : null}
+            {x.dev ? <p className="dev caption">Test mode: the identity check is pretend. Type any 11 digits, never your real NIN or BVN.</p> : null}
           </>
         ) : null}
         {step === "bank" ? (
           <>
             <Select name="bank" label="Bank" defaultValue="058" options={BANKS.map(([c, n]) => ({ value: c, label: n }))} />
             <TextField label="Account number" name="account" inputMode="numeric" maxLength={10} autoComplete="off" hint="10 digits" required error={err("bank")} missing="Enter your account number. It has 10 digits." validate={(v) => digitsProblem(v, 10, "account number")} />
-            {x.dev ? <p className="dev caption">Development: the pretend bank says every account belongs to the name on your NosHen account.</p> : null}
+            {x.dev ? <p className="dev caption">Test mode: the bank check is pretend and no money is ever paid out. Use a made-up 10-digit account number, never your real one.</p> : null}
           </>
         ) : null}
         <Info icon="lock">NosHen staff can't change your bank details. Only you can, after a fresh sign-in code.</Info>

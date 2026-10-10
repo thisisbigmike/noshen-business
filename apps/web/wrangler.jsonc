@@ -36,5 +36,25 @@
   "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],
   "workflows": [{ "name": "noshen-deal-timers", "binding": "DEAL_TIMERS", "class_name": "DealTimers" }],
   // The stuck-deal sweep: the safety net behind every timer.
-  "triggers": { "crons": ["*/15 * * * *"] }
+  "triggers": { "crons": ["*/15 * * * *"] },
+  // The public demo: `pnpm deploy:web` builds with CLOUDFLARE_ENV=production and deploys this.
+  // Bindings aren't inherited by environments, so they're all listed again here.
+  "env": {
+    "production": {
+      "name": "noshen-web",
+      "vars": {
+        "APP_URL": "https://noshen-web.__SUBDOMAIN__.workers.dev",
+        // Pretend payments and ID checks: a demo, not the real service (the site says so on every page).
+        "PARTNER": "fake",
+        "PARTNER_BANK_NAME": "Test Bank (demo)",
+        // No email provider until there's a domain: sign-in is by Google, and updates are in the app.
+        "EMAIL": "none",
+        "ID_PROVIDER": "fake"
+      },
+      "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "__WEB_HYPERDRIVE_ID__" }],
+      "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],
+      "workflows": [{ "name": "noshen-deal-timers", "binding": "DEAL_TIMERS", "class_name": "DealTimers" }],
+      "triggers": { "crons": ["*/15 * * * *"] }
+    }
+  }
 }

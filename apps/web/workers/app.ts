@@ -1,6 +1,6 @@
 import { createRequestHandler } from "react-router";
 import { api } from "../server/api";
-import { withApp } from "@noshen/engine/context";
+import { isDemo, withApp } from "@noshen/engine/context";
 import { sweep } from "@noshen/engine/sweep";
 
 // Deal deadlines run as Cloudflare Workflows (see wrangler.jsonc).
@@ -12,8 +12,12 @@ const pages = createRequestHandler(() => import("virtual:react-router/server-bui
 export default {
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);
-    if (pathname.startsWith("/api/") || pathname.startsWith("/photos/")) return api.fetch(request, env, ctx);
-    return pages(request);
+    const res = pathname.startsWith("/api/") || pathname.startsWith("/photos/") ? await api.fetch(request, env, ctx) : await pages(request);
+    if (!isDemo()) return res;
+    // A demo with pretend payments stays out of search results, so nobody mistakes it for the real service.
+    const out = new Response(res.body, res);
+    out.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return out;
   },
 
   // Every 15 minutes: act on any deadline whose timer didn't fire (TRD: stuck-deal watch).

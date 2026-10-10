@@ -6,6 +6,8 @@ import type { EmailSender } from "@noshen/engine/email";
 
 /** Google sign-in is offered only when its OAuth client is configured. */
 export const googleEnabled = () => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+/** Email codes are offered only when email can be sent (not on a public demo without an email provider). */
+export const emailSignInEnabled = () => env.EMAIL !== "none";
 
 /**
  * Sign-in for the customer site, with Better Auth. Buyers and sellers use a 6-digit code sent to their
@@ -28,7 +30,7 @@ function makeAuth(mail: EmailSender) {
     // Google checks the email, so a person who first used an email code and later uses Google
     // (or the other way round) lands in the same account.
     account: { accountLinking: { enabled: true, trustedProviders: ["google"] } },
-    plugins: [
+    plugins: mail.enabled === false ? [] : [
       emailOTP({
         otpLength: 6,
         expiresIn: 300,

@@ -3,7 +3,7 @@ import { withDb, type Db } from "./db";
 import type { Deps } from "./core";
 import { FakePartner } from "./partner/fake";
 import type { PaymentsPartner, PartnerEvent } from "./partner/types";
-import { ConsoleEmail, type EmailSender } from "./email";
+import { ConsoleEmail, NoEmail, type EmailSender } from "./email";
 import { FakeIdProvider } from "./idcheck";
 
 /** Deal timers run as Cloudflare Workflows: one instance per deadline, sleeping until it's due. */
@@ -27,8 +27,19 @@ export function partnerFor(): PaymentsPartner {
   throw new Error(`Payment partner "${env.PARTNER}" isn't set up yet. See packages/engine/src/partner/.`);
 }
 
+/**
+ * True only in the development server on this computer. Test conveniences (codes on screen, the timer sweep
+ * button) never run anywhere else: a production build is never "local", whatever its settings say.
+ */
+export const isLocal = () => import.meta.env.DEV && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(env.APP_URL);
+
 export function mailFor(): EmailSender {
-  if (env.EMAIL === "console") return new ConsoleEmail();
+  if (env.EMAIL === "console") {
+    // Prints every email and shows sign-in codes on screen, so it must never run on a real address.
+    if (!isLocal()) throw new Error('EMAIL "console" only works on a local address. Use "none" (Google sign-in only) or a real provider.');
+    return new ConsoleEmail();
+  }
+  if (env.EMAIL === "none") return new NoEmail();
   throw new Error(`Email provider "${env.EMAIL}" isn't set up yet. See packages/engine/src/email.ts.`);
 }
 
@@ -49,4 +60,7 @@ export function withApp<T>(fn: (d: Deps) => Promise<T>, mail?: EmailSender): Pro
   return withDb(env.HYPERDRIVE.connectionString, (db) => fn(depsFor(db, mail)));
 }
 
+/** Pretend payments and checks (the fake partner): on this computer, or on a public demo. */
 export const isDev = () => env.PARTNER === "fake";
+/** A public demo: pretend payments on a real address. Shows the demo notice and keeps the site out of search. */
+export const isDemo = () => isDev() && !isLocal();

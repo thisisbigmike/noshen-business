@@ -1,10 +1,10 @@
 import { Form, Link, redirect, useNavigation, data } from "react-router";
 import type { Route } from "./+types/signin";
-import { createAuth, googleEnabled } from "../../server/auth";
+import { createAuth, emailSignInEnabled, googleEnabled } from "../../server/auth";
 import { ConsoleEmail } from "@noshen/engine/email";
 import { optionalUser, withApp, messageOf } from "../../server/web";
 import { setName } from "@noshen/engine/sellers";
-import { mailFor, isDev } from "@noshen/engine/context";
+import { mailFor, isLocal } from "@noshen/engine/context";
 import { BottomAction, Button, CheckedForm, CodeInput, Icon, TextField, TopBar, Info, ErrorText, Wordmark } from "@noshen/ui/ui";
 import { emailProblem, nameProblem } from "@noshen/shared/validate";
 import type { IconName } from "@noshen/ui/icons";
@@ -25,7 +25,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const user = await optionalUser(request);
   const next = safeNext(url.searchParams.get("next"));
   if (user && user.full_name) throw redirect(next);
-  return { needsName: !!user && !user.full_name, next, google: googleEnabled(), dev: isDev(), googleError: url.searchParams.get("error") === "google" };
+  return { needsName: !!user && !user.full_name, next, google: googleEnabled(), email: emailSignInEnabled(), local: isLocal(), googleError: url.searchParams.get("error") === "google" };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -35,16 +35,17 @@ export async function action({ request }: Route.ActionArgs) {
   const back = `/signin?next=${encodeURIComponent(next)}`;
 
   if (step === "google") {
-    if (!googleEnabled()) return { step: "email" as const, error: "Google sign-in isn't set up yet. Use your email instead." };
+    if (!googleEnabled()) return { step: "email" as const, error: "Google sign-in isn't set up yet." };
     const res = await createAuth(mailFor()).api.signInSocial({
       body: { provider: "google", callbackURL: back, errorCallbackURL: `${back}&error=google` }, headers: request.headers, asResponse: true,
     });
     const body = (await res.clone().json().catch(() => ({}))) as { url?: string };
-    if (!res.ok || !body.url) return { step: "email" as const, error: "We couldn't reach Google just now. Try again, or use your email." };
+    if (!res.ok || !body.url) return { step: "email" as const, error: "We couldn't reach Google just now. Please try again." };
     return redirect(body.url, { headers: forwardCookies(res) });
   }
 
   if (step === "email") {
+    if (!emailSignInEnabled()) return { step: "email" as const, error: "Sign-in by email code isn't available here. Continue with Google." };
     const email = String(form.get("email") ?? "").trim().toLowerCase();
     const problem = emailProblem(email);
     if (problem) return { step: "email" as const, error: problem };
@@ -54,11 +55,13 @@ export async function action({ request }: Route.ActionArgs) {
     } catch {
       return { step: "email" as const, error: "We couldn't send a code just now. Wait a minute and try again." };
     }
-    const devCode = isDev() && mail instanceof ConsoleEmail ? mail.sent.at(-1)?.text.match(/\b\d{6}\b/)?.[0] : undefined;
+    // Only on this computer: the console "email" shows the code on screen.
+    const devCode = isLocal() && mail instanceof ConsoleEmail ? mail.sent.at(-1)?.text.match(/\b\d{6}\b/)?.[0] : undefined;
     return { step: "code" as const, email, devCode };
   }
 
   if (step === "code") {
+    if (!emailSignInEnabled()) return redirect(back);
     const email = String(form.get("email"));
     const otp = String(form.get("code") ?? "").replace(/\D/g, "");
     if (otp.length !== 6) return { step: "code" as const, email, error: "Enter all 6 digits." };
@@ -157,25 +160,27 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
 
   return (
     <AuthFrame title="Sign in" back="/" icon="shield-check" heading="Sign in to NosHen" sub="New here? The same steps create your account.">
-      {loaderData.googleError ? <ErrorText>Google sign-in didn't finish. Try again, or use your email.</ErrorText> : null}
+      {loaderData.googleError ? <ErrorText>{loaderData.email ? "Google sign-in didn't finish. Try again, or use your email." : "Google sign-in didn't finish. Please try again."}</ErrorText> : null}
       {loaderData.google ? (
         <Form method="post" action={formAction}>
           <input type="hidden" name="step" value="google" />
           <input type="hidden" name="next" value={loaderData.next} />
           <button type="submit" className="nh-btn nh-btn-secondary nh-btn-lg nh-btn-block" disabled={busy}><GoogleMark />Continue with Google</button>
         </Form>
-      ) : loaderData.dev ? (
-        <p className="dev caption">Development: Google sign-in appears here once GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in .dev.vars.</p>
+      ) : loaderData.local ? (
+        <p className="dev caption">Development: Google sign-in appears here once GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in apps/web/.dev.vars.</p>
       ) : null}
-      {loaderData.google ? <div className="or-rule"><span className="caption muted">or</span></div> : null}
-      <CheckedForm method="post" action={formAction} className="stack-4">
+      {!loaderData.google && !loaderData.email ? <Info icon="info-circle">Sign-in isn't switched on yet. You can still browse everything for sale.</Info> : null}
+      {loaderData.google && loaderData.email ? <div className="or-rule"><span className="caption muted">or</span></div> : null}
+      {loaderData.email ? <CheckedForm method="post" action={formAction} className="stack-4">
         <input type="hidden" name="step" value="email" />
         <input type="hidden" name="next" value={loaderData.next} />
         <TextField label="Email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="chioma@gmail.com"
           hint="We'll email you a 6-digit code. No password needed." error={a?.step === "email" ? a.error : undefined} required autoFocus={!loaderData.google}
           missing="Enter your email address, so we can send you a code." validate={emailProblem} />
         <Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight={busy ? undefined : "arrow-right"}>{busy && nav.formData?.get("step") === "email" ? "Sending…" : "Email me a code"}</Button>
-      </CheckedForm>
+      </CheckedForm> : null}
+      {a?.step === "email" && a.error && !loaderData.email ? <ErrorText>{a.error}</ErrorText> : null}
       <Info icon="shield-check">We never show your email to the other person. You talk in the deal chat.</Info>
       <p className="caption muted consent">By continuing, you agree to NosHen's <Link to="/terms">Terms of Use</Link> and <Link to="/deal-terms">Protected Deal Terms</Link>, and you've read our <Link to="/privacy">Privacy Policy</Link>.</p>
     </AuthFrame>

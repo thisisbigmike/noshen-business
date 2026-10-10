@@ -102,6 +102,7 @@ export async function notify(d: Deps, tx: Tx, userId: string, dealId: string | n
     "insert into notifications (user_id, deal_id, channel, template, params, status, sent_at) values ($1, $2, 'in_app', $3, $4, 'sent', now())",
     [userId, dealId, template, JSON.stringify({ text })],
   );
+  if (d.mail.enabled === false) return;
   const to = await one<{ email: string | null }>(tx.db, "select email from users where id = $1", [userId]);
   if (!to?.email) return;
   const mail = await one<{ id: string }>(

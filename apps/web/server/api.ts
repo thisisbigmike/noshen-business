@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { env } from "cloudflare:workers";
 import { createAuth } from "./auth";
-import { withApp, partnerFor, mailFor, isDev } from "@noshen/engine/context";
+import { withApp, partnerFor, mailFor, isDev, isLocal } from "@noshen/engine/context";
 import { handlePartnerEvent } from "@noshen/engine/deals";
 import { sweep } from "@noshen/engine/sweep";
 import { dealView, dealsFor } from "@noshen/engine/queries";
@@ -60,12 +60,18 @@ api.get("/api/deals/:id", async (c) => {
 // Development tools: only with the fake partner.
 // ---------------------------------------------------------------------------
 
-/** Pretends to be the buyer's bank: sends a signed "money received" webhook for a deal. */
+/**
+ * Pretends to be the buyer's bank: sends a signed "money received" webhook for a deal. With pretend payments
+ * (on this computer or the public demo), and only the signed-in buyer of that deal can use it.
+ */
 api.post("/api/dev/partner/transfer-in", async (c) => {
   if (!isDev()) return c.notFound();
+  const me = await optionalUser(c.req.raw);
+  if (!me) return c.json({ error: "Sign in first." }, 401);
   const { dealId, senderName, amountKobo } = await c.req.json<{ dealId: string; senderName?: string; amountKobo?: number }>();
   const deal = await withApp((d) => one(d.db,
-    "select d.collection_ref, d.amount_due_kobo, u.full_name from deals d join users u on u.id = d.buyer_id where d.id = $1", [dealId]));
+    "select d.collection_ref, d.amount_due_kobo, d.buyer_id, u.full_name from deals d join users u on u.id = d.buyer_id where d.id = $1", [dealId]));
+  if (!deal || deal.buyer_id !== me.id) return c.json({ error: "Only the buyer can pay into this deal." }, 403);
   if (!deal?.collection_ref) return c.json({ error: "This deal has no account to pay into yet." }, 400);
   const event: PartnerEvent = {
     id: `evt_${crypto.randomUUID()}`, type: "collection.received",
@@ -81,9 +87,9 @@ api.post("/api/dev/partner/transfer-in", async (c) => {
   return c.json(await res.json(), res.status as 200);
 });
 
-/** Runs the timer sweep now (it also runs every 15 minutes). */
+/** Runs the timer sweep now (it also runs every 15 minutes). Development server only. */
 api.post("/api/dev/sweep", async (c) => {
-  if (!isDev()) return c.notFound();
+  if (!isLocal()) return c.notFound();
   return c.json({ done: await withApp((d) => sweep(d)) });
 });
 

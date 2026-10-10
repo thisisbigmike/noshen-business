@@ -4,6 +4,7 @@ import "@noshen/ui/styles/tokens.css";
 import "@noshen/ui/styles/components.css";
 import "@noshen/ui/styles/app.css";
 import { themeFromCookie, type Theme } from "@noshen/ui/theme";
+import { isDemo } from "@noshen/engine/context";
 
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -13,11 +14,12 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function loader({ request }: Route.LoaderArgs) {
-  return { theme: themeFromCookie(request.headers.get("Cookie")) };
+  return { theme: themeFromCookie(request.headers.get("Cookie")), demo: isDemo() };
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const theme: Theme = (useRouteLoaderData("root") as { theme?: Theme } | undefined)?.theme ?? "light";
+  const root = useRouteLoaderData("root") as { theme?: Theme; demo?: boolean } | undefined;
+  const theme: Theme = root?.theme ?? "light";
   return (
     <html lang="en-NG" data-theme={theme}>
       <head>
@@ -29,6 +31,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
+        {root?.demo ? (
+          <p className="demo-bar" role="note">
+            <strong>Demo.</strong> Payments are pretend and no real money moves. Use made-up ID and bank details, never your real NIN, BVN or account number.
+          </p>
+        ) : null}
         {children}
         <ScrollRestoration />
         <Scripts />

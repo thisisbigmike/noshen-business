@@ -9,3 +9,4 @@ dist/
 .DS_Store
 worker-configuration.d.ts
 *.tsbuildinfo
+.prod.vars
