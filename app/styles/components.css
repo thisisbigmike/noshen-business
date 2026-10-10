@@ -88,6 +88,23 @@
 }
 @media (prefers-reduced-motion: reduce) { .nh-select-pop, .nh-select-backdrop { animation: none; } .nh-select-chev { transition: none; } }
 
+/* Segmented control: two or more choices in a pill. */
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: var(--radius-full); background: var(--canvas); border: 1px solid var(--border); }
+.seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 10px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-muted); font-family: var(--font-sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: background-color var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast); }
+.seg button[aria-checked="true"], .seg button[aria-selected="true"], .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+.seg button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Theme toggle: the moon turns into the sun. */
+.theme-toggle { color: var(--ink); }
+.theme-icon { position: relative; display: inline-flex; width: 20px; height: 20px; }
+.theme-icon .nh-icon { position: absolute; inset: 0; transition: transform 400ms var(--ease-spring), opacity 200ms var(--ease-out); }
+.theme-icon .ti-sun { opacity: 0; transform: rotate(-90deg) scale(0.4); }
+.theme-icon[data-dark="true"] .ti-moon { opacity: 0; transform: rotate(90deg) scale(0.4); }
+.theme-icon[data-dark="true"] .ti-sun { opacity: 1; transform: none; color: #f5b454; }
+.theme-seg { max-width: 260px; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 260ms; }
+@media (prefers-reduced-motion: reduce) { .theme-icon .nh-icon { transition: none; } }
+
 /* Money status chip */
 .nh-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: var(--radius-full); white-space: nowrap; }
 .nh-status-held { background: var(--held-soft); color: var(--held); }

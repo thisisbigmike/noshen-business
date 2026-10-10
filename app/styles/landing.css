@@ -185,10 +185,6 @@
 .range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--surface); border: 2px solid var(--primary); box-shadow: var(--shadow-md); }
 .range:active::-webkit-slider-thumb { transform: scale(1.12); }
 .range:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; border-radius: 8px; }
-.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: var(--radius-full); background: var(--canvas); border: 1px solid var(--border); }
-.seg button { min-height: 40px; padding: 0 10px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: background-color var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast); }
-.seg button[aria-checked="true"], .seg button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
-.seg button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .fee-calc .kv.total { font-size: 17px; }
 
 /* ---------------------------------------------------------------- FAQ */

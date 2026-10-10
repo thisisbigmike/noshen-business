@@ -7,6 +7,7 @@ import { one } from "../../server/db";
 import { Button, ErrorText, Icon, Info, Kv, TopBar } from "../components/ui";
 import { naira } from "../../shared/money";
 import { LEGAL_NAV } from "../../shared/legal-pages";
+import { ThemeSwitch } from "../components/theme";
 
 export const meta = () => [{ title: "Account · NosHen" }];
 
@@ -78,6 +79,11 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
           </section>
         ) : null}
         <ErrorText>{(actionData as any)?.error}</ErrorText>
+        <section className="card stack" aria-labelledby="appearance">
+          <p className="title" id="appearance">Appearance</p>
+          <p className="caption muted">Light is the default. Your choice is saved on this device.</p>
+          <ThemeSwitch />
+        </section>
         <section className="card link-list" aria-label="Help and legal">
           <p className="label muted">Help and legal</p>
           {LEGAL_NAV.map((p) => <Link key={p.slug} to={`/${p.slug}`} className="row-between">{p.title}<Icon name="chevron-right" size={18} /></Link>)}

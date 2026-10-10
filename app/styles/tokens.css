@@ -1,4 +1,4 @@
-/* NosHen tokens as CSS custom properties, generated from tokens.json. Light is the theme; the dark values apply only with data-theme="dark" (kept for an opt-in switch later). */
+/* NosHen tokens as CSS custom properties, generated from tokens.json. Light by default; dark when the person chooses it (data-theme="dark", set from the noshen-theme cookie). */
 :root, [data-theme="light"] { --brand: #14b8a6; --on-brand: #04342c; --primary: #0f6e56; --on-primary: #ffffff; --primary-ink: #04342c; --tint: #e1f5ee; --canvas: #f6f8f7; --surface: #ffffff; --border: #d5deda; --ink: #17201d; --ink-muted: #56625e; --held: #a15c07; --held-soft: #fef6e7; --released: #2e7d32; --released-soft: #ecf6ed; --dispute: #b42318; --dispute-soft: #fdecea; }
 [data-theme="dark"] { --brand: #14b8a6; --on-brand: #04342c; --primary: #7ce3c9; --on-primary: #04241d; --primary-ink: #b8f5e6; --tint: #164237; --canvas: #0e1513; --surface: #16201d; --border: #2b3834; --ink: #e8efec; --ink-muted: #a3b0ab; --held: #f5b454; --held-soft: #3a2a10; --released: #6fd27a; --released-soft: #16301b; --dispute: #ff8a7a; --dispute-soft: #3d1915; }
 :root { --space-2: 8px; --space-4: 16px; --space-6: 24px; --space-10: 40px; --radius-sm: 6px; --radius-md: 12px; --radius-full: 999px; --font-display: "Sora", "Figtree", system-ui, sans-serif; --font-sans: "Figtree", system-ui, sans-serif; --font-mono: "IBM Plex Mono", ui-monospace, monospace; }
@@ -14,3 +14,6 @@
 :root, [data-theme="light"] { --shadow-sm: 0 1px 2px rgb(16 32 28 / 0.06), 0 1px 1px rgb(16 32 28 / 0.04); --shadow-md: 0 8px 24px -8px rgb(16 32 28 / 0.14), 0 2px 6px rgb(16 32 28 / 0.05); --shadow-lg: 0 24px 60px -20px rgb(16 32 28 / 0.28), 0 6px 16px -6px rgb(16 32 28 / 0.10); --glass: rgb(255 255 255 / 0.72); --glass-border: rgb(23 32 29 / 0.08); --deep: #062a22; --deep-2: #0b3d32; --on-deep: #e6fbf4; --on-deep-muted: #9cc9bc; }
 [data-theme="dark"] { --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4); --shadow-md: 0 10px 28px -10px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.3); --shadow-lg: 0 28px 70px -20px rgb(0 0 0 / 0.75), 0 6px 18px -6px rgb(0 0 0 / 0.4); --glass: rgb(22 32 29 / 0.72); --glass-border: rgb(232 239 236 / 0.08); --deep: #04201a; --deep-2: #0a3329; --on-deep: #e6fbf4; --on-deep-muted: #8fbcaf; }
 :root { --radius-lg: 20px; --radius-xl: 28px; --ease-out: cubic-bezier(0.22, 1, 0.36, 1); --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); --dur-fast: 160ms; --dur: 280ms; }
+
+:root, [data-theme="light"] { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }

@@ -3,6 +3,7 @@ import type { Route } from "./+types/_layout";
 import { requireStaff, withApp } from "../../../server/web";
 import { staffQueues } from "../../../server/engine/queries";
 import { Button, Icon, Wordmark } from "../../components/ui";
+import { ThemeToggle } from "../../components/theme";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const staff = await requireStaff(request);
@@ -22,6 +23,7 @@ export default function StaffLayout({ loaderData: { staff, waiting } }: Route.Co
           <NavLink to="/staff/audit" className="item"><span className="row"><Icon name="history" />Audit log</span></NavLink>
         </nav>
         <span className="grow" />
+        <div className="row-between"><span className="caption muted">Theme</span><ThemeToggle /></div>
         <div className="stack">
           <p className="label">{staff.name}</p>
           <p className="caption muted">{staff.role === "admin" ? "Admin" : "Reviewer"} · {staff.email}</p>

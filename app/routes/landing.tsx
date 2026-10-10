@@ -10,6 +10,7 @@ import { dealAmounts, feeFor, naira, type FeeRule } from "../../shared/money";
 import { photoUrl } from "../../shared/photos";
 import { CATEGORIES, checksFor } from "../../shared/categories";
 import "../styles/landing.css";
+import { ThemeToggle } from "../components/theme";
 
 export const handle = { tabs: false };
 
@@ -67,6 +68,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
       <header className="pill-bar landing-top mobile-only">
         <Link to="/" aria-label="NosHen home" style={{ textDecoration: "none" }}><Wordmark size="sm" /></Link>
         <nav className="row">
+          <ThemeToggle />
           <Link to="/browse" className="label">Browse</Link>
           <Button variant="primary" pill to={x.signedIn ? "/deals" : "/signin"}>{x.signedIn ? "Deals" : "Sign in"}</Button>
         </nav>

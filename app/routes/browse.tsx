@@ -6,6 +6,7 @@ import { Button, Icon, ListingCard, ProtectionBadge, Select, Wordmark } from "..
 import { ago } from "../../shared/time";
 import { CATEGORIES, categoryOf, isCategory } from "../../shared/categories";
 import { photoUrl } from "../../shared/photos";
+import { ThemeToggle } from "../components/theme";
 
 export const meta: Route.MetaFunction = () => [
   { title: "NosHen: buy and sell anything in Lagos, protected" },
@@ -61,7 +62,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
     <>
       <header className="pill-bar browse-top mobile-only">
         <Link to="/" aria-label="NosHen home" style={{ textDecoration: "none" }}><Wordmark size="sm" /></Link>
-        <ProtectionBadge>Every deal protected</ProtectionBadge>
+        <span className="row" style={{ gap: 4 }}><ProtectionBadge>Every deal protected</ProtectionBadge><ThemeToggle /></span>
       </header>
       <main className="page">
         <div className="browse-layout">

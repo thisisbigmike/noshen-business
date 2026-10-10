@@ -351,6 +351,7 @@ textarea.nh-input { min-height: 96px; padding: 10px 12px; resize: vertical; line
 
 /* Browse: brand bar on phones, search pill, sort. */
 .browse-top { justify-content: space-between; padding: 0 6px 0 16px; }
+@media (max-width: 374px) { .browse-top .nh-badge { display: none; } }
 .browse-head { display: flex; flex-direction: column; gap: var(--space-4); }
 .browse-tools { gap: var(--space-2); align-items: stretch; flex-wrap: wrap; }
 .browse-tools .search-pill { flex: 1 1 100%; }

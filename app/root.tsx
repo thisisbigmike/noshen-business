@@ -1,8 +1,9 @@
-import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
+import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteLoaderData } from "react-router";
 import type { Route } from "./+types/root";
 import "./styles/tokens.css";
 import "./styles/components.css";
 import "./styles/app.css";
+import { themeFromCookie, type Theme } from "./components/theme";
 
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -11,14 +12,19 @@ export const links: Route.LinksFunction = () => [
   { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Sora:wght@600&family=Figtree:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap" },
 ];
 
+export function loader({ request }: Route.LoaderArgs) {
+  return { theme: themeFromCookie(request.headers.get("Cookie")) };
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
+  const theme: Theme = (useRouteLoaderData("root") as { theme?: Theme } | undefined)?.theme ?? "light";
   return (
-    <html lang="en-NG" data-theme="light">
+    <html lang="en-NG" data-theme={theme}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#0f6e56" />
-        <meta name="color-scheme" content="light" />
+        <meta name="color-scheme" content={theme} />
         <Meta />
         <Links />
       </head>

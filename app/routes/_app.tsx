@@ -4,6 +4,7 @@ import { optionalUser, withApp } from "../../server/web";
 import { dealsFor, needsAction, unreadCount } from "../../server/engine/queries";
 import { Button, Icon, Wordmark } from "../components/ui";
 import type { IconName } from "../components/icons";
+import { ThemeToggle } from "../components/theme";
 
 export async function loader({ request }: Route.LoaderArgs) {
   return withApp(async (d) => {
@@ -39,6 +40,7 @@ export default function AppShell({ loaderData }: Route.ComponentProps) {
           ))}
         </nav>
         <div className="end">
+          <ThemeToggle />
           {loaderData.user ? (
             <Link to="/notifications" className="icon-btn" aria-label={`Notifications${unread ? `, ${unread} new` : ""}`}>
               <Icon name="bell" />{unread ? <span className="dot-count" aria-hidden="true">{unread}</span> : null}
