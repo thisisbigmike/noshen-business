@@ -338,8 +338,12 @@ textarea.nh-input { min-height: 96px; padding: 10px 12px; resize: vertical; line
 .table tbody tr:hover { background: color-mix(in srgb, var(--canvas) 55%, var(--surface)); }
 .table-scroll { position: relative; overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; }
 .table-scroll:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
-.table-scroll .table { border: 0; border-radius: 0; min-width: 720px; }
+.table-scroll .table { border: 0; border-radius: 0; min-width: 640px; }
 .cell-action { width: 1%; white-space: nowrap; text-align: right; }
+/* When a table scrolls sideways, its actions stay pinned to the right edge. */
+.table-scroll .cell-action { position: sticky; right: 0; z-index: 1; background: var(--surface); box-shadow: -10px 0 10px -10px rgb(0 0 0 / 0.18); }
+.table-scroll th.cell-action { background: var(--canvas); }
+.table-scroll tbody tr:hover .cell-action { background: color-mix(in srgb, var(--canvas) 55%, var(--surface)); }
 .cell-listing { display: flex; align-items: center; gap: 12px; min-width: 220px; }
 .cell-listing .avatar { width: 36px; height: 36px; font-size: 14px; box-shadow: none; }
 .thumb { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: var(--canvas); color: var(--ink-muted); overflow: hidden; }

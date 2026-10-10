@@ -103,7 +103,7 @@ export default function Listings({ loaderData: { rows, counts, f } }: Route.Comp
         ) : (
           <div className="table-scroll" tabIndex={0} role="region" aria-label="Listings (scrolls sideways)">
             <table className="table">
-              <thead><tr><th>Listing</th><th>Seller</th><th>Price</th><th>Status</th><th>Posted</th><th><span className="sr-only">Actions</span></th></tr></thead>
+              <thead><tr><th>Listing</th><th>Seller</th><th>Price</th><th>Status</th><th>Posted</th><th className="cell-action"><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>{list.map((l) => {
                 const cat = categoryOf(l.category);
                 const open = Number(l.open_deals);
