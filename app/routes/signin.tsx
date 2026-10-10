@@ -1,4 +1,4 @@
-import { Form, redirect, useNavigation, data } from "react-router";
+import { Form, Link, redirect, useNavigation, data } from "react-router";
 import type { Route } from "./+types/signin";
 import { createAuth, googleEnabled } from "../../server/auth";
 import { ConsoleEmail } from "../../server/email";
@@ -174,6 +174,7 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
         <Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight={busy ? undefined : "arrow-right"}>{busy && nav.formData?.get("step") === "email" ? "Sending…" : "Email me a code"}</Button>
       </Form>
       <Info icon="shield-check">We never show your email to the other person. You talk in the deal chat.</Info>
+      <p className="caption muted consent">By continuing, you agree to NosHen's <Link to="/terms">Terms of Use</Link> and <Link to="/deal-terms">Protected Deal Terms</Link>, and you've read our <Link to="/privacy">Privacy Policy</Link>.</p>
     </AuthFrame>
   );
 }

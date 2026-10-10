@@ -21,6 +21,8 @@ export default [
     route("notifications", "routes/notifications.tsx"),
     route("signin", "routes/signin.tsx"),
     route("signout", "routes/signout.tsx"),
+    // Legal and help pages: one module, one route per document.
+    ...["terms", "deal-terms", "privacy", "cookies", "prohibited-items", "safety"].map((slug) => route(slug, "routes/legal.tsx", { id: `legal-${slug}` })),
   ]),
   route("staff/signin", "routes/staff/signin.tsx"),
   route("staff/setup-2fa", "routes/staff/setup-2fa.tsx"),

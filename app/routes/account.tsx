@@ -6,6 +6,7 @@ import { sellerReady, setListingStatus } from "../../server/engine/sellers";
 import { one } from "../../server/db";
 import { Button, ErrorText, Icon, Info, Kv, TopBar } from "../components/ui";
 import { naira } from "../../shared/money";
+import { LEGAL_NAV } from "../../shared/legal-pages";
 
 export const meta = () => [{ title: "Account · NosHen" }];
 
@@ -77,7 +78,10 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
           </section>
         ) : null}
         <ErrorText>{(actionData as any)?.error}</ErrorText>
-        <Link to="/notifications" className="row body"><Icon name="message-circle" />Notifications</Link>
+        <section className="card link-list" aria-label="Help and legal">
+          <p className="label muted">Help and legal</p>
+          {LEGAL_NAV.map((p) => <Link key={p.slug} to={`/${p.slug}`} className="row-between">{p.title}<Icon name="chevron-right" size={18} /></Link>)}
+        </section>
         <Form method="post" action="/signout"><Button type="submit" icon="logout">Sign out</Button></Form>
       </main>
     </div>

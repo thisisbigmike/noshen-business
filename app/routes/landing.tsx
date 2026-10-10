@@ -210,18 +210,30 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
 
       <footer className="landing-footer">
         <div className="lp-inner footer-grid">
-          <div className="stack"><Wordmark size="sm" /><p className="caption muted">Your money is held until you have the item. Lagos, Nigeria.</p></div>
-          <nav className="stack" aria-label="Footer">
+          <div className="stack footer-brand"><Wordmark size="sm" /><p className="caption muted">Your money is held until you have the item. Lagos, Nigeria.</p></div>
+          <nav className="stack" aria-label="Use NosHen">
             <p className="label">Use NosHen</p>
             <Link to="/browse" className="caption">Browse</Link>
             <Link to="/sell" className="caption">Sell</Link>
             <Link to={x.signedIn ? "/account" : "/signin"} className="caption">{x.signedIn ? "Account" : "Sign in"}</Link>
           </nav>
-          <div className="stack">
-            <p className="label">How it's safe</p>
-            <p className="caption muted">Money held by a licensed partner bank. Sellers checked against NIN or BVN. Every naira recorded.</p>
+          <nav className="stack" aria-label="Help">
+            <p className="label">Help</p>
+            <a href="#how-title" className="caption">How it works</a>
+            <a href="#faq-title" className="caption">Questions</a>
+            <Link to="/safety" className="caption">Safety tips</Link>
+            <Link to="/prohibited-items" className="caption">Prohibited items</Link>
+          </nav>
+          <nav className="stack" aria-label="Legal">
+            <p className="label">Legal</p>
+            <Link to="/terms" className="caption">Terms of Use</Link>
+            <Link to="/deal-terms" className="caption">Protected Deal Terms</Link>
+            <Link to="/privacy" className="caption">Privacy Policy</Link>
+            <Link to="/cookies" className="caption">Cookie Policy</Link>
+          </nav>
+          <div className="footer-bottom">
+            <p className="caption muted">© {new Date().getFullYear()} NosHen. Money is held by a licensed partner bank; NosHen is not a bank.</p>
           </div>
-          <p className="caption muted footer-copy">© {new Date().getFullYear()} NosHen</p>
         </div>
       </footer>
     </div>

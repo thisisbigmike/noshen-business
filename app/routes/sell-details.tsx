@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Form, data, redirect, useNavigation } from "react-router";
+import { Form, Link, data, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/sell-details";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { saveDraft, publish } from "../../server/engine/sellers";
@@ -91,6 +91,7 @@ export default function SellDetails({ loaderData: { listing: l, min, max, fee },
         ) : null}
         <TextArea label="Description (optional)" name="description" defaultValue={l.description ?? ""} maxLength={2000} placeholder={c?.describeHint ?? "Its condition, how long you've had it, and what comes with it."} />
         <Info icon="shield-check">Your listing shows "Protected by NosHen". Buyers pay NosHen, and you're paid when they give you their code.</Info>
+        <p className="caption muted">Some things can't be sold on NosHen, such as anything stolen or fake. See the <Link to="/prohibited-items">prohibited items</Link>.</p>
         <ErrorText>{actionData?.error}</ErrorText>
         <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? "Publishing…" : "Publish listing"}</Button></BottomAction>
       </main>

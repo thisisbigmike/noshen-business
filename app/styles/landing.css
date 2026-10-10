@@ -10,7 +10,7 @@
 
 .lp-eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--primary); }
 .lp-eyebrow::before { content: ""; width: 18px; height: 2px; border-radius: 1px; background: currentColor; }
-.lp-h2 { font-family: var(--font-display); font-weight: 600; font-size: 32px; line-height: 38px; letter-spacing: -0.025em; color: var(--ink); text-wrap: balance; }
+.lp-h2 { scroll-margin-top: 100px; font-family: var(--font-display); font-weight: 600; font-size: 32px; line-height: 38px; letter-spacing: -0.025em; color: var(--ink); text-wrap: balance; }
 .lp-h3 { font-family: var(--font-display); font-weight: 600; font-size: 22px; line-height: 28px; letter-spacing: -0.015em; text-wrap: balance; }
 .lp-lede { font-size: 17px; line-height: 26px; color: var(--ink-muted); max-width: 600px; text-wrap: pretty; }
 .lp-head { display: flex; flex-direction: column; gap: 12px; max-width: 680px; margin-bottom: var(--space-6); }
@@ -218,7 +218,9 @@
 
 /* ---------------------------------------------------------------- Footer */
 .landing-footer { padding: 48px 0 40px; }
-.footer-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+.footer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px 24px; }
+.footer-brand, .footer-bottom { grid-column: 1 / -1; }
+.footer-bottom { padding-top: 20px; border-top: 1px solid var(--border); }
 .footer-grid a { color: var(--ink-muted); text-decoration: none; }
 .footer-grid a:hover { color: var(--primary); }
 
@@ -270,8 +272,8 @@
   .bento-answer .body { flex: 1 1 50%; }
   .dark-steps { grid-template-columns: repeat(2, 1fr); }
   .lp-split { grid-template-columns: 1fr 1fr; gap: 48px; }
-  .footer-grid { grid-template-columns: 2fr 1fr 2fr; }
-  .footer-grid .footer-copy { grid-column: 1 / -1; }
+  .footer-grid { grid-template-columns: 2fr 1fr 1fr 1fr; }
+  .footer-brand { grid-column: auto; }
   .lp-h2 { font-size: 40px; line-height: 46px; }
   .final-title { font-size: 48px; line-height: 54px; }
 }

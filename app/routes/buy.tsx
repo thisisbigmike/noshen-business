@@ -84,6 +84,7 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
 
         <TextArea label={`Note to ${name} (optional)`} name="note" placeholder="When and where works for you?" maxLength={500} />
         <Info icon="shield-check">You pay nothing until {name} accepts. Then you pay NosHen, and we hold the money until you have the {noun}.</Info>
+        <p className="caption muted">Sending a request means you agree to the <Link to="/deal-terms">Protected Deal Terms</Link>.</p>
         <ErrorText>{actionData?.error}</ErrorText>
         {actionData?.needsId ? <Link to={`/account/verify?next=/l/${l.id}/buy`}>Verify your ID</Link> : null}
         <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? "Sending…" : "Send request"}</Button></BottomAction>

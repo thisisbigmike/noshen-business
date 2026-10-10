@@ -293,6 +293,49 @@ textarea.nh-input { min-height: 96px; padding: 10px 12px; resize: vertical; line
   .auth-aside li .nh-icon { color: #7ce3c9; }
 }
 
+.link-list { display: flex; flex-direction: column; gap: 0; padding-bottom: 6px; }
+.link-list .label { margin-bottom: 4px; }
+.link-list a { padding: 12px 0; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--border); }
+.link-list a:last-child { border-bottom: 0; }
+.link-list a .nh-icon { color: var(--ink-muted); }
+.consent a { color: var(--primary); }
+
+/* Legal and help pages: a readable column, with a side menu and contents on wide screens. */
+.legal-layout { display: grid; gap: var(--space-6); }
+.legal-doc { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; max-width: 720px; }
+.legal-title { font-family: var(--font-display); font-weight: 600; font-size: 30px; line-height: 36px; letter-spacing: -0.02em; text-wrap: balance; }
+.legal-side { position: sticky; top: 100px; display: flex; flex-direction: column; gap: var(--space-6); }
+.legal-nav, .legal-toc { display: flex; flex-direction: column; gap: 2px; }
+.legal-nav .label, .legal-toc .label { margin-bottom: 6px; }
+.legal-nav a, .legal-toc a { padding: 7px 12px; border-radius: var(--radius-md); color: var(--ink-muted); text-decoration: none; font-size: 14px; line-height: 20px; }
+.legal-nav a:hover, .legal-toc a:hover { background: var(--tint); color: var(--ink); }
+.legal-nav a[aria-current="page"] { background: var(--tint); color: var(--primary-ink); font-weight: 600; }
+.legal-toc { max-height: calc(100vh - 400px); overflow-y: auto; }
+.legal-more { display: flex; flex-direction: column; margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.legal-more a { padding: 12px 0; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--border); }
+.prose { font-size: 16px; line-height: 27px; color: var(--ink); }
+.prose > * + * { margin-top: 14px; }
+.prose h2 { margin-top: 36px; font-family: var(--font-display); font-weight: 600; font-size: 21px; line-height: 28px; letter-spacing: -0.01em; scroll-margin-top: 96px; }
+.prose h3 { margin-top: 24px; font-size: 17px; line-height: 24px; font-weight: 600; }
+.prose ul, .prose ol { padding-left: 22px; }
+.prose li + li { margin-top: 6px; }
+.prose li::marker { color: var(--primary); }
+.prose a { color: var(--primary); text-underline-offset: 3px; }
+.prose strong { font-weight: 600; }
+.prose em { color: var(--ink-muted); }
+.prose hr { margin: 32px 0 16px; border: 0; border-top: 1px solid var(--border); }
+.prose code { padding: 1px 6px; border-radius: 6px; background: var(--canvas); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 13px; }
+.prose mark { padding: 0 3px; border-radius: 4px; background: var(--held-soft); color: var(--held); }
+.prose .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.prose table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 21px; }
+.prose th, .prose td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+.prose th { background: var(--canvas); font-weight: 600; white-space: nowrap; }
+.prose tr:last-child td { border-bottom: 0; }
+@media (min-width: 1024px) {
+  .legal-layout { grid-template-columns: 240px minmax(0, 1fr); gap: 56px; align-items: start; }
+  .legal-title { font-size: 38px; line-height: 44px; }
+}
+
 /* Notifications feed: one card per update, the newest settling in first. */
 .feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .feed-item { position: relative; display: flex; gap: 12px; align-items: flex-start; padding: 14px var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); animation: nh-rise 480ms var(--ease-out) both; }
