@@ -10,6 +10,7 @@ import { CONDITIONS, firstName } from "@noshen/shared/deal";
 import { categoryOf } from "@noshen/shared/categories";
 import { ago } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
+import { placeLabel } from "@noshen/shared/locations";
 
 export const handle = { tabs: false };
 
@@ -29,7 +30,7 @@ export const meta: Route.MetaFunction = ({ loaderData: d }) => {
   if (!d) return [{ title: "Listing not found · NosHen" }];
   const l = d.listing;
   const title = `${l.title} · ${naira(l.price_kobo)}`;
-  const desc = `${l.area}, Lagos. Protected by NosHen: your money is held until you have the item.`;
+  const desc = `${placeLabel(l.area, l.state)}. Protected by NosHen: your money is held until you have the item.`;
   const img = l.photo_keys?.[0] ? `${d.origin}${photoUrl(l.photo_keys[0])}` : undefined;
   return [
     { title: `${title} · NosHen` },
@@ -65,7 +66,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
     <div>
       <TopBar title={<Wordmark size="sm" />} back="/browse" right={<Link className="caption" style={{ padding: "0 8px" }} to="/browse">See more listings</Link>} />
       <main className="page flush no-tabs">
-        <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/browse">Browse</Link> / <Link to={`/browse?cat=${cat.key}`}>{cat.label}</Link> / {l.area}</nav>
+        <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/browse">Browse</Link> / <Link to={`/browse?cat=${cat.key}`}>{cat.label}</Link> / {placeLabel(l.area, l.state)}</nav>
         <div className="two-col">
           <div className="stack-4">
             <div className="carousel bleed">
@@ -78,11 +79,11 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             <div className="stack mobile-only">
               <h1 className="title">{l.title}</h1>
               <p className="big-amount">{naira(price)}</p>
-              <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span><span className="caption muted row"><Icon name="map-pin" size={16} />{l.area}, Lagos · {ago(l.published_at)}</span></div>
+              <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span><span className="caption muted row"><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
               <div className="row"><ProtectionBadge /></div>
             </div>
             {status ? <p className="info warn">{status}</p> : null}
-            <SellerCard seller={seller} area={l.area} />
+            <SellerCard seller={seller} area={placeLabel(l.area, l.state)} />
             <section className="card stack-4" aria-labelledby="how">
               <h2 id="how" className="title">How protection works</h2>
               <div className="steps4">
@@ -95,7 +96,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
               <h2 className="title">About this {cat.noun === "pair" ? "pair" : cat.noun}</h2>
               <Kv k="Category" v={cat.label} />
               <Kv k="Condition" v={`${condition?.[1]}: ${condition?.[2]}`} />
-              <Kv k="Area" v={`${l.area}, Lagos`} />
+              <Kv k="Location" v={placeLabel(l.area, l.state)} />
               {cat.id && l.imei_or_serial ? <Kv k={cat.id.label.replace(" (optional)", "")} v="Shown to you after you pay, so you can check it at the hand-over" /> : null}
               {l.description ? <><p className="label" style={{ marginTop: 8 }}>From {sellerName}</p><p className="body">{l.description}</p></> : null}
             </section>
@@ -103,7 +104,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
           <aside className="side desktop-only card stack-4">
             <h1 className="heading">{l.title}</h1>
             <p className="big-amount">{naira(price)}</p>
-            <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span><span className="caption muted">{l.area}, Lagos · {ago(l.published_at)}</span></div>
+            <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span><span className="caption muted">{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
             <ProtectionBadge />
             {buy}
             <div><Kv k="Price" v={naira(price)} /><Kv k="NosHen fee" v={naira(fee)} /><Kv k="Total" v={naira(price + fee)} total /></div>

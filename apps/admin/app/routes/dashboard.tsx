@@ -14,7 +14,7 @@ export const meta = () => [{ title: "Dashboard · NosHen staff" }];
 export async function loader({ request }: Route.LoaderArgs) {
   const staff = await requireStaff(request);
   const [q, o] = await withApp((d) => Promise.all([staffQueues(d.db), adminOverview(d.db)]));
-  // Worked out here, in Lagos time, so the page reads the same on the server and in the browser.
+  // Worked out here, in Nigeria time (WAT), so the page reads the same on the server and in the browser.
   const now = new Date();
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Lagos" }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -73,7 +73,7 @@ export default function Dashboard({ loaderData: { q, o, greeting, today } }: Rou
       <div className="dash-grid">
         <section className="panel" aria-labelledby="chart-title">
           <div className="panel-head">
-            <div><h2 id="chart-title" className="title">Deals, last 14 days</h2><p className="caption muted">{started} started · {completed} completed · Lagos time</p></div>
+            <div><h2 id="chart-title" className="title">Deals, last 14 days</h2><p className="caption muted">{started} started · {completed} completed · Nigeria time (WAT)</p></div>
             <div className="legend" aria-hidden="true"><span><i className="dot started" />Started</span><span><i className="dot completed" />Completed</span></div>
           </div>
           <div className="bars" aria-hidden="true">

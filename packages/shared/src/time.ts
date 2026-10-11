@@ -1,4 +1,4 @@
-// Times are shown in Lagos time (WAT), in the short style the screens use: "6:40pm today", "Fri 6pm".
+// Times are shown in Nigeria time (WAT, the Africa/Lagos time zone), in the short style the screens use: "6:40pm today", "Fri 6pm".
 
 const TZ = "Africa/Lagos";
 

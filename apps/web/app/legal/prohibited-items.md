@@ -2,7 +2,7 @@
 
 **Last updated:** <mark>[DATE]</mark>
 
-You can sell almost anything you can hand over in Lagos on NosHen. These things can't be listed or sold through NosHen. If you see one, tell us at <mark>[SUPPORT EMAIL]</mark>. Selling them breaks our [Terms of Use](/terms), and we may close the account and tell the police. <mark>[Lawyer to confirm the list against Nigerian law.]</mark>
+You can sell almost anything you can hand over in Nigeria on NosHen. These things can't be listed or sold through NosHen. If you see one, tell us at <mark>[SUPPORT EMAIL]</mark>. Selling them breaks our [Terms of Use](/terms), and we may close the account and tell the police. <mark>[Lawyer to confirm the list against Nigerian law.]</mark>
 
 ## Never allowed
 

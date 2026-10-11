@@ -11,6 +11,7 @@ import { CATEGORIES, categoryOf } from "@noshen/shared/categories";
 import { photoUrl } from "@noshen/shared/photos";
 import { naira } from "@noshen/shared/money";
 import { ago } from "@noshen/shared/time";
+import { placeLabel } from "@noshen/shared/locations";
 
 export const meta = () => [{ title: "Listings · NosHen staff" }];
 
@@ -40,7 +41,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 };
 const FILTERS = ["", "live", "blocked", "paused", "sold", "removed"];
 
-type Row = { id: string; title: string; category: string; price_kobo: string; status: string; area: string | null; photo_keys: string[] | null; published_at: string | null; created_at: string; seller: string; seller_email: string; open_deals: string };
+type Row = { id: string; title: string; category: string; price_kobo: string; status: string; area: string | null; state: string | null; photo_keys: string[] | null; published_at: string | null; created_at: string; seller: string; seller_email: string; open_deals: string };
 
 export default function Listings({ loaderData: { rows, counts, f, appUrl } }: Route.ComponentProps) {
   const [params] = useSearchParams();
@@ -117,7 +118,7 @@ export default function Listings({ loaderData: { rows, counts, f, appUrl } }: Ro
                         <span className="thumb">{l.photo_keys?.[0] ? <img src={photoUrl(l.photo_keys[0])} alt="" loading="lazy" /> : <Icon name={cat.icon} size={20} />}</span>
                         <div style={{ minWidth: 0 }}>
                           <p className="body">{l.title}</p>
-                          <p className="caption muted">{cat.label}{l.area ? ` · ${l.area}` : ""}{open ? ` · ${open} open deal${open === 1 ? "" : "s"}` : ""}</p>
+                          <p className="caption muted">{cat.label}{l.area || l.state ? ` · ${placeLabel(l.area, l.state)}` : ""}{open ? ` · ${open} open deal${open === 1 ? "" : "s"}` : ""}</p>
                         </div>
                       </div>
                     </td>

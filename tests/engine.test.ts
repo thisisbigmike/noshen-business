@@ -9,7 +9,7 @@ import { DealError } from "@noshen/engine/core";
 import { feeFor, naira } from "@noshen/shared/money";
 import { saveDraft, publish } from "@noshen/engine/sellers";
 import { moderateListing } from "@noshen/engine/staff";
-import { adminOverview, staffListings, staffUsers } from "@noshen/engine/queries";
+import { adminOverview, browse, staffListings, staffUsers, statesWithListings } from "@noshen/engine/queries";
 
 let w: TestWorld;
 let staffId: string;
@@ -41,7 +41,7 @@ describe("fees", () => {
 
 describe("listings across the marketplace", () => {
   const draft = (seller: string, input: Partial<Parameters<typeof saveDraft>[4] & object>) =>
-    saveDraft(w.d, seller, null, ["a", "b", "c"], { category: "other", title: "Something", priceNaira: 20_000, condition: "good", area: "Yaba", ...input } as any);
+    saveDraft(w.d, seller, null, ["a", "b", "c"], { category: "other", title: "Something", priceNaira: 20_000, condition: "good", state: "Lagos", area: "Yaba", ...input } as any);
 
   it("publishes clothes, shoes and hair without an ID number", async () => {
     const seller = await verifiedSeller(w, "Kunle Adeyemi");
@@ -67,7 +67,7 @@ describe("listings across the marketplace", () => {
   it("refuses a live car listing without a chassis number at the database too", async () => {
     const seller = await verifiedSeller(w, "Kunle Adeyemi");
     await expect(w.db.query(
-      `insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys, status) values ($1, 'vehicle', 'No papers', 500000000, 'good', 'Ikeja', '{a,b,c}', 'live')`, [seller],
+      `insert into listings (seller_id, category, title, price_kobo, condition, area, state, photo_keys, status) values ($1, 'vehicle', 'No papers', 500000000, 'good', 'Ikeja', 'Lagos', '{a,b,c}', 'live')`, [seller],
     )).rejects.toThrow(/listings_vehicle_chassis/);
   });
 });
@@ -262,5 +262,37 @@ describe("staff console", () => {
     const found = await staffListings(w.db, { q: "replica", status: "removed" });
     expect(found.rows.map((r: any) => r.title)).toEqual(["Replica designer bag"]);
     expect(found.counts.removed).toBeGreaterThan(0);
+  });
+});
+
+describe("anywhere in Nigeria", () => {
+  const draft = (seller: string, place: { state: string; area: string }) =>
+    saveDraft(w.d, seller, null, ["a", "b", "c"], { category: "fashion", title: "Ankara dress", priceNaira: 20_000, condition: "good", ...place } as any);
+
+  it("lists in any state, including Abuja, and finds it by state or by searching the area", async () => {
+    const seller = await verifiedSeller(w, "Amina Bello");
+    const kano = await draft(seller, { state: "Kano", area: "Nassarawa GRA" });
+    await publish(w.d, seller, kano);
+    const abuja = await draft(seller, { state: "FCT", area: "  Wuse   2 " });
+    await publish(w.d, seller, abuja);
+    expect((await w.db.query("select area, state from listings where id = $1", [abuja])).rows[0]).toEqual({ area: "Wuse 2", state: "FCT" });
+    expect((await browse(w.db, { state: "Kano" })).map((l: any) => l.id)).toContain(kano);
+    expect((await browse(w.db, { state: "Kano" })).map((l: any) => l.id)).not.toContain(abuja);
+    expect((await browse(w.db, { q: "wuse" })).map((l: any) => l.id)).toContain(abuja);
+    expect((await statesWithListings(w.db)).map((s) => s.state)).toEqual(expect.arrayContaining(["Kano", "FCT"]));
+  });
+
+  it("refuses a made-up state, a missing area, and a street address", async () => {
+    const seller = await verifiedSeller(w, "Wrong Place");
+    await expect(draft(seller, { state: "Atlantis", area: "Yaba" })).rejects.toThrow("Choose the state");
+    await expect(draft(seller, { state: "Oyo", area: " " })).rejects.toThrow("Add your area");
+    await expect(draft(seller, { state: "Oyo", area: "12 Ring Road" })).rejects.toThrow("street address");
+  });
+
+  it("won't publish a listing without a state, even straight in the database", async () => {
+    const seller = await verifiedSeller(w, "No State");
+    await expect(w.db.query(
+      "insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys, status) values ($1, 'fashion', 'Hat', 2000000, 'good', 'Yaba', '{a,b,c}', 'live')", [seller],
+    )).rejects.toThrow(/listings_state_when_published/);
   });
 });

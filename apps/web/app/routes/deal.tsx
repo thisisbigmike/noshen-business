@@ -10,6 +10,7 @@ import { naira } from "@noshen/shared/money";
 import { disputeReasonLabel, firstName, isOpen } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
+import { placeLabel } from "@noshen/shared/locations";
 
 export const handle = { tabs: false };
 export const meta: Route.MetaFunction = ({ loaderData: d }) => [{ title: d ? `Deal with ${firstName(d.otherName)} · NosHen` : "Deal · NosHen" }];
@@ -23,7 +24,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const paid = v.payments.reduce((s: number, p: any) => s + Number(p.amount_kobo), 0);
     return {
       me: user.id, role, paid,
-      deal: v.deal, listing: { id: v.listing.id, title: v.listing.title, category: v.listing.category, area: v.listing.area, photo: v.listing.photo_keys?.[0] ?? null },
+      deal: v.deal, listing: { id: v.listing.id, title: v.listing.title, category: v.listing.category, area: placeLabel(v.listing.area, v.listing.state), photo: v.listing.photo_keys?.[0] ?? null },
       names: { buyer: v.buyer.name, seller: v.seller.name }, otherName: role === "buyer" ? v.seller.name : v.buyer.name,
       events: v.events, messages: v.messages, dispute: v.dispute, evidence: v.evidence, ratings: v.ratings,
       bankLast4: role === "seller" ? v.sellerBank?.account_last4 ?? null : null,

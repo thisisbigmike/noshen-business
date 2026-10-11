@@ -1,4 +1,5 @@
 import { inTx, one } from "./db";
+import { areaProblem, isState } from "@noshen/shared/locations";
 import { encryptField, hmac } from "./crypto";
 import { namesMatch } from "./deals";
 import { type Deps, DealError, N, notify, settingsOf } from "./core";
@@ -67,6 +68,9 @@ export interface ListingInput {
   description?: string;
   priceNaira: number;
   condition: Condition;
+  /** One of the 36 states or FCT (see @noshen/shared/locations). */
+  state: string;
+  /** Town or neighbourhood, like Yaba or Wuse 2. */
   area: string;
   imeiOrSerial?: string;
 }
@@ -74,7 +78,7 @@ export interface ListingInput {
 export async function saveDraft(d: Deps, userId: string, listingId: string | null, photoKeys: string[], input: ListingInput | null) {
   if (!listingId) {
     const r = await one<{ id: string }>(d.db,
-      `insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys) values ($1, 'phone', 'Untitled listing', 100, 'good', 'Yaba', $2) returning id`,
+      `insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys) values ($1, 'phone', 'Untitled listing', 100, 'good', '', $2) returning id`,
       [userId, photoKeys]);
     listingId = r!.id;
   }
@@ -91,9 +95,13 @@ export async function saveDraft(d: Deps, userId: string, listingId: string | nul
     if (!(price >= s.deal_min_kobo && price <= s.deal_max_kobo)) throw new DealError("price", `Price between ${naira(s.deal_min_kobo)} and ${naira(s.deal_max_kobo)}.`);
     const imei = cat.id ? normaliseId(input.imeiOrSerial ?? "") : "";
     if (cat.id && (imei || cat.id.required) && !cat.id.pattern.test(imei)) throw new DealError("imei", idProblem(cat.key, imei) ?? cat.id.error);
+    if (!isState(input.state)) throw new DealError("state", "Choose the state the item is in.");
+    const area = input.area.trim().replace(/\s+/g, " ");
+    const areaWrong = areaProblem(area);
+    if (areaWrong) throw new DealError("area", areaWrong);
     await d.db.query(
-      `update listings set category = $2, title = $3, description = $4, price_kobo = $5, condition = $6, area = $7, imei_or_serial = $8 where id = $1`,
-      [listingId, input.category, input.title.trim().slice(0, 80), input.description?.trim().slice(0, 2000) || null, price, input.condition, input.area, imei || null]);
+      `update listings set category = $2, title = $3, description = $4, price_kobo = $5, condition = $6, area = $7, imei_or_serial = $8, state = $9 where id = $1`,
+      [listingId, input.category, input.title.trim().slice(0, 80), input.description?.trim().slice(0, 2000) || null, price, input.condition, area, imei || null, input.state]);
   }
   return listingId!;
 }

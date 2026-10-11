@@ -7,6 +7,7 @@ import { BottomAction, Button, Icon, Info, ProtectionBadge, TopBar } from "@nosh
 import { naira } from "@noshen/shared/money";
 import { photoUrl } from "@noshen/shared/photos";
 import { categoryOf } from "@noshen/shared/categories";
+import { placeLabel } from "@noshen/shared/locations";
 
 export const meta = () => [{ title: "Share · Sell · NosHen" }];
 
@@ -23,7 +24,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export default function Share({ loaderData: { listing: l, url } }: Route.ComponentProps) {
   const [copied, setCopied] = useState(false);
-  const text = `${l.title} · ${naira(l.price_kobo)}. ${l.area}, Lagos. Your money is held until you have it. Buy it here: ${url}`;
+  const text = `${l.title} · ${naira(l.price_kobo)}. ${placeLabel(l.area, l.state)}. Your money is held until you have it. Buy it here: ${url}`;
   if (l.status === "blocked") {
     return (
       <main className="page narrow stack-4">
@@ -44,7 +45,7 @@ export default function Share({ loaderData: { listing: l, url } }: Route.Compone
               {l.photo_keys?.[0] ? <img src={photoUrl(l.photo_keys[0])} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 4 }} /> : null}
               <div className="stack" style={{ gap: 2 }}>
                 <p className="label">{l.title} · {naira(l.price_kobo)}</p>
-                <p className="caption">{l.area}, Lagos. Your money is held until you have it.</p>
+                <p className="caption">{placeLabel(l.area, l.state)}. Your money is held until you have it.</p>
                 <p className="caption muted">{new URL(url).host}</p>
               </div>
             </div>

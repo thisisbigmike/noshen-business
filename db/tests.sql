@@ -31,27 +31,35 @@ insert into users (id, phone, full_name) values
   ('00000000-0000-0000-0000-00000000000c', '+2348030000003', 'Third Person');
 insert into staff (id, email, name, role, totp_secret_enc) values
   ('00000000-0000-0000-0000-0000000000f1', 'reviewer@noshen.test', 'Reviewer', 'reviewer', '\x00');
-insert into listings (id, seller_id, category, title, price_kobo, condition, area, imei_or_serial, photo_keys, status, published_at) values
+insert into listings (id, seller_id, category, title, price_kobo, condition, area, state, imei_or_serial, photo_keys, status, published_at) values
   ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000000a', 'phone', 'iPhone 13, 128GB',
-   45000000, 'good', 'Yaba', '356789012345678', '{p1,p2,p3}', 'live', now());
+   45000000, 'good', 'Yaba', 'Lagos', '356789012345678', '{p1,p2,p3}', 'live', now());
 
 -- 1. Listings
 select pg_temp.expect_error($$
-  insert into listings (seller_id, category, title, price_kobo, condition, area, imei_or_serial, photo_keys, status)
-  values ('00000000-0000-0000-0000-00000000000c', 'phone', 'Same phone again', 40000000, 'good', 'Ikeja',
+  insert into listings (seller_id, category, title, price_kobo, condition, area, state, imei_or_serial, photo_keys, status)
+  values ('00000000-0000-0000-0000-00000000000c', 'phone', 'Same phone again', 40000000, 'good', 'Ikeja', 'Lagos',
           '356789012345678', '{p1,p2,p3}', 'live') $$, 'a second live listing with the same IMEI');
 select pg_temp.expect_error($$
-  insert into listings (seller_id, category, title, price_kobo, condition, area, imei_or_serial, photo_keys, status)
-  values ('00000000-0000-0000-0000-00000000000c', 'phone', 'Two photos only', 40000000, 'good', 'Ikeja',
+  insert into listings (seller_id, category, title, price_kobo, condition, area, state, imei_or_serial, photo_keys, status)
+  values ('00000000-0000-0000-0000-00000000000c', 'phone', 'Two photos only', 40000000, 'good', 'Ikeja', 'Lagos',
           '356789012345679', '{p1,p2}', 'live') $$, 'a live listing with fewer than 3 photos');
 select pg_temp.expect_error($$
-  insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys, status)
-  values ('00000000-0000-0000-0000-00000000000c', 'phone', 'No IMEI', 40000000, 'good', 'Ikeja', '{p1,p2,p3}', 'live') $$,
+  insert into listings (seller_id, category, title, price_kobo, condition, area, state, photo_keys, status)
+  values ('00000000-0000-0000-0000-00000000000c', 'phone', 'No IMEI', 40000000, 'good', 'Ikeja', 'Lagos', '{p1,p2,p3}', 'live') $$,
   'a live phone listing without an IMEI');
 select pg_temp.expect_error($$
-  insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys, status)
-  values ('00000000-0000-0000-0000-00000000000c', 'vehicle', 'No chassis number', 500000000, 'good', 'Ikeja', '{p1,p2,p3}', 'live') $$,
+  insert into listings (seller_id, category, title, price_kobo, condition, area, state, photo_keys, status)
+  values ('00000000-0000-0000-0000-00000000000c', 'vehicle', 'No chassis number', 500000000, 'good', 'Ikeja', 'Lagos', '{p1,p2,p3}', 'live') $$,
   'a live car listing without a chassis number');
+select pg_temp.expect_error($$
+  insert into listings (seller_id, category, title, price_kobo, condition, area, state, photo_keys, status)
+  values ('00000000-0000-0000-0000-00000000000c', 'fashion', 'Nowhere', 2000000, 'good', 'Somewhere', 'Atlantis', '{p1,p2,p3}', 'live') $$,
+  'a listing in a state that isn''t in Nigeria');
+select pg_temp.expect_error($$
+  insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys, status)
+  values ('00000000-0000-0000-0000-00000000000c', 'fashion', 'No state', 2000000, 'good', 'Yaba', '{p1,p2,p3}', 'live') $$,
+  'a published listing without a state');
 select pg_temp.expect_error($$ insert into users (phone) values ('08030000004') $$, 'a phone number not in +234 format');
 
 -- 2. Deals: who and what

@@ -6,7 +6,8 @@ import { saveDraft, publish } from "@noshen/engine/sellers";
 import { DealError } from "@noshen/engine/core";
 import { one } from "@noshen/engine/db";
 import { BottomAction, Button, CheckedForm, ErrorText, FieldError, Icon, Info, Select, TextArea, TextField, TopBar } from "@noshen/ui/ui";
-import { AREAS, CONDITIONS, type Condition } from "@noshen/shared/deal";
+import { CONDITIONS, type Condition } from "@noshen/shared/deal";
+import { NIGERIA_STATES, areaProblem, comingSoonList, stateLabel } from "@noshen/shared/locations";
 import { CATEGORIES, categoryOf, idProblem, isCategory, type CategoryKey } from "@noshen/shared/categories";
 import { feeFor, naira } from "@noshen/shared/money";
 import { settingsOf } from "@noshen/engine/core";
@@ -20,7 +21,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     if (!l || l.seller_id !== user.id) throw data("Not found", { status: 404 });
     if (l.status !== "draft") throw redirect(`/sell/${l.id}/share`);
     const st = await settingsOf(d);
-    return { listing: l, min: st.deal_min_kobo, max: st.deal_max_kobo, fee: st.fee };
+    // A new listing starts where the seller's last one was, so a seller in Kano isn't shown Lagos.
+    const last = l.state ? null : await one<{ state: string; area: string }>(d.db,
+      "select state, area from listings where seller_id = $1 and state is not null and id <> $2 order by created_at desc limit 1", [user.id, l.id]);
+    const place = { state: l.state ?? last?.state ?? "", area: l.area?.trim() ? l.area : last?.area ?? "" };
+    return { listing: l, place, min: st.deal_min_kobo, max: st.deal_max_kobo, fee: st.fee };
   });
 }
 
@@ -30,7 +35,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     category: (isCategory(f.get("category")) ? f.get("category") : "other") as CategoryKey,
     title: String(f.get("title") ?? ""), description: String(f.get("description") ?? ""),
     priceNaira: Number(String(f.get("price") ?? "").replace(/[^\d]/g, "")), condition: String(f.get("condition")) as Condition,
-    area: String(f.get("area") ?? "Yaba"), imeiOrSerial: String(f.get("imei") ?? ""),
+    state: String(f.get("state") ?? ""), area: String(f.get("area") ?? ""), imeiOrSerial: String(f.get("imei") ?? ""),
   };
   try {
     await withApp(async (d) => {
@@ -50,7 +55,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   return redirect(`/sell/${params.id}/share`);
 }
 
-export default function SellDetails({ loaderData: { listing: l, min, max, fee }, actionData }: Route.ComponentProps) {
+export default function SellDetails({ loaderData: { listing: l, place, min, max, fee }, actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";
   const untouched = l.title === "Untitled listing";
   const [cat, setCat] = useState<string>(untouched ? "" : l.category);
@@ -87,7 +92,14 @@ export default function SellDetails({ loaderData: { listing: l, min, max, fee },
         <TextField label="Price (₦)" name="price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d,]/g, ""))} placeholder="45,000" required missing="Enter a price in naira, like 45,000."
           validate={(v) => { const k = Number(v.replace(/[^\d]/g, "")) * 100; return k < min ? `The lowest price on NosHen is ${naira(min)}. You've entered ${naira(k)}.` : k > max ? `The highest price on NosHen is ${naira(max)}. You've entered ${naira(k)}.` : null; }}
           hint={p >= min && p <= max ? `The buyer pays ${naira(p + feeFor(p, fee))} with NosHen's fee. You get ${naira(p)}.` : `From ${naira(min)} to ${naira(max)}.`} />
-        <Select name="area" label="Area" defaultValue={l.area} options={AREAS.map((a) => ({ value: a, label: `${a}, Lagos` }))} />
+        <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend className="label" style={{ marginBottom: 8 }}>Where the item is</legend>
+          <Select name="state" label="State" defaultValue={place.state}
+            options={[...(place.state ? [] : [{ value: "", label: "Choose a state" }]), ...NIGERIA_STATES.map((s) => ({ value: s, label: stateLabel(s) }))]} />
+          <TextField label="Area or town" name="area" defaultValue={place.area} placeholder="Yaba, Wuse 2, GRA, Bodija…" maxLength={40} required
+            hint="Buyers see this to plan the meet-up. Never your street address." missing="Add your area or town, like Yaba, Wuse 2 or GRA." validate={areaProblem} />
+          <p className="caption muted">NosHen works in all 36 states and Abuja. {comingSoonList()} are coming soon.</p>
+        </fieldset>
         {c?.id ? (
           <TextField key={c.key} label={c.id.label} name="imei" inputMode={c.id.numeric ? "numeric" : "text"} autoCapitalize="characters" defaultValue={l.category === c.key ? l.imei_or_serial ?? "" : ""}
             hint={c.id.hint} required={c.id.required} missing={idProblem(c.key, "") ?? undefined} validate={(v) => idProblem(c.key, v)} />

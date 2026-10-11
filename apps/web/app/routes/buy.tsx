@@ -9,6 +9,7 @@ import { feeFor, naira } from "@noshen/shared/money";
 import { firstName } from "@noshen/shared/deal";
 import { photoUrl } from "@noshen/shared/photos";
 import { categoryOf } from "@noshen/shared/categories";
+import { placeLabel } from "@noshen/shared/locations";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Buy request · NosHen" }];
@@ -58,7 +59,7 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
           <div style={{ width: 56, height: 56, borderRadius: 8, overflow: "hidden", background: "var(--canvas)", flex: "none" }}>
             {l.photo_keys?.[0] ? <img src={photoUrl(l.photo_keys[0])} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Icon name="camera" />}
           </div>
-          <div className="grow"><p className="title">{l.title}</p><p className="caption muted">{name} · {l.area}, Lagos</p></div>
+          <div className="grow"><p className="title">{l.title}</p><p className="caption muted">{name} · {placeLabel(l.area, l.state)}</p></div>
         </div>
 
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>

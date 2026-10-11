@@ -55,7 +55,7 @@ export async function verifiedSeller(w: TestWorld, fullName: string) {
 let imeiSeq = 352918112000000;
 export async function liveListing(w: TestWorld, sellerId: string, priceNaira = 250_000, title = "iPhone 12, 128GB") {
   const id = await saveDraft(w.d, sellerId, null, ["a", "b", "c"], {
-    category: "phone", title, priceNaira, condition: "good", area: "Yaba", imeiOrSerial: String(imeiSeq++),
+    category: "phone", title, priceNaira, condition: "good", state: "Lagos", area: "Yaba", imeiOrSerial: String(imeiSeq++),
   });
   await publish(w.d, sellerId, id);
   return id;

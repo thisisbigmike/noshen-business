@@ -1,4 +1,5 @@
 import type { Db } from "./db";
+import { isState } from "@noshen/shared/locations";
 import { many, one } from "./db";
 import type { DealState } from "@noshen/shared/deal";
 import { isCategory } from "@noshen/shared/categories";
@@ -24,18 +25,21 @@ export async function listingView(db: Db, id: string) {
   return { listing: l, seller: await sellerSummary(db, l.seller_id) };
 }
 
-export async function browse(db: Db, f: { cat?: string; area?: string; sort?: string; q?: string }) {
+export async function browse(db: Db, f: { cat?: string; state?: string; sort?: string; q?: string }) {
   const where = ["status = 'live'"];
   const p: unknown[] = [];
   if (isCategory(f.cat)) { p.push(f.cat); where.push(`category = $${p.length}`); }
-  if (f.area) { p.push(f.area); where.push(`area = $${p.length}`); }
-  if (f.q) { p.push(`%${f.q}%`); where.push(`title ilike $${p.length}`); }
+  if (isState(f.state)) { p.push(f.state); where.push(`state = $${p.length}`); }
+  // A search matches the title or the place, so "Yaba" or "Kano" finds things for sale there.
+  if (f.q) { p.push(`%${f.q}%`); where.push(`(title ilike $${p.length} or area ilike $${p.length} or state ilike $${p.length})`); }
   const order = f.sort === "price_asc" ? "price_kobo asc" : f.sort === "price_desc" ? "price_kobo desc" : "published_at desc";
-  return many(db, `select id, title, price_kobo, area, category, condition, photo_keys, published_at from listings where ${where.join(" and ")} order by ${order} limit 60`, p);
+  return many(db, `select id, title, price_kobo, area, state, category, condition, photo_keys, published_at from listings where ${where.join(" and ")} order by ${order} limit 60`, p);
 }
 
-export async function areasWithListings(db: Db) {
-  return (await many<{ area: string }>(db, "select distinct area from listings where status = 'live' order by area")).map((r) => r.area);
+/** States with something for sale, busiest first, for the location chips on Browse. */
+export async function statesWithListings(db: Db) {
+  return (await many<{ state: string; n: string }>(db,
+    "select state, count(*) as n from listings where status = 'live' and state is not null group by state order by count(*) desc, state")).map((r) => ({ state: r.state, n: Number(r.n) }));
 }
 
 export async function myListings(db: Db, userId: string) {
@@ -172,7 +176,7 @@ export async function holdReview(db: Db, dealId: string) {
   return { ...v, buyerKycName: kyc?.verified_name ?? null, buyerCompleted: Number(buyerDeals?.n ?? 0), buyerSince: buyerPhone?.created_at };
 }
 
-/** The staff dashboard's headline numbers, the last 14 days of deals (Lagos days), and live listings by category. */
+/** The staff dashboard's headline numbers, the last 14 days of deals (Nigeria time, WAT), and live listings by category. */
 export async function adminOverview(db: Db) {
   const k = await one<Record<string, string>>(db,
     `select (select ledger_held_kobo from held_funds_check) as held_kobo,
@@ -225,7 +229,7 @@ export async function staffListings(db: Db, f: { q?: string; status?: string; ca
   if (isCategory(f.cat)) { p.push(f.cat); where.push(`l.category = $${p.length}`); }
   if (f.q?.trim()) { p.push(`%${f.q.trim()}%`); where.push(`(l.title ilike $${p.length} or u.full_name ilike $${p.length})`); }
   const rows = await many(db,
-    `select l.id, l.title, l.category, l.price_kobo, l.status, l.area, l.photo_keys, l.published_at, l.created_at,
+    `select l.id, l.title, l.category, l.price_kobo, l.status, l.area, l.state, l.photo_keys, l.published_at, l.created_at,
             u.full_name as seller, u.email as seller_email,
             (select count(*) from deals d where d.listing_id = l.id and d.state in ('requested', 'accepted', 'held', 'disputed')) as open_deals
      from listings l join users u on u.id = l.seller_id

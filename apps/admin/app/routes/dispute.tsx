@@ -10,6 +10,7 @@ import { CONDITIONS, disputeReasonLabel, firstName } from "@noshen/shared/deal";
 import { left, when } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
 import { categoryOf } from "@noshen/shared/categories";
+import { placeLabel } from "@noshen/shared/locations";
 
 export const meta = () => [{ title: "Dispute · NosHen staff" }];
 
@@ -50,7 +51,7 @@ export default function Dispute({ loaderData: v, actionData }: Route.ComponentPr
     <>
       <nav className="caption muted" aria-label="Breadcrumb"><Link to="/">Dashboard</Link> / Disputes</nav>
       <header className="stack">
-        <p className="caption muted">Deal {v.deal.id.slice(0, 8).toUpperCase()} · {v.deal.handover === "meetup" ? "Meet-up" : "Delivery"} · {v.listing.area}</p>
+        <p className="caption muted">Deal {v.deal.id.slice(0, 8).toUpperCase()} · {v.deal.handover === "meetup" ? "Meet-up" : "Delivery"} · {placeLabel(v.listing.area, v.listing.state)}</p>
         <h1 className="heading">{v.listing.title}: {buyer} vs {seller}</h1>
         <p className="body">{buyer} reported: “{disputeReasonLabel(d.reason)}{d.description ? `: ${d.description}` : ""}”</p>
         <div className="row wrap" style={{ gap: 16 }}>
@@ -74,7 +75,7 @@ export default function Dispute({ loaderData: v, actionData }: Route.ComponentPr
             <p className="label">Listing when bought</p>
             <div className="photo-grid">{(v.listing.photo_keys ?? []).slice(0, 3).map((k: string) => <div key={k} className="photo-slot"><img src={photoUrl(k)} alt="Listing photo" /></div>)}</div>
             <p className="body">{v.listing.title}</p>
-            <p className="caption muted">{naira(v.listing.price_kobo)} · {CONDITIONS.find(([c]) => c === v.listing.condition)?.[1]} condition · {v.listing.area}</p>
+            <p className="caption muted">{naira(v.listing.price_kobo)} · {CONDITIONS.find(([c]) => c === v.listing.condition)?.[1]} condition · {placeLabel(v.listing.area, v.listing.state)}</p>
             {v.listing.description ? <p className="body">“{v.listing.description}”</p> : null}
             <Kv k="Category" v={categoryOf(v.listing.category).label} />
             <Kv k={categoryOf(v.listing.category).id?.label.replace(" (optional)", "") ?? "ID number"} v={v.listing.imei_or_serial ?? "—"} />

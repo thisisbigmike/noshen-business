@@ -57,8 +57,6 @@ export const CONDITIONS = [
 
 export type Condition = (typeof CONDITIONS)[number][0];
 
-export const AREAS = ["Yaba", "Ikeja", "Surulere", "Lekki", "Victoria Island", "Ajah", "Ikorodu", "Maryland", "Gbagada", "Festac"] as const;
-
 /** Nigerian phone numbers in any common form → +234XXXXXXXXXX, or null. */
 export function normalisePhone(input: string): string | null {
   const d = input.replace(/[^\d+]/g, "");

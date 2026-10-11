@@ -11,11 +11,12 @@ import { photoUrl } from "@noshen/shared/photos";
 import { CATEGORIES, checksFor } from "@noshen/shared/categories";
 import "../styles/landing.css";
 import { ThemeToggle } from "@noshen/ui/theme";
+import { comingSoonList, placeLabel } from "@noshen/shared/locations";
 
 export const handle = { tabs: false };
 
 export const meta: Route.MetaFunction = ({ loaderData }) => {
-  const title = "NosHen: buy and sell anything in Lagos, protected";
+  const title = "NosHen: buy and sell anything in Nigeria, protected";
   const desc = "Your money is held by a licensed partner bank until you have the item. The seller is paid when you give them your release code.";
   return [
     { title },
@@ -30,8 +31,8 @@ export const meta: Route.MetaFunction = ({ loaderData }) => {
 export async function loader({ request }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const s = await settingsOf(d);
-    const recent = await many<{ id: string; title: string; area: string; price_kobo: string; photo_keys: string[] | null }>(d.db,
-      "select id, title, area, price_kobo, photo_keys from listings where status = 'live' order by published_at desc limit 12");
+    const recent = await many<{ id: string; title: string; area: string; state: string | null; price_kobo: string; photo_keys: string[] | null }>(d.db,
+      "select id, title, area, state, price_kobo, photo_keys from listings where status = 'live' order by published_at desc limit 12");
     const byCat = await many<{ category: string; n: string }>(d.db, "select category, count(*) as n from listings where status = 'live' group by category");
     const counts = Object.fromEntries(byCat.map((r) => [r.category, Number(r.n)]));
     const live = byCat.reduce((t, r) => t + Number(r.n), 0);
@@ -43,7 +44,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 const PROBLEMS: [IconName, string, string][] = [
   ["alert-triangle", "Pay first", "The seller disappears, or sends something fake or different."],
   ["cash", "Hand over first", "The \"payment\" turns out to be a fake transfer alert."],
-  ["map-pin", "Meet with cash", "You carry the full price in cash across Lagos to meet a stranger."],
+  ["map-pin", "Meet with cash", "You carry the full price in cash across town to meet a stranger."],
 ];
 
 const STEPS: [IconName, string, string][] = [
@@ -55,7 +56,8 @@ const STEPS: [IconName, string, string][] = [
 
 const faq = (min: number, max: number): [string, string][] => [
   ["Is NosHen a bank?", "No. A licensed partner bank holds the money. NosHen runs the deal steps and tells the bank where the money goes, and keeps a record of every naira."],
-  ["What can I buy and sell?", `Almost anything you can hand over in Lagos: phones, laptops, electronics, clothes, shoes, hair and wigs, beauty products, watches and jewellery, baby things, sports gear, furniture, cars and more, from ${naira(min)} to ${naira(max)}. Not allowed: anything illegal, stolen or fake, weapons, drugs, or live animals.`],
+  ["What can I buy and sell?", `Almost anything you can hand over in Nigeria: phones, laptops, electronics, clothes, shoes, hair and wigs, beauty products, watches and jewellery, baby things, sports gear, furniture, cars and more, from ${naira(min)} to ${naira(max)}. Not allowed: anything illegal, stolen or fake, weapons, drugs, or live animals.`],
+  ["Where does NosHen work?", `Everywhere in Nigeria: all 36 states and Abuja. Meet in a public place when you're in the same town, or choose delivery and the money stays held until the item arrives. ${comingSoonList()} are coming soon.`],
   ["What if the seller never shows up?", "If the hand-over hasn't happened within 72 hours of your payment, cancel the deal and get everything back, fee included."],
   ["What if it's fake, faulty or not as described?", "Don't give your code. Report a problem in the app and the money stays frozen. You both add photos or notes, and a NosHen reviewer decides within 72 hours and tells you both why."],
   ["Can I pay the seller directly to save the fee?", "You can, but that money isn't protected. If something goes wrong, NosHen can't get it back for you."],
@@ -84,7 +86,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
           <div className="lp-head reveal">
             <p className="lp-eyebrow">The problem</p>
             <h2 id="problem-title" className="lp-h2">Nobody wants to go first</h2>
-            <p className="lp-lede">Online deals between strangers in Lagos fall apart at the payment. Someone has to take the risk.</p>
+            <p className="lp-lede">Online deals between strangers in Nigeria fall apart at the payment. Someone has to take the risk.</p>
           </div>
           <div className="bento">
             {PROBLEMS.map(([icon, title, body], i) => (
@@ -212,7 +214,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
 
       <footer className="landing-footer">
         <div className="lp-inner footer-grid">
-          <div className="stack footer-brand"><Wordmark size="sm" /><p className="caption muted">Your money is held until you have the item. Lagos, Nigeria.</p></div>
+          <div className="stack footer-brand"><Wordmark size="sm" /><p className="caption muted">Your money is held until you have the item. Across Nigeria. {comingSoonList()} coming soon.</p></div>
           <nav className="stack" aria-label="Use NosHen">
             <p className="label">Use NosHen</p>
             <Link to="/browse" className="caption">Browse</Link>
@@ -248,9 +250,9 @@ function Hero({ live }: { live: number }) {
       <div className="hero-grid" aria-hidden="true" />
       <div className="lp-inner hero-layout">
         <div className="hero-copy">
-          <p className="live-pill"><span className="live-dot" aria-hidden="true" />{live ? `${live} items for sale in Lagos now` : "Buy and sell anything in Lagos"}</p>
+          <p className="live-pill"><span className="live-dot" aria-hidden="true" />{live ? `${live} items for sale across Nigeria now` : "Buy and sell anything in Nigeria"}</p>
           <h1 id="hero-title" className="hero-title">Your money is <span className="mark">held<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 14 C 50 4, 120 4, 197 10" /></svg></span> until you have the item.</h1>
-          <p className="hero-sub">The safe way to buy and sell anything in Lagos, from phones, hair and shoes to sofas and cars. You pay NosHen, a licensed partner bank holds the money, and the seller is paid only when you've checked the item.</p>
+          <p className="hero-sub">The safe way to buy and sell anything in Nigeria, from phones, hair and shoes to sofas and cars. You pay NosHen, a licensed partner bank holds the money, and the seller is paid only when you've checked the item.</p>
           <div className="hero-ctas">
             <Button variant="primary" size="lg" pill icon="search" to="/browse">See what's for sale</Button>
             <Button size="lg" pill icon="plus" to="/sell">Sell with protection</Button>
@@ -306,7 +308,7 @@ function Seal({ className }: { className?: string }) {
   );
 }
 
-function LiveStrip({ items }: { items: { id: string; title: string; area: string; price_kobo: string; photo_keys: string[] | null }[] }) {
+function LiveStrip({ items }: { items: { id: string; title: string; area: string; state: string | null; price_kobo: string; photo_keys: string[] | null }[] }) {
   if (items.length === 0) return null;
   const row = items.length < 6 ? [...items, ...items] : items;
   return (
@@ -323,7 +325,7 @@ function LiveStrip({ items }: { items: { id: string; title: string; area: string
                 {l.photo_keys?.[0] ? <img src={photoUrl(l.photo_keys[0])} alt="" loading="lazy" /> : <span className="mq-ph"><Icon name="camera" /></span>}
                 <span className="stack" style={{ gap: 0, minWidth: 0 }}>
                   <span className="label mq-title">{l.title}</span>
-                  <span className="caption muted">{l.area} · <span className="tabular ink">{naira(l.price_kobo)}</span></span>
+                  <span className="caption muted">{placeLabel(l.area, l.state)} · <span className="tabular ink">{naira(l.price_kobo)}</span></span>
                 </span>
               </Link>
             </li>
