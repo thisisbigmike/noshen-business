@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { world, person, verifiedSeller, liveListing, pay, settleAll, balances, stateOf, type TestWorld } from "./helpers";
 import {
-  requestDeal, acceptDeal, releaseByCode, releaseCodeForBuyer, markDelivered, confirmReceived, cancelDeal, handlePartnerEvent, sendMessage, rate,
+  requestDeal, sellerLimit, acceptDeal, releaseByCode, releaseCodeForBuyer, markDelivered, confirmReceived, cancelDeal, handlePartnerEvent, sendMessage, rate,
 } from "@noshen/engine/deals";
 import { reportProblem, decideDispute, resolveReviewHold, addEvidence } from "@noshen/engine/disputes";
 import { sweep } from "@noshen/engine/sweep";
-import { DealError } from "@noshen/engine/core";
+import { DealError, settingsOf } from "@noshen/engine/core";
 import { feeFor, naira } from "@noshen/shared/money";
 import { saveDraft, publish } from "@noshen/engine/sellers";
 import { moderateListing } from "@noshen/engine/staff";
@@ -53,14 +53,16 @@ describe("listings across the marketplace", () => {
     expect(await publish(w.d, seller, wig)).toBe("live");
   });
 
-  it("needs a chassis number for a car, and takes prices up to ₦20,000,000", async () => {
+  it("needs a chassis number for a car, has a ₦5,000 minimum and no top price", async () => {
     const seller = await verifiedSeller(w, "Kunle Adeyemi");
     await expect(draft(seller, { category: "vehicle", title: "Toyota Corolla 2014", priceNaira: 9_800_000 })).rejects.toThrow(/chassis number/);
     const car = await draft(seller, { category: "vehicle", title: "Toyota Corolla 2014", priceNaira: 9_800_000, imeiOrSerial: "2t1b urhe0ec 123456" });
     expect(await publish(w.d, seller, car)).toBe("live");
     const stored = (await w.db.query("select imei_or_serial from listings where id = $1", [car])).rows[0].imei_or_serial;
     expect(stored).toBe("2T1BURHE0EC123456");
-    await expect(draft(seller, { category: "vehicle", title: "Lexus RX 2020", priceNaira: 30_000_000, imeiOrSerial: "JTJHZ1234567" })).rejects.toThrow(/₦20,000,000/);
+    const lexus = await draft(seller, { category: "vehicle", title: "Lexus RX 2020", priceNaira: 85_000_000, imeiOrSerial: "JTJHZ1234567" });
+    expect(await publish(w.d, seller, lexus)).toBe("live");
+    await expect(draft(seller, { category: "home", title: "Too many zeros", priceNaira: 1e17 })).rejects.toThrow(/too large/);
     await expect(draft(seller, { category: "fashion", title: "Socks", priceNaira: 2_000 })).rejects.toThrow(/₦5,000/);
   });
 
@@ -149,11 +151,33 @@ describe("protections", () => {
     expect(audit.map((a: any) => a.action)).toContain("clear_review_hold");
   });
 
-  it("caps a new seller's deals at ₦300,000", async () => {
-    const seller = await verifiedSeller(w, "New Seller");
+  it("limits sellers who haven't verified to ₦300,000; verified sellers have no limit", async () => {
+    const s = await settingsOf(w.d);
     const buyer = await person(w, "Big Buyer");
-    const listing = await liveListing(w, seller, 400_000);
-    await expect(requestDeal(w.d, buyer, { listingId: listing, handover: "meetup" })).rejects.toThrow("can't take deals above ₦300,000");
+    // An unverified seller can't publish through the app, so put their listing live directly.
+    const unverified = await person(w, "Unverified Seller");
+    const risky = (await w.db.query(
+      "insert into listings (seller_id, category, title, price_kobo, condition, area, state, photo_keys, status, published_at) values ($1, 'fashion', 'Designer bag', 40000000, 'good', 'Yaba', 'Lagos', '{a,b,c}', 'live', now()) returning id",
+      [unverified])).rows[0].id;
+    expect(await sellerLimit(w.db, unverified, s)).toEqual({ capKobo: 30_000_000, custom: false, verified: false });
+    await expect(requestDeal(w.d, buyer, { listingId: risky, handover: "meetup" })).rejects.toThrow("hasn't finished NosHen's ID and bank checks");
+
+    const verified = await verifiedSeller(w, "Verified Seller");
+    expect(await sellerLimit(w.db, verified, s)).toEqual({ capKobo: null, custom: false, verified: true });
+    const pricey = await liveListing(w, verified, 400_000, "Phone over ₦300k");
+    expect(await requestDeal(w.d, buyer, { listingId: pricey, handover: "meetup" })).toBeTruthy();
+  });
+
+  it("lets staff set a limit on one seller, whatever their checks", async () => {
+    const s = await settingsOf(w.d);
+    const seller = await verifiedSeller(w, "Limited Seller");
+    const buyer = await person(w, "Another Buyer");
+    await w.db.query("update users set max_deal_kobo = 50000000 where id = $1", [seller]);
+    expect(await sellerLimit(w.db, seller, s)).toEqual({ capKobo: 50_000_000, custom: true, verified: true });
+    const over = await liveListing(w, seller, 600_000, "Over the staff limit");
+    await expect(requestDeal(w.d, buyer, { listingId: over, handover: "meetup" })).rejects.toThrow("can take deals up to ₦500,000");
+    const under = await liveListing(w, seller, 450_000, "Under the staff limit");
+    expect(await requestDeal(w.d, buyer, { listingId: under, handover: "meetup" })).toBeTruthy();
   });
 
   it("flags chat messages that ask for payment outside NosHen", async () => {

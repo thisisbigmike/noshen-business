@@ -494,3 +494,75 @@ export function ErrorText({ children }: { children?: ReactNode }) {
   if (!children) return null;
   return <p className="caption error-text row" role="alert"><Icon name="alert-triangle" size={16} />{children}</p>;
 }
+
+// ---------------------------------------------------------------------------
+// Full-screen photo viewer
+// ---------------------------------------------------------------------------
+
+/**
+ * Shows photos full size on a dark screen, never cropped. Swipe between them on a phone, or use the arrow
+ * buttons and keys; ✕ or Escape closes it. `onClose` gets the photo the person ended on.
+ */
+export function PhotoViewer({ photos, start, label, onClose }: {
+  photos: { src: string; alt: string }[]; start: number; label: string; onClose: (at: number) => void;
+}) {
+  const [at, setAt] = useState(start);
+  const track = useRef<HTMLDivElement>(null);
+  const closeBtn = useRef<HTMLButtonElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const last = photos.length - 1;
+  const go = (i: number, smooth = true) => {
+    const t = track.current;
+    if (!t) return;
+    const n = Math.max(0, Math.min(last, i));
+    t.scrollTo({ left: n * t.clientWidth, behavior: smooth ? "smooth" : "auto" });
+  };
+  // Open on the photo that was tapped, keep the page behind still, and put the cursor on ✕.
+  useLayoutEffect(() => {
+    go(start, false);
+    const before = document.activeElement as HTMLElement | null;
+    const root = document.documentElement;
+    const overflow = root.style.overflow;
+    root.style.overflow = "hidden";
+    closeBtn.current?.focus();
+    return () => { root.style.overflow = overflow; before?.focus?.(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); onClose(at); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); go(at + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); go(at - 1); }
+      else if (e.key === "Tab") {
+        // Keep keyboard focus inside the viewer.
+        const items = [...(box.current?.querySelectorAll<HTMLElement>("button:not([disabled])") ?? [])];
+        if (!items.length) return;
+        const i = items.indexOf(document.activeElement as HTMLElement);
+        const next = e.shiftKey ? (i <= 0 ? items.length - 1 : i - 1) : (i === items.length - 1 ? 0 : i + 1);
+        e.preventDefault();
+        items[next].focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [at]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return createPortal(
+    <div className="viewer" role="dialog" aria-modal="true" aria-label={label} ref={box}>
+      <div className="viewer-bar">
+        <span className="viewer-count" aria-live="polite">{at + 1} / {photos.length}</span>
+        <button type="button" ref={closeBtn} className="viewer-btn" aria-label="Close photos" onClick={() => onClose(at)}><Icon name="x" size={22} /></button>
+      </div>
+      <div className="viewer-track" ref={track} onScroll={(e) => setAt(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}>
+        {photos.map((p, i) => <div key={p.src + i} className="viewer-slide"><img src={p.src} alt={p.alt} draggable={false} /></div>)}
+      </div>
+      {photos.length > 1 ? (
+        <>
+          <button type="button" className="viewer-btn viewer-prev" aria-label="Previous photo" disabled={at === 0} onClick={() => go(at - 1)}><Icon name="arrow-left" size={22} /></button>
+          <button type="button" className="viewer-btn viewer-next" aria-label="Next photo" disabled={at === last} onClick={() => go(at + 1)}><Icon name="arrow-right" size={22} /></button>
+          <span className="viewer-dots" aria-hidden="true">{photos.map((p, i) => <span key={p.src + i} className={i === at ? "on" : undefined} />)}</span>
+        </>
+      ) : null}
+    </div>,
+    document.body,
+  );
+}

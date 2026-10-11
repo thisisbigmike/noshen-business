@@ -92,7 +92,11 @@ export async function saveDraft(d: Deps, userId: string, listingId: string | nul
     const cat = categoryOf(input.category);
     if (!input.title?.trim() || input.title.trim().length < 3) throw new DealError("title", `Give it a title, like “${cat.titleExample}”.`);
     const s = await settingsOf(d);
-    if (!(price >= s.deal_min_kobo && price <= s.deal_max_kobo)) throw new DealError("price", `Price between ${naira(s.deal_min_kobo)} and ${naira(s.deal_max_kobo)}.`);
+    if (!Number.isSafeInteger(price) || price < s.deal_min_kobo || (s.deal_max_kobo !== null && price > s.deal_max_kobo)) {
+      throw new DealError("price", s.deal_max_kobo === null
+        ? (Number.isSafeInteger(price) ? `The lowest price on NosHen is ${naira(s.deal_min_kobo)}.` : "That price is too large. Check the number of zeros.")
+        : `Price between ${naira(s.deal_min_kobo)} and ${naira(s.deal_max_kobo)}.`);
+    }
     const imei = cat.id ? normaliseId(input.imeiOrSerial ?? "") : "";
     if (cat.id && (imei || cat.id.required) && !cat.id.pattern.test(imei)) throw new DealError("imei", idProblem(cat.key, imei) ?? cat.id.error);
     if (!isState(input.state)) throw new DealError("state", "Choose the state the item is in.");

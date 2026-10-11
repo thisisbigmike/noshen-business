@@ -54,9 +54,9 @@ const STEPS: [IconName, string, string][] = [
   ["circle-check", "The seller is paid", "Give the seller your 6-digit release code, or confirm the delivery. The payout starts within minutes."],
 ];
 
-const faq = (min: number, max: number): [string, string][] => [
+const faq = (min: number, max: number | null): [string, string][] => [
   ["Is NosHen a bank?", "No. A licensed partner bank holds the money. NosHen runs the deal steps and tells the bank where the money goes, and keeps a record of every naira."],
-  ["What can I buy and sell?", `Almost anything you can hand over in Nigeria: phones, laptops, electronics, clothes, shoes, hair and wigs, beauty products, watches and jewellery, baby things, sports gear, furniture, cars and more, from ${naira(min)} to ${naira(max)}. Not allowed: anything illegal, stolen or fake, weapons, drugs, or live animals.`],
+  ["What can I buy and sell?", `Almost anything you can hand over in Nigeria: phones, laptops, electronics, clothes, shoes, hair and wigs, beauty products, watches and jewellery, baby things, sports gear, furniture, cars and more, from ${naira(min)}${max ? ` to ${naira(max)}` : " upwards, with no top price"}. Not allowed: anything illegal, stolen or fake, weapons, drugs, or live animals.`],
   ["Where does NosHen work?", `Everywhere in Nigeria: all 36 states and Abuja. Meet in a public place when you're in the same town, or choose delivery and the money stays held until the item arrives. ${comingSoonList()} are coming soon.`],
   ["What if the seller never shows up?", "If the hand-over hasn't happened within 72 hours of your payment, cancel the deal and get everything back, fee included."],
   ["What if it's fake, faulty or not as described?", "Don't give your code. Report a problem in the app and the money stays frozen. You both add photos or notes, and a NosHen reviewer decides within 72 hours and tells you both why."],
@@ -175,7 +175,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
             </ol>
             <p className="body muted">If the seller doesn't hand over within 72 hours of your payment, you can cancel and get everything back, fee included.</p>
           </div>
-          <FeeCalculator fee={x.fee} min={x.min} max={x.max} id="fee-title" />
+          <FeeCalculator fee={x.fee} min={x.min} max={x.max ?? CALCULATOR_TOP_KOBO} id="fee-title" />
         </div>
       </section>
 
@@ -389,6 +389,9 @@ function useTween(target: number, ms = 450) {
   }, [target, ms]);
   return v;
 }
+
+/** The fee calculator's slider needs an end even when NosHen has no top price: ₦50,000,000 covers cars. */
+const CALCULATOR_TOP_KOBO = 5_000_000_000;
 
 function FeeCalculator({ fee: rule, min, max, id }: { fee: FeeRule; min: number; max: number; id: string }) {
   // The slider moves on a log scale, so ₦5,000 shoes and a ₦20m car both get room. Prices snap to round numbers.

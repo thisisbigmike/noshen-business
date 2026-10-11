@@ -31,20 +31,19 @@ if (local) {
   staffId = existingStaff.rows[0]?.id ?? await createStaff(db, "Tobi Bello", "tobi@noshen.test", "admin", staffPassword);
 }
 
-// Seed sellers may take deals up to ₦20,000,000, so the demo car can be bought.
-const SELLER_LIMIT_KOBO = 2_000_000_000;
+// Seed sellers are verified (ID and bank), so like any verified seller they have no deal limit.
 
 async function seller(fullName, email, last4) {
   const found = await db.query("select id from users where email = $1", [email]);
   if (found.rows[0]) {
-    await db.query("update users set max_deal_kobo = $2 where id = $1", [found.rows[0].id, SELLER_LIMIT_KOBO]);
+    await db.query("update users set max_deal_kobo = null where id = $1 and max_deal_kobo is not null", [found.rows[0].id]);
     return found.rows[0].id;
   }
   const authId = crypto.randomUUID();
   await db.query(
     `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") values ($1, $2, $3, true, now(), now())`, [authId, fullName, email]);
-  const u = await db.query("insert into users (email, full_name, auth_user_id, max_deal_kobo, signup_source) values ($1, $2, $3, $4, 'seed') returning id",
-    [email, fullName, authId, SELLER_LIMIT_KOBO]);
+  const u = await db.query("insert into users (email, full_name, auth_user_id, signup_source) values ($1, $2, $3, 'seed') returning id",
+    [email, fullName, authId]);
   const id = u.rows[0].id;
   await db.query(`insert into kyc_checks (user_id, type, provider, provider_ref, result, verified_name, checked_at) values ($1, 'nin', 'fake', $2, 'verified', $3, now())`,
     [id, `seed_${id}`, fullName]);
@@ -52,8 +51,6 @@ async function seller(fullName, email, last4) {
   await db.query(
     `insert into bank_accounts (user_id, bank_code, account_number_enc, account_number_hmac, account_last4, account_name, name_matches_id, is_default, verified_at)
      values ($1, '058', $2, $3, $4, $5, true, true, now())`, [id, await encrypt(number), await hmac(`acct:${number}`), number.slice(-4), fullName.toUpperCase()]);
-  if (staffId) await db.query(`insert into staff_actions (staff_id, action, target_type, target_id, reason, payload) values ($1, 'set_limit', 'user', $2, $3, '{"max_deal_kobo": 2000000000}')`,
-    [staffId, id, "Seed data: established seller with completed deals"]);
   return id;
 }
 

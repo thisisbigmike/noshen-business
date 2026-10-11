@@ -11,6 +11,8 @@ import { NIGERIA_STATES, areaProblem, comingSoonList, stateLabel } from "@noshen
 import { CATEGORIES, categoryOf, idProblem, isCategory, type CategoryKey } from "@noshen/shared/categories";
 import { feeFor, naira } from "@noshen/shared/money";
 import { settingsOf } from "@noshen/engine/core";
+import { sellerLimit } from "@noshen/engine/deals";
+import { overLimit, sellerLimitText } from "@noshen/shared/limits";
 
 export const meta = () => [{ title: "Details · Sell · NosHen" }];
 
@@ -25,7 +27,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const last = l.state ? null : await one<{ state: string; area: string }>(d.db,
       "select state, area from listings where seller_id = $1 and state is not null and id <> $2 order by created_at desc limit 1", [user.id, l.id]);
     const place = { state: l.state ?? last?.state ?? "", area: l.area?.trim() ? l.area : last?.area ?? "" };
-    return { listing: l, place, min: st.deal_min_kobo, max: st.deal_max_kobo, fee: st.fee };
+    // So a new seller hears about their deal limit while pricing, not from a buyer later.
+    const limit = await sellerLimit(d.db, user.id, st);
+    return { listing: l, place, limit, min: st.deal_min_kobo, max: st.deal_max_kobo, fee: st.fee };
   });
 }
 
@@ -55,7 +59,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   return redirect(`/sell/${params.id}/share`);
 }
 
-export default function SellDetails({ loaderData: { listing: l, place, min, max, fee }, actionData }: Route.ComponentProps) {
+export default function SellDetails({ loaderData: { listing: l, place, limit, min, max, fee }, actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";
   const untouched = l.title === "Untitled listing";
   const [cat, setCat] = useState<string>(untouched ? "" : l.category);
@@ -90,8 +94,9 @@ export default function SellDetails({ loaderData: { listing: l, place, min, max,
           ))}
         </fieldset>
         <TextField label="Price (₦)" name="price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d,]/g, ""))} placeholder="45,000" required missing="Enter a price in naira, like 45,000."
-          validate={(v) => { const k = Number(v.replace(/[^\d]/g, "")) * 100; return k < min ? `The lowest price on NosHen is ${naira(min)}. You've entered ${naira(k)}.` : k > max ? `The highest price on NosHen is ${naira(max)}. You've entered ${naira(k)}.` : null; }}
-          hint={p >= min && p <= max ? `The buyer pays ${naira(p + feeFor(p, fee))} with NosHen's fee. You get ${naira(p)}.` : `From ${naira(min)} to ${naira(max)}.`} />
+          validate={(v) => { const k = Number(v.replace(/[^\d]/g, "")) * 100; return k < min ? `The lowest price on NosHen is ${naira(min)}. You've entered ${naira(k)}.` : max !== null && k > max ? `The highest price on NosHen is ${naira(max)}. You've entered ${naira(k)}.` : !Number.isSafeInteger(k) ? "That price is too large. Check the number of zeros." : null; }}
+          hint={p >= min && (max === null || p <= max) && Number.isSafeInteger(p) ? `The buyer pays ${naira(p + feeFor(p, fee))} with NosHen's fee. You get ${naira(p)}.` : max === null ? `From ${naira(min)}. There's no top price.` : `From ${naira(min)} to ${naira(max)}.`} />
+        {overLimit(p, limit) && (max === null || p <= max) ? <Info icon="alert-triangle" tone="warn">{sellerLimitText(limit, "seller")}</Info> : null}
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="label" style={{ marginBottom: 8 }}>Where the item is</legend>
           <Select name="state" label="State" defaultValue={place.state}

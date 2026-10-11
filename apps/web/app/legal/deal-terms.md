@@ -105,7 +105,7 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 12.1. Sellers must verify their identity (NIN or BVN) and a bank account in their own name before they can be paid.
 
-12.2. To keep deals safe, NosHen sets limits. At present: deals between {{deal_min}} and {{deal_max}}; a new seller's first {{new_seller_deals}} deals up to {{new_seller_max}} each; buyers must verify their identity for deals over {{buyer_id_above}}. NosHen may change these limits, or set different limits for an account.
+12.2. To keep deals safe, NosHen sets limits. At present: deals start at {{deal_min}} and {{deal_top}}; a seller who hasn't verified their ID and bank account can take deals up to {{unverified_seller_max}} each; buyers must verify their identity for deals over {{buyer_id_above}}. NosHen may change these limits, or set different limits for an account.
 
 12.3. NosHen may hold a deal for review, refuse a deal, freeze an account, or report activity to the Partner or the authorities, where we reasonably suspect fraud, stolen goods, money laundering or a breach of these Deal Terms.
 

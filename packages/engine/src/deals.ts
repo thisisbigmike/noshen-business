@@ -5,6 +5,10 @@ import { firstName, type Handover } from "@noshen/shared/deal";
 import { when, addHours, addMinutes } from "@noshen/shared/time";
 import { asBytes, decryptField, encryptField, releaseCheck, releaseCodeFor, timingSafeEqual } from "./crypto";
 import type { PartnerEvent } from "./partner/types";
+import type { Settings } from "./settings";
+import { overLimit, sellerLimitText, type SellerLimit } from "@noshen/shared/limits";
+
+export { overLimit, sellerLimitText, type SellerLimit };
 import {
   type Deps, type DealRow, DealError, N, amountPaid, lockDeal, notify, nowOf, post, schedule, settingsOf, userName,
 } from "./core";
@@ -12,6 +16,21 @@ import {
 // ---------------------------------------------------------------------------
 // Buy request, acceptance, decline, cancel
 // ---------------------------------------------------------------------------
+
+/**
+ * The most a seller can take in one deal: a limit staff set for them if there is one; otherwise no limit
+ * (beyond any top price in settings) once they've passed the ID and bank checks, and a starter limit
+ * (₦300,000 by default) until they have. capKobo is null when there's no limit.
+ */
+export async function sellerLimit(db: Tx["db"], sellerId: string, s: Settings): Promise<SellerLimit> {
+  const r = await one<{ max: string | null; id_ok: boolean; bank_ok: boolean }>(db,
+    `select (select max_deal_kobo from users where id = $1) as max,
+            exists (select 1 from kyc_checks where user_id = $1 and result = 'verified') as id_ok,
+            exists (select 1 from bank_accounts where user_id = $1 and is_default and removed_at is null) as bank_ok`, [sellerId]);
+  const verified = !!r?.id_ok && !!r?.bank_ok;
+  if (r?.max) return { capKobo: N(r.max), custom: true, verified };
+  return { capKobo: verified ? s.deal_max_kobo : s.unverified_seller_max_kobo, custom: false, verified };
+}
 
 export async function requestDeal(d: Deps, buyerId: string, input: { listingId: string; handover: Handover; note?: string }): Promise<string> {
   return inTx(d.db, { type: "buyer", id: buyerId }, async (tx) => {
@@ -21,13 +40,11 @@ export async function requestDeal(d: Deps, buyerId: string, input: { listingId: 
     if (!listing || listing.status !== "live") throw new DealError("not_available", "This listing isn't available any more.");
     if (listing.seller_id === buyerId) throw new DealError("own_listing", "This is your own listing.");
     const price = N(listing.price_kobo);
-    if (price < s.deal_min_kobo || price > s.deal_max_kobo)
-      throw new DealError("deal_size", `Protected deals are between ${naira(s.deal_min_kobo)} and ${naira(s.deal_max_kobo)}.`);
+    if (price < s.deal_min_kobo || (s.deal_max_kobo !== null && price > s.deal_max_kobo))
+      throw new DealError("deal_size", s.deal_max_kobo === null ? `Protected deals start at ${naira(s.deal_min_kobo)}.` : `Protected deals are between ${naira(s.deal_min_kobo)} and ${naira(s.deal_max_kobo)}.`);
 
-    const completed = await one<{ n: string }>(tx.db, "select count(*) as n from deals where seller_id = $1 and state = 'paid_out'", [listing.seller_id]);
-    const sellerCap = (await one<{ max_deal_kobo: string | null }>(tx.db, "select max_deal_kobo from users where id = $1", [listing.seller_id]))?.max_deal_kobo;
-    const cap = sellerCap ? N(sellerCap) : N(completed?.n) < s.new_seller.deals ? s.new_seller.max_deal_kobo : s.deal_max_kobo;
-    if (price > cap) throw new DealError("seller_cap", `This seller can't take deals above ${naira(cap)} yet.`);
+    const limit = await sellerLimit(tx.db, listing.seller_id, s);
+    if (overLimit(price, limit)) throw new DealError("seller_cap", sellerLimitText(limit, "buyer"));
 
     if (price > s.buyer_id_required_above_kobo) {
       const kyc = await one(tx.db, "select 1 from kyc_checks where user_id = $1 and result = 'verified'", [buyerId]);

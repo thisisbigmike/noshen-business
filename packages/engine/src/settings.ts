@@ -3,7 +3,8 @@ import { DEFAULT_FEE, type FeeRule } from "@noshen/shared/money";
 
 export interface Settings {
   deal_min_kobo: number;
-  deal_max_kobo: number;
+  /** The top price of a deal, or null for no top price. */
+  deal_max_kobo: number | null;
   fee: FeeRule;
   request_ttl_hours: number;
   payment_ttl_hours: number;
@@ -12,13 +13,14 @@ export interface Settings {
   evidence_window_hours: number;
   dispute_decision_hours: number;
   release_code: { digits: number; max_attempts: number; lock_minutes: number };
-  new_seller: { deals: number; max_deal_kobo: number };
+  /** The most a seller who hasn't passed the ID and bank checks can take in one deal. */
+  unverified_seller_max_kobo: number;
   buyer_id_required_above_kobo: number;
 }
 
 const DEFAULTS: Settings = {
   deal_min_kobo: 500_000,
-  deal_max_kobo: 2_000_000_000,
+  deal_max_kobo: null,
   fee: DEFAULT_FEE,
   request_ttl_hours: 12,
   payment_ttl_hours: 24,
@@ -27,7 +29,7 @@ const DEFAULTS: Settings = {
   evidence_window_hours: 24,
   dispute_decision_hours: 72,
   release_code: { digits: 6, max_attempts: 5, lock_minutes: 30 },
-  new_seller: { deals: 3, max_deal_kobo: 30_000_000 },
+  unverified_seller_max_kobo: 30_000_000,
   buyer_id_required_above_kobo: 50_000_000,
 };
 
