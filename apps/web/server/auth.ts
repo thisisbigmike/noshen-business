@@ -47,6 +47,15 @@ function makeAuth(mail: EmailSender) {
       }),
     ],
     databaseHooks: {
+      // Nor can Google (or any other sign-in) be attached to a staff account from the customer site.
+      account: {
+        create: {
+          before: async (account) => {
+            const staff = await pool.query("select 1 from staff where auth_user_id = $1", [account.userId]);
+            if (staff.rowCount) return false;
+          },
+        },
+      },
       session: {
         create: {
           // A staff account never gets a session on the customer site, whatever the sign-in route.

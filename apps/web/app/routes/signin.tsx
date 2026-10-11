@@ -160,7 +160,7 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
 
   return (
     <AuthFrame title="Sign in" back="/" icon="shield-check" heading="Sign in to NosHen" sub="New here? The same steps create your account.">
-      {loaderData.googleError ? <ErrorText>{loaderData.email ? "Google sign-in didn't finish. Try again, or use your email." : "Google sign-in didn't finish. Please try again."}</ErrorText> : null}
+      {loaderData.googleError ? <ErrorText>{loaderData.email ? "Google sign-in didn't finish. Try again, or use your email." : "Google sign-in didn't finish. Please try again."} If you used a NosHen staff email, choose a different Google account: staff accounts can't buy or sell.</ErrorText> : null}
       {loaderData.google ? (
         <Form method="post" action={formAction}>
           <input type="hidden" name="step" value="google" />
