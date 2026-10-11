@@ -10,7 +10,7 @@ import { feeFor, naira } from "@noshen/shared/money";
 import { saveDraft, publish } from "@noshen/engine/sellers";
 import { moderateListing } from "@noshen/engine/staff";
 import { adminOverview, browse, staffListings, staffUsers, statesWithListings } from "@noshen/engine/queries";
-import { cryptoQuotes, prepareCryptoPayment } from "@noshen/engine/stablecoins";
+import { cryptoQuotes, prepareCryptoPayment, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
 import { FAKE_RATE_KOBO } from "@noshen/engine/partner/fake-crypto";
 import { addressProblem, coinAmount, coinMicroFor, koboForCoin, payPlanFor } from "@noshen/shared/payments";
 
@@ -368,8 +368,9 @@ describe("paying with USDT or USDC", () => {
 
   it("holds the money when the right USDT arrives in time, and refunds it as USDT to the buyer's address", async () => {
     const { buyer, dealId, due } = await acceptedDeal();
-    await expect(prepareCryptoPayment(w.d, buyer, dealId, "usdt", "solana", EVM)).rejects.toThrow(/isn't a Solana address/);
-    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "solana", SOL);
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "solana");
+    await expect(saveRefundAddress(w.d, buyer, dealId, "usdt", "solana", EVM)).rejects.toThrow(/isn't a Solana address/);
+    await saveRefundAddress(w.d, buyer, dealId, "usdt", "solana", SOL);
     const dep = await depositOf(dealId, "usdt", "solana");
     expect(dep.address).toMatch(/^TEST0/); // a pretend address no wallet accepts
     expect(Number(dep.amount_micro)).toBe(coinMicroFor(due, FAKE_RATE_KOBO.usdt));
@@ -396,8 +397,9 @@ describe("paying with USDT or USDC", () => {
 
   it("takes USDC too, with its own address and amount, and refunds it as USDC", async () => {
     const { buyer, dealId, due } = await acceptedDeal();
-    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "base", EVM);
-    await prepareCryptoPayment(w.d, buyer, dealId, "usdc", "base", EVM);
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "base");
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdc", "base");
+    await saveRefundAddress(w.d, buyer, dealId, "usdc", "base", EVM);
     const [t, c] = [await depositOf(dealId, "usdt", "base"), await depositOf(dealId, "usdc", "base")];
     expect(c.address).not.toBe(t.address);
     expect(Number(c.amount_micro)).toBe(coinMicroFor(due, FAKE_RATE_KOBO.usdc));
@@ -409,9 +411,37 @@ describe("paying with USDT or USDC", () => {
     await settleAll(w);
   });
 
+  it("gives the deal's address with nothing to fill in, and holds a refund until the buyer says where", async () => {
+    const { buyer, dealId, due } = await acceptedDeal();
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdc", "base");
+    const dep = await depositOf(dealId, "usdc", "base");
+    expect(dep.address).toMatch(/^0xTEST/);
+    expect(dep.refund_address_enc).toBeNull();
+    await payCrypto(w, dealId, "usdc", "base", Number(dep.amount_micro), due);
+    expect(await stateOf(w, dealId)).toBe("held");
+
+    await cancelDeal(w.d, buyer, dealId);
+    await settleAll(w);
+    const waitingT = (await w.db.query("select status, partner_ref from transfers where deal_id = $1 and kind = 'refund'", [dealId])).rows[0];
+    expect(waitingT).toEqual({ status: "pending", partner_ref: null }); // nothing sent: there's nowhere to send it yet
+    const asked = (await w.db.query("select params->>'text' as text from notifications where deal_id = $1 and template = 'refund_due' and channel = 'in_app'", [dealId])).rows[0];
+    expect(asked.text).toMatch(/ready to refund as USDC on Base\. Add your USDC on Base address in the deal/);
+    expect(await refundsWaitingForAddress(w.d, buyer, dealId)).toMatchObject([{ coin: "usdc", network: "base", amountKobo: due }]);
+
+    expect(await saveRefundAddress(w.d, buyer, dealId, "usdc", "base", EVM)).toBe(1);
+    expect(await saveRefundAddress(w.d, buyer, dealId, "usdc", "base", EVM)).toBe(0); // saving again sends nothing twice
+    await settleAll(w);
+    const sentT = (await w.db.query("select status, partner_ref from transfers where deal_id = $1 and kind = 'refund'", [dealId])).rows;
+    expect(sentT).toHaveLength(1);
+    expect(sentT[0].status).toBe("succeeded");
+    expect(await refundsWaitingForAddress(w.d, buyer, dealId)).toEqual([]);
+    const b = await balances(w, dealId);
+    expect(b.refunds_due ?? 0).toBe(0);
+  });
+
   it("holds too little for review", async () => {
     const { buyer, dealId } = await acceptedDeal();
-    await prepareCryptoPayment(w.d, buyer, dealId, "usdc", "base", EVM);
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdc", "base");
     const dep = await depositOf(dealId, "usdc", "base");
     const short = Number(dep.amount_micro) - 10_000_000;
     await payCrypto(w, dealId, "usdc", "base", short, koboForCoin(short, Number(dep.rate_kobo)));
@@ -423,13 +453,15 @@ describe("paying with USDT or USDC", () => {
 
   it("gets a new amount only once the old one runs out, and keeps the address", async () => {
     const { buyer, dealId } = await acceptedDeal();
-    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "ethereum", EVM);
-    const first = await depositOf(dealId, "usdt", "ethereum");
     await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "ethereum");
+    const first = await depositOf(dealId, "usdt", "ethereum");
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "ethereum", { refresh: true });
     expect((await depositOf(dealId, "usdt", "ethereum")).quote_expires_at.getTime()).toBe(first.quote_expires_at.getTime());
     w.clock.now = new Date(w.clock.now.getTime() + 31 * 60_000);
     try {
-      await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "ethereum");
+      await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "ethereum"); // opening the page again never changes the amount
+      expect((await depositOf(dealId, "usdt", "ethereum")).quote_expires_at.getTime()).toBe(first.quote_expires_at.getTime());
+      await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "ethereum", { refresh: true });
       const again = await depositOf(dealId, "usdt", "ethereum");
       expect(again.quote_expires_at.getTime()).toBeGreaterThan(first.quote_expires_at.getTime());
       expect(again.address).toBe(first.address);
@@ -440,7 +472,8 @@ describe("paying with USDT or USDC", () => {
 
   it("sends back a second payment for a deal already paid, on its own, and can still refund the first", async () => {
     const { buyer, dealId, due } = await acceptedDeal();
-    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "bsc", EVM);
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "bsc");
+    await saveRefundAddress(w.d, buyer, dealId, "usdt", "bsc", EVM);
     const dep = await depositOf(dealId, "usdt", "bsc");
     await pay(w, dealId, due, "KOFI MENSAH"); // paid by bank transfer…
     await payCrypto(w, dealId, "usdt", "bsc", Number(dep.amount_micro), due); // …and with USDT too
@@ -461,9 +494,10 @@ describe("paying with USDT or USDC", () => {
 
   it("only takes crypto news from the crypto partner, and only from the buyer", async () => {
     const { seller, buyer, dealId } = await acceptedDeal();
-    await expect(prepareCryptoPayment(w.d, seller, dealId, "usdt", "solana", SOL)).rejects.toThrow(/Only the buyer/);
-    await expect(prepareCryptoPayment(w.d, buyer, dealId, "dai", "solana", SOL)).rejects.toThrow(/USDT or USDC/);
-    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "solana", SOL);
+    await expect(prepareCryptoPayment(w.d, seller, dealId, "usdt", "solana")).rejects.toThrow(/Only the buyer/);
+    await expect(prepareCryptoPayment(w.d, buyer, dealId, "dai", "solana")).rejects.toThrow(/USDT or USDC/);
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "solana");
+    await expect(saveRefundAddress(w.d, seller, dealId, "usdt", "solana", SOL)).rejects.toThrow(/Only the buyer/);
     const dep = await depositOf(dealId, "usdt", "solana");
     const event = { id: "evt_" + crypto.randomUUID(), type: "crypto.received" as const,
       data: { deposit_ref: dep.provider_ref, coin: "usdt", network: "solana", amount_micro: Number(dep.amount_micro), amount_kobo: Number(dep.amount_kobo), tx_hash: "x", received_at: new Date().toISOString() } };

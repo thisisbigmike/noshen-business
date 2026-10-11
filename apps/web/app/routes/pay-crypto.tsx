@@ -5,13 +5,15 @@ import type { Route } from "./+types/pay-crypto";
 import { messageOf, requireUser, withApp } from "../../server/web";
 import { dealView } from "@noshen/engine/queries";
 import { isDev } from "@noshen/engine/context";
-import { cryptoPaymentFor, prepareCryptoPayment } from "@noshen/engine/stablecoins";
-import { BottomAction, Button, CheckedForm, ErrorText, Info, Kv, MoneyStatus, TextField, TopBar } from "@noshen/ui/ui";
+import { cryptoPaymentFor, prepareCryptoPayment, saveRefundAddress } from "@noshen/engine/stablecoins";
+import { DealError } from "@noshen/engine/core";
+import { BottomAction, Button, ErrorText, Info, Kv, MoneyStatus, TopBar } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { firstName } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
-import { QUOTE_MINUTES, addressProblem, coinAmount, coinName, cryptoLabel, groupAddress, isCoin, isNetwork, networkLabel, networkOf, plainAmount } from "@noshen/shared/payments";
+import { QUOTE_MINUTES, coinAmount, coinName, cryptoLabel, groupAddress, isCoin, isNetwork, networkLabel, networkOf, plainAmount } from "@noshen/shared/payments";
 import { CryptoLogo } from "../lib/crypto-logo";
+import { RefundAddressForm } from "../lib/refund-address";
 import { CopyButton } from "../lib/copy-button";
 
 export const handle = { tabs: false };
@@ -27,13 +29,21 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const v = await dealView(d.db, params.id);
     if (!v || v.deal.buyer_id !== user.id) throw data("Not found", { status: 404 });
     if (v.deal.state !== "accepted") throw redirect(`/d/${params.id}`);
-    const { payment, refundAddress } = await cryptoPaymentFor(d, user.id, v.deal.id, coin, network);
-    // Before they continue: roughly what they'll send. The exact amount is fixed when the address is shown.
-    const estimate = payment ? null : await d.crypto.quote(Number(v.deal.amount_due_kobo), coin, new Date());
+    // The deal's address for this coin and network is made the first time the buyer opens it: nothing to fill in first.
+    let found = await cryptoPaymentFor(d, user.id, v.deal.id, coin, network);
+    if (!found.payment) {
+      try {
+        await prepareCryptoPayment(d, user.id, v.deal.id, coin, network);
+      } catch (e) {
+        if (e instanceof DealError) throw redirect(`/d/${params.id}`);
+        throw e;
+      }
+      found = await cryptoPaymentFor(d, user.id, v.deal.id, coin, network);
+    }
+    const { payment, refundAddress } = found;
     return {
       deal: { id: v.deal.id as string, due: v.deal.amount_due_kobo as string, payBy: v.deal.payment_due_at as string | null, handover: v.deal.handover as string },
       title: v.listing.title as string, seller: firstName(v.seller.name), coin, network, payment, refundAddress,
-      estimate: estimate ? { micro: estimate.micro, rateKobo: estimate.rateKobo } : null,
       qr: payment ? renderSVG(payment.address, { ecc: "M", border: 2, pixelSize: 6, blackColor: "#000", whiteColor: "#fff" }) : null,
       test: d.crypto.test, dev: isDev(), now: Date.now(),
     };
@@ -46,7 +56,8 @@ export async function action({ request, params }: Route.ActionArgs) {
   try {
     await withApp(async (d) => {
       const user = await requireUser(request, d);
-      await prepareCryptoPayment(d, user.id, params.id, params.coin, params.network, intent === "start" ? String(f.get("refund") ?? "") : undefined);
+      if (intent === "refund") await saveRefundAddress(d, user.id, params.id, params.coin, params.network, String(f.get("address") ?? ""));
+      else await prepareCryptoPayment(d, user.id, params.id, params.coin, params.network, { refresh: true });
     });
   } catch (e) {
     if (e instanceof Response) throw e;
@@ -73,7 +84,7 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
   const c = coinName(x.coin);
   const [params] = useSearchParams();
   const p = x.payment;
-  const editing = !p || params.has("edit");
+  const addingRefund = params.has("refund");
   const busy = useNavigation().state !== "idle";
   const left = useSecondsLeft(p?.expiresAt, x.now);
   const expired = !!p && left <= 0;
@@ -103,30 +114,12 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
 
         <section className="card stack">
           <div className="row-between wrap"><MoneyStatus state="awaiting" />{x.deal.payBy ? <span className="caption muted">Pay by {when(new Date(x.deal.payBy))}</span> : null}</div>
-          <p className="big-amount tabular">{p && !editing && !expired ? coinAmount(p.micro, x.coin) : naira(x.deal.due)}</p>
-          <p className="body muted">{p && !editing && !expired ? `${naira(x.deal.due)} · ` : ""}{x.title} · {x.seller} accepted</p>
+          <p className="big-amount tabular">{p && !expired ? coinAmount(p.micro, x.coin) : naira(x.deal.due)}</p>
+          <p className="body muted">{p && !expired ? `${naira(x.deal.due)} · ` : ""}{x.title} · {x.seller} accepted</p>
           <p className="row" style={{ gap: 10 }}><CryptoLogo coin={x.coin} network={x.network} size={28} lead="coin" /><span className="body">{c} on {networkLabel(n)}</span></p>
         </section>
 
-        {editing ? (
-          <CheckedForm method="post" className="stack-4" replace>
-            <input type="hidden" name="intent" value="start" />
-            <section className="card stack">
-              <h2 className="title">{p ? "Change where refunds go" : "First, where should refunds go?"}</h2>
-              <p className="body muted">If the deal is cancelled, or a problem is decided in your favour, we send your money back as {c} on {n.name} to this address.</p>
-              <TextField label={`Your ${c} address on ${n.name}`} name="refund" className="mono-field" defaultValue={x.refundAddress ?? ""} required
-                missing={addressProblem(x.coin, n.id, "") ?? undefined} validate={(v) => addressProblem(x.coin, n.id, v)}
-                autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false}
-                hint={`Copy it from your wallet. For an exchange account, use the exchange's ${c} deposit address on this network.`} />
-            </section>
-            {x.estimate ? (
-              <Info icon="coin">You'll send about <strong>{coinAmount(x.estimate.micro, x.coin)}</strong> ({naira(x.estimate.rateKobo)} per {c}{x.test ? ", a test rate" : ""}). When you continue, the exact amount is fixed for {QUOTE_MINUTES} minutes.</Info>
-            ) : null}
-            <ErrorText>{actionData?.intent === "start" ? actionData.error : null}</ErrorText>
-            <Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? "Getting the address…" : p ? "Save" : "Show where to send"}</Button>
-            {p ? <Button block to={`/d/${x.deal.id}/pay/${x.coin}/${n.id}`}>Keep the address ending {p.refundLast4}</Button> : null}
-          </CheckedForm>
-        ) : expired ? (
+        {!p ? null : expired ? (
           <section className="card stack-4">
             <Info icon="clock"><strong>This amount has run out.</strong> {c} prices move against the naira, so we fix the amount for {QUOTE_MINUTES} minutes at a time.</Info>
             <p className="body">Already sent it? Don't send it again. When it arrives, we'll check it and email you.</p>
@@ -153,11 +146,28 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
                 <Kv k="Network" v={networkLabel(n)} />
                 <Kv k="Rate" v={`${naira(p!.rateKobo)} per ${c}${x.test ? " (test rate)" : ""}`} />
                 <Kv k="This amount holds for" v={<span className="tabular" aria-live="off">{mmss(left)}</span>} />
-                <Kv k="Refunds go to" v={<span>Address ending {p!.refundLast4} · <Link to="?edit=1">Change</Link></span>} />
               </div>
             </section>
             <Info icon="alert-triangle" tone="warn"><strong>Send only {c} on {n.name}.</strong> Another coin, or {c} on another network, can't be recovered.</Info>
             <Info icon="coin">Make sure exactly {coinAmount(p!.micro, x.coin)} arrives. If your exchange takes its fee out of what you send, add the fee on top.</Info>
+            <section className="card stack" aria-labelledby="refunds">
+              <h2 id="refunds" className="title">Refunds</h2>
+              {addingRefund ? (
+                <>
+                  <p className="body muted">If the deal is cancelled, or a problem is decided in your favour, we send your money back as {c} on {n.name} to this address.</p>
+                  <RefundAddressForm coin={x.coin} network={x.network} defaultValue={x.refundAddress} submitLabel="Save address"
+                    error={actionData?.intent === "refund" ? actionData.error : null} busy={busy} />
+                  <Button block to={`/d/${x.deal.id}/pay/${x.coin}/${n.id}`}>{p!.refundLast4 ? `Keep the address ending ${p!.refundLast4}` : "Not now"}</Button>
+                </>
+              ) : p!.refundLast4 ? (
+                <Kv k="Refunds go to" v={<span>Your address ending {p!.refundLast4} · <Link to="?refund=1" replace>Change</Link></span>} />
+              ) : (
+                <>
+                  <p className="body muted">If the deal is cancelled, we send your money back as {c} to your own address on {n.name}. Add it now, or later if a refund is ever due.</p>
+                  <div><Button to="?refund=1">Add my address</Button></div>
+                </>
+              )}
+            </section>
             <p className="caption muted">Our crypto partner turns the {c} into {naira(x.deal.due)} for this deal, and our licensed partner holds it. {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}.</p>
             {x.dev ? (
               <div className="dev stack">

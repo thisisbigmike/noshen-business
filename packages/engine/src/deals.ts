@@ -262,9 +262,11 @@ async function paymentArrived(d: Deps, tx: Tx, deal: DealRow, paymentId: string,
     ], deal.state === "held" || deal.state === "disputed" ? "a second payment for a deal already paid" : "payment arrived after the deal closed");
     await tx.db.query("update payments set sent_back = true where id = $1", [paymentId]);
     await createTransfer(d, tx, deal.id, "refund", amountKobo, { refundPaymentId: paymentId, sendBack: true });
+    const to = await refundTarget(tx, paymentId);
+    const back = to && !to.address_enc ? ` Add your ${cryptoLabel(to.coin, to.network)} address in the deal so we can send it back.` : " We're sending it back.";
     await notify(d, tx, deal.buyer_id, deal.id, "late_payment_refunded", deal.state === "held" || deal.state === "disputed"
-      ? `Another payment of ${naira(amountKobo)} arrived for a deal you'd already paid. We're sending it back.`
-      : `Your payment of ${naira(amountKobo)} arrived after the deal closed. We're sending it back.`);
+      ? `Another payment of ${naira(amountKobo)} arrived for a deal you'd already paid.${back}`
+      : `Your payment of ${naira(amountKobo)} arrived after the deal closed.${back}`);
     return;
   }
 
@@ -324,13 +326,9 @@ async function createTransfer(d: Deps, tx: Tx, dealId: string, kind: "payout" | 
   let destination: { bankCode: string; accountNumber: string; accountName: string };
   const coinTo = await refundTarget(tx, to.refundPaymentId);
   if (coinTo) {
-    // Paid in USDT or USDC: the crypto partner sends it back in the same coin to the address the buyer gave.
-    const address = await decryptField(d.secrets.fieldKey, asBytes(coinTo.address_enc));
-    tx.after(async () => {
-      if (!d.crypto) throw new Error(`refund ${t!.id} is to a ${cryptoLabel(coinTo.coin, coinTo.network)} address, but no crypto partner is set up`);
-      const r = await d.crypto.sendRefund({ transferId: t!.id, amountKobo: amount, idempotencyKey: t!.idempotency_key, coin: coinTo.coin, network: coinTo.network, address });
-      await d.db.query("update transfers set status = case when status = 'pending' then 'sent'::transfer_status else status end, partner_ref = coalesce(partner_ref, $2) where id = $1", [t!.id, r.partnerRef]);
-    });
+    // Paid in USDT or USDC: sent back in the same coin to the buyer's own address. If they haven't given it yet,
+    // the transfer waits as pending until they do (saveRefundAddress sends it).
+    if (coinTo.address_enc) await sendCryptoRefund(d, tx, t!.id, coinTo);
     return;
   }
   if (to.bankAccountId) {
@@ -346,13 +344,60 @@ async function createTransfer(d: Deps, tx: Tx, dealId: string, kind: "payout" | 
   });
 }
 
-/** Where a refund of this payment goes when it was paid in USDT or USDC: the buyer's own address. Null for a bank payment. */
-async function refundTarget(tx: Tx, paymentId: string | null | undefined) {
+type CoinRefundTarget = { coin: Coin; network: Network; address_enc: unknown | null; last4: string | null };
+
+/**
+ * Where a refund of this payment goes when it was paid in USDT or USDC: the buyer's own address on that network
+ * (address_enc is null until they give it). Null for a bank payment.
+ */
+async function refundTarget(tx: Tx, paymentId: string | null | undefined): Promise<CoinRefundTarget | null> {
   if (!paymentId) return null;
-  const r = await one<{ coin: Coin; network: Network; address_enc: unknown; last4: string }>(tx.db,
+  const r = await one<CoinRefundTarget>(tx.db,
     `select c.coin, c.network, c.refund_address_enc as address_enc, c.refund_address_last4 as last4
        from payments p join crypto_deposits c on c.id = p.crypto_deposit_id where p.id = $1 and p.method = 'crypto'`, [paymentId]);
   return r ?? null;
+}
+
+/**
+ * Asks the crypto partner to send a pending refund, after commit. The transfer is claimed ('sent') inside the
+ * transaction, so saving an address twice can't send it twice; if the partner call fails, it goes back to pending.
+ */
+async function sendCryptoRefund(d: Deps, tx: Tx, transferId: string, to: CoinRefundTarget) {
+  const t = await one<{ id: string; amount_kobo: string; idempotency_key: string }>(tx.db,
+    `update transfers set status = 'sent' where id = $1 and status = 'pending' and partner_ref is null returning id, amount_kobo, idempotency_key`, [transferId]);
+  if (!t) return;
+  const address = await decryptField(d.secrets.fieldKey, asBytes(to.address_enc));
+  tx.after(async () => {
+    try {
+      if (!d.crypto) throw new Error(`refund ${t.id} is to a ${cryptoLabel(to.coin, to.network)} address, but no crypto partner is set up`);
+      const r = await d.crypto.sendRefund({ transferId: t.id, amountKobo: N(t.amount_kobo), idempotencyKey: t.idempotency_key, coin: to.coin, network: to.network, address });
+      await d.db.query("update transfers set partner_ref = coalesce(partner_ref, $2) where id = $1", [t.id, r.partnerRef]);
+    } catch (e) {
+      await d.db.query("update transfers set status = 'pending' where id = $1 and status = 'sent' and partner_ref is null", [t.id]);
+      throw e;
+    }
+  });
+}
+
+/** Sends every refund that was waiting for the buyer's address on this deposit. Call once the address is saved. */
+export async function sendWaitingCryptoRefunds(d: Deps, tx: Tx, depositId: string) {
+  const to = await one<CoinRefundTarget>(tx.db,
+    "select coin, network, refund_address_enc as address_enc, refund_address_last4 as last4 from crypto_deposits where id = $1", [depositId]);
+  if (!to?.address_enc) return 0;
+  const waiting = await many<{ id: string }>(tx.db,
+    `select t.id from transfers t join payments p on p.id = t.refund_payment_id
+      where p.crypto_deposit_id = $1 and t.kind = 'refund' and t.status = 'pending' and t.partner_ref is null for update of t`, [depositId]);
+  for (const w of waiting) await sendCryptoRefund(d, tx, w.id, to);
+  return waiting.length;
+}
+
+/** What to tell the buyer about where a refund goes. */
+function refundWords(to: CoinRefundTarget | null, amount: number, fallback: string) {
+  if (!to) return fallback;
+  const where = `${coinName(to.coin)} on ${networkOf(to.network).name}`;
+  return to.address_enc
+    ? `${naira(amount)} is being refunded as ${coinName(to.coin)} to your ${networkOf(to.network).name} address ending ${to.last4}, at the day's rate.`
+    : `${naira(amount)} is ready to refund as ${where}. Add your ${where} address in the deal so we can send it.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -454,10 +499,8 @@ export async function refund(d: Deps, tx: Tx, deal: DealRow, why: "cancelled" | 
   await tx.db.query("update release_codes set voided_at = now() where deal_id = $1 and used_at is null and voided_at is null", [deal.id]);
   const p = await one<{ id: string }>(tx.db, "select id from payments where deal_id = $1 and not sent_back order by received_at limit 1", [deal.id]);
   if (p && paid > 0) await createTransfer(d, tx, deal.id, "refund", paid, { refundPaymentId: p.id });
-  const to = await refundTarget(tx, p?.id);
-  await notify(d, tx, deal.buyer_id, deal.id, "refund_due", to
-    ? `${naira(paid)} is being refunded as ${coinName(to.coin)} to your ${networkOf(to.network).name} address ending ${to.last4}, at the day's rate.`
-    : `${naira(paid)} is being refunded to the account you paid from.`);
+  await notify(d, tx, deal.buyer_id, deal.id, "refund_due",
+    refundWords(await refundTarget(tx, p?.id), paid, `${naira(paid)} is being refunded to the account you paid from.`));
 }
 
 // ---------------------------------------------------------------------------

@@ -11,8 +11,9 @@ import { disputeReasonLabel, firstName, isOpen } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
-import { cryptoLabel } from "@noshen/shared/payments";
-import { cryptoQuotes } from "@noshen/engine/stablecoins";
+import { cryptoLabel, type Coin, type Network } from "@noshen/shared/payments";
+import { cryptoQuotes, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
+import { RefundAddressForm } from "../lib/refund-address";
 import { PayOptions } from "../lib/pay-options";
 
 export const handle = { tabs: false };
@@ -30,8 +31,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const paidCrypto = counted[0]?.method === "crypto" ? cryptoLabel(counted[0].coin, counted[0].network) : null;
     // What the deal comes to in USDT and USDC, for the ways to pay (only while the buyer has to pay).
     const quotes = role === "buyer" && v.deal.state === "accepted" ? await cryptoQuotes(d, Number(v.deal.amount_due_kobo)) : null;
+    // A refund in USDT or USDC that can't go out until the buyer says where.
+    const refundWaiting = role === "buyer" ? (await refundsWaitingForAddress(d, user.id, v.deal.id))[0] ?? null : null;
     return {
-      me: user.id, role, paid, paidCrypto, country: countryOf(request), quotes,
+      me: user.id, role, paid, paidCrypto, country: countryOf(request), quotes, refundWaiting,
       deal: v.deal, listing: { id: v.listing.id, title: v.listing.title, category: v.listing.category, area: placeLabel(v.listing.area, v.listing.state), photo: v.listing.photo_keys?.[0] ?? null },
       names: { buyer: v.buyer.name, seller: v.seller.name }, otherName: role === "buyer" ? v.seller.name : v.buyer.name,
       events: v.events, messages: v.messages, dispute: v.dispute, evidence: v.evidence, ratings: v.ratings,
@@ -55,6 +58,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         case "received": return confirmReceived(d, user.id, params.id);
         case "message": return sendMessage(d, user.id, params.id, String(form.get("body") ?? ""));
         case "rate": return rate(d, user.id, params.id, Number(form.get("stars")), String(form.get("comment") ?? ""));
+        case "refund": return saveRefundAddress(d, user.id, params.id, String(form.get("coin")), String(form.get("network")), String(form.get("address") ?? ""));
       }
     });
   } catch (e) {
@@ -78,7 +82,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
   useEscape(cancelOpen, () => setCancelOpen(false), cancelling);
   const other = firstName(x.otherName);
   const endedBy = [...x.events].reverse().find((e: any) => e.to_state === "declined")?.actor ?? null;
-  const t = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4, endedBy, paidCrypto: x.paidCrypto });
+  const t = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4, endedBy, paidCrypto: x.paidCrypto, refundWaiting: !!x.refundWaiting });
   const steps = dealSteps(deal, role, names, x.events, x.dispute);
 
   // Keep the page current while waiting on the other person or the bank.
@@ -125,11 +129,20 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
               <Info icon="shield-lock">Only {firstName(names.buyer)}'s phone shows the code. Nobody from NosHen will ever ask you for it.</Info>
             ) : null}
 
+            {x.refundWaiting ? (
+              <section className="card stack" aria-labelledby="refund-to">
+                <h2 id="refund-to" className="title">Where should we send your {naira(x.refundWaiting.amountKobo)}?</h2>
+                <p className="body muted">You paid with {cryptoLabel(x.refundWaiting.coin as Coin, x.refundWaiting.network as Network)}, so your refund goes back that way, at the rate on the day. Add your own address and we'll send it straight away.</p>
+                <RefundAddressForm coin={x.refundWaiting.coin as Coin} network={x.refundWaiting.network as Network} defaultValue={x.refundWaiting.lastAddress}
+                  submitLabel="Send my refund" error={actionData?.intent === "refund" ? (actionData as any).error : null} busy={busy} />
+              </section>
+            ) : null}
+
             {x.dispute ? <DisputeSummary x={x} /> : null}
 
             {(deal.state === "released" || deal.state === "paid_out") ? <RateBox x={x} other={other} busy={busy} error={actionData?.intent === "rate" ? actionData.error : undefined} /> : null}
 
-            <ErrorText>{actionData && actionData.intent !== "message" && actionData.intent !== "rate" ? (actionData as any).error : null}</ErrorText>
+            <ErrorText>{actionData && actionData.intent !== "message" && actionData.intent !== "rate" && actionData.intent !== "refund" ? (actionData as any).error : null}</ErrorText>
             {actions.length ? <div className="desktop-only stack">{actions}</div> : null}
 
             <section className="card stack-4" aria-labelledby="steps">
@@ -165,7 +178,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
             <input type="hidden" name="intent" value="cancel" />
             <h2 id="cancel-title" className="heading">{deal.state === "requested" && role === "buyer" ? "Cancel this request?" : "Cancel this deal?"}</h2>
             <p className="body">{deal.state === "held"
-              ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee included, ${x.paidCrypto ? `as ${x.paidCrypto} to the address you gave, at the rate on the day` : "to the account you paid from"}.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
+              ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee included, ${x.paidCrypto ? `as ${x.paidCrypto} to your own address, at the rate on the day` : "to the account you paid from"}.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
               : "Nothing has been paid, so there's nothing to refund."}</p>
             <Button type="submit" variant="danger" size="lg" block disabled={busy}>{cancelling ? "Cancelling…" : deal.state === "requested" && role === "buyer" ? "Cancel request" : "Cancel deal"}</Button>
             <Button size="lg" block autoFocus disabled={cancelling} onClick={() => setCancelOpen(false)}>{deal.state === "requested" && role === "buyer" ? "Keep the request" : "Keep the deal"}</Button>

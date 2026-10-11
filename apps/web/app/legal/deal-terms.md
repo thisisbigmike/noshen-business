@@ -42,7 +42,7 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 ## 4A. Paying with USDT or USDC
 
-4A.1. Where the app offers it, the buyer may pay in USDT or USDC on one of the networks the app lists. Before showing where to send it, the app asks for the buyer's own address on that network, for refunds.
+4A.1. Where the app offers it, the buyer may pay in USDT or USDC on one of the networks the app lists. The buyer may give their own address on that network for refunds when paying, or later. A refund in USDT or USDC is sent once the buyer has given it; until then it is held for them.
 
 4A.2. The app shows an address for the deal and the exact amount of the chosen coin, worked out from the naira amount due at the Crypto Partner's rate. That amount holds for {{usdt_quote_minutes}} minutes; after that the buyer must get a new amount before paying.
 
