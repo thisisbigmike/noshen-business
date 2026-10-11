@@ -1,7 +1,8 @@
 /* NosHen app layout. Colours, type and spacing come only from tokens.css. */
 
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+/* No grey/blue box flashing on tap in mobile browsers: buttons and cards show their own pressed state. */
+html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; background: radial-gradient(900px 420px at 50% -180px, color-mix(in srgb, var(--brand) 12%, transparent), transparent 70%) no-repeat, var(--canvas); color: var(--ink); font-family: var(--font-sans); font-size: 15px; line-height: 22px; -webkit-font-smoothing: antialiased; }
 h1, h2, h3, p { margin: 0; }
 /* Headings break into even lines; paragraphs avoid a lone last word. */

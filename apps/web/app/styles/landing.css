@@ -197,6 +197,12 @@
 .faq-item summary::-webkit-details-marker { display: none; }
 .faq-plus { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: none; border-radius: 50%; background: var(--tint); color: var(--primary-ink); transition: transform var(--dur) var(--ease-out); }
 .faq-item[open] .faq-plus { transform: rotate(45deg); }
+/* Pressed and keyboard-focus states, in place of the browser's tap highlight. */
+.faq-item:has(summary:active) { background: color-mix(in srgb, var(--tint) 55%, var(--surface)); }
+.faq-item summary:active .faq-plus { transform: scale(0.9); }
+.faq-item[open] summary:active .faq-plus { transform: rotate(45deg) scale(0.9); }
+.faq-item summary { border-radius: inherit; }
+.faq-item summary:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
 .faq-item p { padding: 0 20px 18px; }
 .faq-item::details-content { block-size: 0; overflow: clip; transition: block-size var(--dur) var(--ease-out), content-visibility var(--dur) allow-discrete; }
 .faq-item[open]::details-content { block-size: auto; }
