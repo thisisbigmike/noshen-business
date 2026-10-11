@@ -1,5 +1,5 @@
 // The NosHen design system's components, as typed React. Classes and tokens match design-system/.
-import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes, type MouseEventHandler } from "react";
 import { createPortal } from "react-dom";
 import { Form, Link, type FormProps } from "react-router";
 import { ICONS, type IconName } from "./icons";
@@ -45,7 +45,8 @@ type BtnProps = {
 export function Button({ variant = "secondary", size = "md", block, pill, icon, iconRight, to, className, children, ...rest }: BtnProps) {
   const cls = cx("nh-btn", `nh-btn-${variant}`, `nh-btn-${size}`, block && "nh-btn-block", pill && "nh-btn-pill", className);
   const inner = <>{icon ? <Icon name={icon} size={18} /> : null}{children}{iconRight ? <Icon name={iconRight} size={18} /> : null}</>;
-  if (to) return <Link to={to} className={cls}>{inner}</Link>;
+  // A link can also take a click: for example, to open a sheet in place, with the link as the way there without JavaScript.
+  if (to) return <Link to={to} className={cls} onClick={rest.onClick as unknown as MouseEventHandler<HTMLAnchorElement>}>{inner}</Link>;
   return <button type="button" className={cls} {...rest}>{inner}</button>;
 }
 

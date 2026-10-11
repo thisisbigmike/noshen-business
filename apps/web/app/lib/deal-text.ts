@@ -29,7 +29,7 @@ export interface DealText {
 
 const d = (x: string | Date | null | undefined) => (x ? new Date(x) : null);
 
-export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buyer: string; seller: string }, paidKobo: number, extra: { decisionDue?: string | Date | null; evidenceDue?: string | Date | null; bankLast4?: string | null; endedBy?: "buyer" | "seller" | "system" | null } = {}, now = new Date()): DealText {
+export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buyer: string; seller: string }, paidKobo: number, extra: { decisionDue?: string | Date | null; evidenceDue?: string | Date | null; bankLast4?: string | null; endedBy?: "buyer" | "seller" | "system" | null; paidUsdtOn?: string | null } = {}, now = new Date()): DealText {
   const buyer = firstName(names.buyer);
   const seller = firstName(names.seller);
   const due = Number(deal.amount_due_kobo);
@@ -45,7 +45,7 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
         : { chip: { state: "awaiting", word: "New request" }, deadline: `Answer by ${t(deal.request_expires_at)}`, amountKobo: share, next: `${buyer} wants to buy this with protection. Accept or decline by ${t(deal.request_expires_at)}.` };
     case "accepted":
       return role === "buyer"
-        ? { chip, deadline: `Pay by ${t(deal.payment_due_at)}`, amountKobo: due, next: `Pay ${naira(due)} by bank transfer by ${t(deal.payment_due_at)}. We hold it until you have the item.` }
+        ? { chip, deadline: `Pay by ${t(deal.payment_due_at)}`, amountKobo: due, next: `Pay ${naira(due)} into NosHen by ${t(deal.payment_due_at)}. We hold it until you have the item.` }
         : { chip, deadline: `Pay by ${t(deal.payment_due_at)}`, amountKobo: share, next: `Waiting for ${buyer} to pay. Don't hand anything over until NosHen shows the money as held.` };
     case "held": {
       if (deal.review_hold) {
@@ -80,7 +80,9 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
         : { chip, amountKobo: share, amountSuffix: "paid out", next: `${naira(share)} sent to your bank account${extra.bankLast4 ? ` ••${extra.bankLast4}` : ""}.` };
     case "refunded":
       return role === "buyer"
-        ? { chip, amountKobo: paidKobo || due, amountSuffix: "refunded", next: "Refunded to the account you paid from. Bank transfers usually arrive within minutes." }
+        ? { chip, amountKobo: paidKobo || due, amountSuffix: "refunded", next: extra.paidUsdtOn
+          ? `Refunded as USDT on ${extra.paidUsdtOn} to the address you gave, at the rate on the day.`
+          : "Refunded to the account you paid from. Bank transfers usually arrive within minutes." }
         : { chip, amountKobo: share, next: "This deal was cancelled and the buyer was refunded." };
     case "declined": {
       // Who ended it: the buyer cancelling, the seller declining, or the clock running out.

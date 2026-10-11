@@ -1,5 +1,6 @@
 import pg from "pg";
 import { FakePartner } from "@noshen/engine/partner/fake";
+import { FakeCryptoPartner } from "@noshen/engine/partner/fake-crypto";
 import type { PartnerEvent } from "@noshen/engine/partner/types";
 import { ConsoleEmail } from "@noshen/engine/email";
 import { FakeIdProvider } from "@noshen/engine/idcheck";
@@ -15,6 +16,7 @@ export interface TestWorld {
   timers: { kind: TimerKind; at: Date; dealId?: string }[];
   mail: ConsoleEmail;
   partner: FakePartner;
+  crypto: FakeCryptoPartner;
   clock: { now: Date };
 }
 
@@ -24,17 +26,18 @@ export async function world(): Promise<TestWorld> {
   const settled: PartnerEvent[] = [];
   const timers: TestWorld["timers"] = [];
   const partner = new FakePartner("test-partner-secret", "Test Bank", async (e) => { settled.push(e); });
+  const crypto = new FakeCryptoPartner("test-partner-secret", async (e) => { settled.push(e); });
   const mail = new ConsoleEmail();
   mail.send = async (m) => { mail.sent.push(m); };
   const clock = { now: new Date() };
   const d: Deps = {
-    db, partner, mail, ids: new FakeIdProvider(),
+    db, partner, crypto, mail, ids: new FakeIdProvider(),
     timers: { schedule: async (t) => { timers.push(t); } },
     secrets: { releaseCode: "test-release-secret", fieldKey: btoa(String.fromCharCode(...new Uint8Array(32).fill(7))) },
     appUrl: "http://test",
     now: () => clock.now,
   };
-  return { d, db, settled, timers, mail, partner, clock };
+  return { d, db, settled, timers, mail, partner, crypto, clock };
 }
 
 let phoneSeq = 10_000_000;
@@ -71,6 +74,18 @@ export async function pay(w: TestWorld, dealId: string, amountKobo: number, send
   const body = JSON.stringify(event);
   const verified = await w.partner.verifyWebhook(body, new Headers({ "x-fake-signature": await w.partner.sign(body) }));
   return { event, result: await handlePartnerEvent(w.d, verified) };
+}
+
+/** The crypto partner telling us USDT arrived at a deal's address, signed like its real webhook. */
+export async function payUsdt(w: TestWorld, dealId: string, network: string, usdtMicro: number, amountKobo: number) {
+  const dep = (await w.db.query("select provider_ref from crypto_deposits where deal_id = $1 and network = $2", [dealId, network])).rows[0];
+  const event: PartnerEvent = {
+    id: "evt_" + crypto.randomUUID(), type: "crypto.received",
+    data: { deposit_ref: dep.provider_ref, network, amount_usdt_micro: usdtMicro, amount_kobo: amountKobo, tx_hash: "0x" + "ab".repeat(32), received_at: new Date().toISOString() },
+  };
+  const body = JSON.stringify(event);
+  const verified = await w.crypto.verifyWebhook(body, new Headers({ "x-fake-crypto-signature": await w.crypto.sign(body) }));
+  return handlePartnerEvent(w.d, verified, "crypto");
 }
 
 export async function settleAll(w: TestWorld) {

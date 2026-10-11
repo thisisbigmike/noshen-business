@@ -4,7 +4,7 @@
 
 These Protected Deal Terms ("**Deal Terms**") explain how a protected deal works on NosHen: how the buyer's money is held, when it is released to the seller, and what happens when something goes wrong. They form part of the NosHen [Terms of Use](/terms). If the two conflict on how a deal works, these Deal Terms apply.
 
-In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (company registration in progress); the "**buyer**" and "**seller**" are the two users in a deal; and the "**Partner**" is <mark>[PAYMENT PARTNER]</mark>, the licensed financial institution that holds deal money.
+In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (company registration in progress); the "**buyer**" and "**seller**" are the two users in a deal; the "**Partner**" is <mark>[PAYMENT PARTNER]</mark>, the licensed financial institution that holds deal money; and the "**Crypto Partner**" is <mark>[CRYPTO PARTNER]</mark>, the licensed virtual asset service provider that receives USDT payments and turns them into naira for a deal.
 
 ## 1. What a protected deal is
 
@@ -12,7 +12,7 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 1.2. The sale is between the buyer and the seller. NosHen is not the seller, does not own, inspect or guarantee any item, and is not an agent of either side for the sale itself. NosHen's role is to run the deal steps in these Deal Terms and to instruct the Partner where the money goes.
 
-1.3. Protected deals are available for items listed on NosHen in the categories shown in the app, between users in Nigeria, paid in naira by bank transfer. Some items can't be sold at all: see the [prohibited items](/prohibited-items).
+1.3. Protected deals are available for items listed on NosHen in the categories shown in the app, sold by users in Nigeria. Every deal is priced and held in naira. The buyer pays by bank transfer in naira, or, where the app offers it, in USDT through the Crypto Partner (section 4A). <mark>[Lawyer to confirm that USDT payments are allowed under SEC Nigeria and CBN rules, and what the Crypto Partner must be licensed for, before this is offered for real.]</mark> Some items can't be sold at all: see the [prohibited items](/prohibited-items).
 
 ## 2. Who holds the money
 
@@ -37,6 +37,18 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 4.2. A payment counts only when the Partner confirms it to NosHen. A screenshot, an alert or a message from the buyer does not count. Sellers should never hand over an item until NosHen shows the money as held.
 
 4.3. If the amount paid is different from the amount due, or the paying account's name does not match the buyer's, the deal is held for review. A NosHen reviewer will contact the buyer, and may refund the payment instead of continuing the deal.
+
+4.4. If a second payment arrives for a deal that has already been paid, or a payment arrives after a deal has closed, it does not count towards the deal and is sent back to where it came from.
+
+## 4A. Paying with USDT
+
+4A.1. Where the app offers it, the buyer may pay in USDT on one of the networks the app lists. Before showing where to send it, the app asks for the buyer's own USDT address on that network, for refunds.
+
+4A.2. The app shows an address for the deal and the exact USDT amount, worked out from the naira amount due at the Crypto Partner's rate. That amount holds for {{usdt_quote_minutes}} minutes; after that the buyer must get a new amount before paying.
+
+4A.3. When the exact USDT amount arrives while it holds, the Crypto Partner turns it into the naira amount due, and the deal continues as if paid by bank transfer. A different amount, USDT that arrives after the amount has run out, or USDT sent on the wrong network is held for review under 4.3 or may not be recoverable: the buyer must send only USDT, only on the network chosen, to the address shown.
+
+4A.4. The buyer pays any network or exchange fees. If an exchange takes its fee out of the amount sent, the buyer must add it so that the exact amount arrives.
 
 ## 5. The fee
 
@@ -99,7 +111,7 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 ## 11. Refunds
 
-11.1. Refunds are paid to the bank account the payment came from, or to another account in the buyer's name that the buyer gives us. We aim to start a refund within <mark>[1 business day]</mark> of the decision or cancellation, but the timing depends on the Partner and the banks.
+11.1. Refunds are paid to the bank account the payment came from, or to another account in the buyer's name that the buyer gives us. A deal paid in USDT is refunded in USDT, on the same network, to the address the buyer gave under 4A.1: the naira amount being refunded, at the Crypto Partner's rate on the day the refund is sent, less any network fee. The buyer bears any change in the rate between paying and the refund. <mark>[Proposed; confirm with the Crypto Partner and the lawyer.]</mark> We aim to start a refund within <mark>[1 business day]</mark> of the decision or cancellation, but the timing depends on the Partner and the banks.
 
 ## 12. Checks and limits
 

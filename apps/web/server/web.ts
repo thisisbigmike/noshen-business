@@ -4,6 +4,7 @@ import { createAuth } from "./auth";
 import { withApp, mailFor } from "@noshen/engine/context";
 import type { Deps } from "@noshen/engine/core";
 import { one } from "@noshen/engine/db";
+import { cleanCountry } from "@noshen/shared/payments";
 
 export interface AppUser {
   id: string; email: string | null; phone: string | null; full_name: string | null; status: string; auth_user_id: string;
@@ -47,6 +48,9 @@ export async function requireUser(request: Request, d?: Deps): Promise<AppUser> 
   if (u.status !== "active") throw redirect("/account?paused=1");
   return u;
 }
+
+/** The visitor's country (set by the worker from Cloudflare). Nigeria when it isn't known, as on this computer. */
+export const countryOf = (request: Request) => cleanCountry(request.headers.get("x-noshen-country")) ?? "NG";
 
 export { pagePath, messageOf } from "@noshen/engine/http";
 export { withApp };

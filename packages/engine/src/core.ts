@@ -1,6 +1,6 @@
 import type { Db, Tx } from "./db";
 import { one } from "./db";
-import type { PaymentsPartner, PartnerEvent } from "./partner/types";
+import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
 import type { EmailSender } from "./email";
 import type { IdProvider } from "./idcheck";
 import type { Settings } from "./settings";
@@ -10,13 +10,16 @@ import type { DealState } from "@noshen/shared/deal";
 export type TimerKind = "request_expiry" | "payment_expiry" | "handover_due" | "delivery_release" | "evidence_close" | "partner_event";
 
 export interface Timers {
-  schedule(t: { kind: TimerKind; at: Date; dealId?: string; event?: PartnerEvent }): Promise<void>;
+  /** source: which partner a partner_event came from ("crypto" for the crypto partner; the bank partner otherwise). */
+  schedule(t: { kind: TimerKind; at: Date; dealId?: string; event?: PartnerEvent; source?: "crypto" }): Promise<void>;
 }
 
 /** Everything the engine needs from the outside world, so the same code runs in the Worker and in tests. */
 export interface Deps {
   db: Db;
   partner: PaymentsPartner;
+  /** Paying with USDT. Missing when no crypto partner is set up: then buyers pay by bank transfer only. */
+  crypto?: CryptoPartner;
   mail: EmailSender;
   ids: IdProvider;
   timers: Timers;
@@ -82,8 +85,9 @@ export async function post(
   }
 }
 
+/** What the buyer paid into the deal, leaving out any extra payment that was sent straight back. */
 export async function amountPaid(db: Db, dealId: string): Promise<number> {
-  const r = await one<{ s: string }>(db, "select coalesce(sum(amount_kobo), 0) as s from payments where deal_id = $1", [dealId]);
+  const r = await one<{ s: string }>(db, "select coalesce(sum(amount_kobo), 0) as s from payments where deal_id = $1 and not sent_back", [dealId]);
   return N(r?.s);
 }
 

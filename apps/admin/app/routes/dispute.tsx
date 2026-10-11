@@ -42,7 +42,7 @@ export default function Dispute({ loaderData: v, actionData }: Route.ComponentPr
   const [reason, setReason] = useState("");
   const [confirm, setConfirm] = useState(false);
   const buyer = firstName(v.buyer.name), seller = firstName(v.seller.name);
-  const paid = v.payments.reduce((s: number, p: any) => s + Number(p.amount_kobo), 0);
+  const paid = v.payments.filter((p: any) => !p.sent_back).reduce((s: number, p: any) => s + Number(p.amount_kobo), 0);
   const decided = d.state === "decided";
   const evidenceOpen = new Date(d.evidence_due_at) > new Date();
   const who = (id: string | null) => (id === v.deal.buyer_id ? `${buyer} (buyer)` : id === v.deal.seller_id ? `${seller} (seller)` : "NosHen");

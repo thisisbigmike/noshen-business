@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import type { Settings } from "@noshen/engine/settings";
 import { naira } from "@noshen/shared/money";
+import { QUOTE_MINUTES } from "@noshen/shared/payments";
 import { LEGAL_NAV, type LegalSlug } from "@noshen/shared/legal-pages";
 import terms from "../app/legal/terms.md?raw";
 import dealTerms from "../app/legal/deal-terms.md?raw";
@@ -40,6 +41,7 @@ export function renderLegal(slug: LegalSlug, s: Settings) {
     code_attempts: String(s.release_code.max_attempts), code_lock_minutes: String(s.release_code.lock_minutes),
     unverified_seller_max: naira(s.unverified_seller_max_kobo),
     buyer_id_above: naira(s.buyer_id_required_above_kobo),
+    usdt_quote_minutes: String(QUOTE_MINUTES),
   };
   const md = page.source.replace(/\{\{(\w+)\}\}/g, (m, k: string) => vars[k] ?? m);
   let html = marked.parse(md, { async: false, gfm: true }) as string;

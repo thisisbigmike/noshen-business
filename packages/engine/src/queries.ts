@@ -86,7 +86,8 @@ export async function dealView(db: Db, dealId: string) {
     one(db, "select * from listings where id = $1", [deal.listing_id]),
     sellerSummary(db, deal.buyer_id),
     sellerSummary(db, deal.seller_id),
-    many(db, "select amount_kobo, sender_name, matches_amount_due, matches_buyer_name, received_at from payments where deal_id = $1 order by received_at", [dealId]),
+    many(db, `select amount_kobo, sender_name, matches_amount_due, matches_buyer_name, received_at, method, network, tx_hash, amount_usdt_micro, sent_back
+              from payments where deal_id = $1 order by received_at`, [dealId]),
     many(db, "select type, actor, actor_id, from_state, to_state, payload, at from deal_events where deal_id = $1 order by id", [dealId]),
     many(db, "select m.id, m.sender_id, m.body, m.flagged, m.at from messages m where m.deal_id = $1 order by m.id", [dealId]),
     one(db, "select * from disputes where deal_id = $1", [dealId]),
@@ -119,7 +120,7 @@ export async function staffQueues(db: Db) {
   const [disputes, holds, locked, stuck, failed] = await Promise.all([
     many(db,
       `select x.id, x.deal_id, x.reason, x.state, x.decision_due_at, x.evidence_due_at, l.title, b.full_name as buyer, s.full_name as seller,
-              (select coalesce(sum(amount_kobo),0) from payments p where p.deal_id = d.id) as held_kobo
+              (select coalesce(sum(amount_kobo),0) from payments p where p.deal_id = d.id and not p.sent_back) as held_kobo
        from disputes x join deals d on d.id = x.deal_id join listings l on l.id = d.listing_id
        join users b on b.id = d.buyer_id join users s on s.id = d.seller_id
        where x.state <> 'decided' order by x.decision_due_at`),
@@ -149,11 +150,11 @@ export async function auditLog(db: Db) {
 export async function moneySummary(db: Db) {
   const check = await one(db, "select * from held_funds_check");
   const byState = await many(db,
-    `select d.state, count(*) as n, coalesce(sum(p.amount_kobo),0) as kobo from deals d left join payments p on p.deal_id = d.id
+    `select d.state, count(distinct d.id) as n, coalesce(sum(p.amount_kobo),0) as kobo from deals d left join payments p on p.deal_id = d.id and not p.sent_back
      where d.state in ('held','disputed') group by d.state`);
   const transfers = await many(db,
     `select t.created_at, t.kind, t.deal_id, t.amount_kobo, t.status from transfers t order by t.created_at desc limit 50`);
-  const unmatched = await many(db, "select amount_kobo, sender_name, received_at from payments where deal_id is null order by received_at desc");
+  const unmatched = await many(db, "select amount_kobo, sender_name, method, network, tx_hash, received_at from payments where deal_id is null order by received_at desc");
   return { check, byState, transfers, unmatched };
 }
 

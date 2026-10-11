@@ -10,6 +10,7 @@ interface TimerParams {
   dealId?: string;
   at: string;
   event?: PartnerEvent;
+  source?: "crypto";
 }
 
 /**
@@ -22,7 +23,7 @@ export class DealTimers extends WorkflowEntrypoint<Env, TimerParams> {
     const p = event.payload;
     await step.sleepUntil("wait until the deadline", new Date(p.at));
     return step.do("act on the deadline", { retries: { limit: 5, delay: "30 seconds", backoff: "exponential" } }, async () => {
-      if (p.kind === "partner_event" && p.event) return withApp((d) => handlePartnerEvent(d, p.event!));
+      if (p.kind === "partner_event" && p.event) return withApp((d) => handlePartnerEvent(d, p.event!, p.source));
       return (await withApp((d) => sweep(d, p.dealId))).join("; ");
     });
   }

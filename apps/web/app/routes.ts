@@ -9,6 +9,8 @@ export default [
     route("deals", "routes/deals.tsx"),
     route("d/:id", "routes/deal.tsx"),
     route("d/:id/pay", "routes/pay.tsx"),
+    route("d/:id/pay/bank", "routes/pay-bank.tsx"),
+    route("d/:id/pay/usdt/:network", "routes/pay-usdt.tsx"),
     route("d/:id/code", "routes/release-code.tsx"),
     route("d/:id/enter-code", "routes/enter-code.tsx"),
     route("d/:id/report", "routes/report.tsx"),

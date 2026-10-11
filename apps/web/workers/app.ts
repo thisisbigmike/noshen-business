@@ -12,6 +12,16 @@ const pages = createRequestHandler(() => import("virtual:react-router/server-bui
 // not as a file in public/, because static files ending in .html are redirected to the address without it.
 const GOOGLE_SITE_VERIFICATION = "google246ad6ce9be68826.html";
 
+/**
+ * The visitor's country from Cloudflare, as a header the pages can read (the pay screen puts the ways to pay
+ * that suit it first). Always set here, so a visitor can't send their own.
+ */
+function withCountry(request: Request) {
+  const req = new Request(request);
+  req.headers.set("x-noshen-country", String((request.cf as { country?: string } | undefined)?.country ?? ""));
+  return req;
+}
+
 /** The customer site: buying, selling and deals. Staff work happens on the separate staff site (apps/admin). */
 export default {
   async fetch(request, env, ctx) {
@@ -19,7 +29,7 @@ export default {
     if (pathname === `/${GOOGLE_SITE_VERIFICATION}`) {
       return new Response(`google-site-verification: ${GOOGLE_SITE_VERIFICATION}`, { headers: { "content-type": "text/html; charset=utf-8" } });
     }
-    const res = pathname.startsWith("/api/") || pathname.startsWith("/photos/") ? await api.fetch(request, env, ctx) : await pages(request);
+    const res = pathname.startsWith("/api/") || pathname.startsWith("/photos/") ? await api.fetch(request, env, ctx) : await pages(withCountry(request));
     if (!isDemo()) return res;
     // A demo with pretend payments stays out of search results, so nobody mistakes it for the real service.
     const out = new Response(res.body, res);

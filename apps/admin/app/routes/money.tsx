@@ -4,6 +4,7 @@ import { moneySummary } from "@noshen/engine/queries";
 import { Icon, Info, MoneyStatus } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { when } from "@noshen/shared/time";
+import { isNetwork, networkOf } from "@noshen/shared/payments";
 
 export const meta = () => [{ title: "Money · NosHen staff" }];
 
@@ -41,7 +42,7 @@ export default function Money({ loaderData: m }: Route.ComponentProps) {
         <section className="panel">
           <h2 className="title">Payments that matched no deal</h2>
           <div className="table-scroll" tabIndex={0} role="region" aria-label="Payments that matched no deal (scrolls sideways)"><table className="table"><thead><tr><th>Received</th><th>From</th><th>Amount</th></tr></thead>
-            <tbody>{m.unmatched.map((p: any, i: number) => <tr key={i}><td>{when(new Date(p.received_at))}</td><td>{p.sender_name}</td><td className="tabular">{naira(p.amount_kobo)}</td></tr>)}</tbody></table></div>
+            <tbody>{m.unmatched.map((p: any, i: number) => <tr key={i}><td>{when(new Date(p.received_at))}</td><td>{p.method === "usdt" ? `USDT on ${isNetwork(p.network) ? networkOf(p.network).name : p.network} · tx ${String(p.tx_hash).slice(0, 12)}…` : p.sender_name}</td><td className="tabular">{naira(p.amount_kobo)}</td></tr>)}</tbody></table></div>
         </section>
       ) : null}
     </>

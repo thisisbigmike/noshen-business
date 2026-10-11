@@ -7,6 +7,7 @@ import { asBytes, decryptField, encryptField, releaseCheck, releaseCodeFor, timi
 import type { PartnerEvent } from "./partner/types";
 import type { Settings } from "./settings";
 import { overLimit, sellerLimitText, type SellerLimit } from "@noshen/shared/limits";
+import { networkOf, usdt, type UsdtNetwork } from "@noshen/shared/payments";
 
 export { overLimit, sellerLimitText, type SellerLimit };
 import {
@@ -158,18 +159,25 @@ export function namesMatch(a: string, b: string) {
   return x.length > 0 && x.every((w) => y.includes(w));
 }
 
-/** Handles a verified partner webhook exactly once (partner_events is unique on the event id). */
-export async function handlePartnerEvent(d: Deps, event: PartnerEvent): Promise<"processed" | "duplicate"> {
+/**
+ * Handles a verified partner webhook exactly once (partner_events is unique on the event id). `source` says which
+ * partner signed it: the crypto partner can only report USDT, and the bank partner only bank transfers.
+ */
+export async function handlePartnerEvent(d: Deps, event: PartnerEvent, source?: "crypto"): Promise<"processed" | "duplicate"> {
+  if ((event.type === "crypto.received") !== (source === "crypto") && event.type !== "transfer.succeeded" && event.type !== "transfer.failed")
+    throw new Error(`a ${event.type} event can't come from the ${source ?? "bank"} partner`);
+  const from = source === "crypto" ? d.crypto?.name ?? "crypto" : d.partner.name;
   const stored = await one<{ id: string; processed_at: Date | null }>(
     d.db,
     `insert into partner_events (partner, event_id, type, payload) values ($1, $2, $3, $4)
      on conflict (partner, event_id) do update set attempts = partner_events.attempts + 1
      returning id, processed_at`,
-    [d.partner.name, event.id, event.type, JSON.stringify(event)],
+    [from, event.id, event.type, JSON.stringify(event)],
   );
   if (stored!.processed_at) return "duplicate";
   try {
     if (event.type === "collection.received") await onCollection(d, stored!.id, event);
+    else if (event.type === "crypto.received") await onCryptoReceived(d, stored!.id, event);
     else await onTransferResult(d, event);
     await d.db.query("update partner_events set processed_at = now(), error = null where id = $1", [stored!.id]);
     return "processed";
@@ -181,8 +189,6 @@ export async function handlePartnerEvent(d: Deps, event: PartnerEvent): Promise<
 
 async function onCollection(d: Deps, partnerEventId: string, event: Extract<PartnerEvent, { type: "collection.received" }>) {
   await inTx(d.db, { type: "partner" }, async (tx) => {
-    const s = await settingsOf(d);
-    const now = nowOf(d);
     const found = await one<{ id: string }>(tx.db, "select id from deals where collection_ref = $1", [event.data.collection_ref]);
     const senderEnc = await encryptField(d.secrets.fieldKey, event.data.sender_account);
     if (!found) {
@@ -200,44 +206,83 @@ async function onCollection(d: Deps, partnerEventId: string, event: Extract<Part
       `insert into payments (deal_id, partner_event_id, amount_kobo, sender_name, sender_bank_code, sender_account_enc, matches_amount_due, matches_buyer_name, received_at)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
       [deal.id, partnerEventId, event.data.amount_kobo, event.data.sender_name, event.data.sender_bank_code, senderEnc, amountOk, nameOk, event.data.received_at]);
-    await post(tx.db, deal.id, "payment_received", [
-      { account: "partner_cash", debit: event.data.amount_kobo },
-      { account: "held_funds", credit: event.data.amount_kobo },
-    ]);
-
-    if (deal.state !== "accepted") {
-      // Paid after the deal expired or was cancelled: send it straight back.
-      await post(tx.db, deal.id, "refund_due", [
-        { account: "held_funds", debit: event.data.amount_kobo },
-        { account: "refunds_due", credit: event.data.amount_kobo },
-      ], "payment arrived after the deal closed");
-      await createTransfer(d, tx, deal.id, "refund", event.data.amount_kobo, { refundPaymentId: pay!.id });
-      await notify(d, tx, deal.buyer_id, deal.id, "late_payment_refunded", `Your payment of ${naira(event.data.amount_kobo)} arrived after the deal closed. We're sending it back.`);
-      return;
-    }
-
-    const handoverDue = addHours(now, s.handover_window_hours);
     const hold = !amountOk
       ? `Wrong amount: received ${naira(event.data.amount_kobo)}, due ${naira(deal.amount_due_kobo)}`
       : !nameOk
         ? `Payment name doesn't match buyer: paid by ${event.data.sender_name}, buyer is ${buyerName}`
         : null;
-    await tx.db.query("update deals set state = 'held', handover_due_at = $2, review_hold = $3, review_hold_reason = $4 where id = $1",
-      [deal.id, handoverDue, !!hold, hold]);
-    const code = await releaseCodeFor(d.secrets.releaseCode, deal.id);
-    await tx.db.query("insert into release_codes (deal_id, code_hmac) values ($1, $2) on conflict (deal_id) do nothing",
-      [deal.id, await releaseCheck(d.secrets.releaseCode, deal.id, code)]);
-
-    const seller = firstName(await userName(tx.db, deal.seller_id));
-    if (hold) {
-      await notify(d, tx, deal.buyer_id, deal.id, "payment_review", "Your payment arrived. We're checking it and will email you. Don't meet yet.");
-      await notify(d, tx, deal.seller_id, deal.id, "payment_review", "A payment arrived, and NosHen is checking it. Don't hand over yet.");
-    } else {
-      await notify(d, tx, deal.buyer_id, deal.id, "payment_held", `${naira(event.data.amount_kobo)} is held safely. Your release code is in the app. Meet ${seller} by ${when(handoverDue, now)}.`);
-      await notify(d, tx, deal.seller_id, deal.id, "payment_held", `${naira(deal.seller_share_kobo)} is held for you. Hand over by ${when(handoverDue, now)} and ask for the code.`);
-    }
-    schedule(d, tx, "handover_due", deal.id, handoverDue);
+    await paymentArrived(d, tx, deal, pay!.id, event.data.amount_kobo, hold);
   });
+}
+
+/**
+ * USDT arrived at a deal's address. The crypto partner has turned it into naira for the deal (amount_kobo): the
+ * deal's amount due when the buyer sent the USDT asked for while it held. There's no name to check on a wallet.
+ */
+async function onCryptoReceived(d: Deps, partnerEventId: string, event: Extract<PartnerEvent, { type: "crypto.received" }>) {
+  await inTx(d.db, { type: "partner" }, async (tx) => {
+    const dep = await one<{ id: string; deal_id: string; network: UsdtNetwork }>(tx.db,
+      "select id, deal_id, network from crypto_deposits where provider_ref = $1", [event.data.deposit_ref]);
+    const network = dep?.network ?? event.data.network;
+    const insert = (dealId: string | null, amountOk: boolean) => one<{ id: string }>(tx.db,
+      `insert into payments (deal_id, partner_event_id, amount_kobo, matches_amount_due, matches_buyer_name, received_at,
+                             method, crypto_deposit_id, network, tx_hash, amount_usdt_micro)
+       values ($1, $2, $3, $4, null, $5, 'usdt', $6, $7, $8, $9) returning id`,
+      [dealId, partnerEventId, event.data.amount_kobo, amountOk, event.data.received_at, dep?.id ?? null, network, event.data.tx_hash, event.data.amount_usdt_micro]);
+    if (!dep) {
+      await insert(null, false);
+      return; // unmatched money: shows in the console's money page for a person to return
+    }
+    const deal = await lockDeal(tx.db, dep.deal_id);
+    const amountOk = event.data.amount_kobo === N(deal.amount_due_kobo);
+    const pay = await insert(deal.id, amountOk);
+    const hold = amountOk ? null
+      : `Wrong amount: received ${usdt(event.data.amount_usdt_micro)} on ${networkOf(dep.network).name} (${naira(event.data.amount_kobo)}), due ${naira(deal.amount_due_kobo)}`;
+    await paymentArrived(d, tx, deal, pay!.id, event.data.amount_kobo, hold);
+  });
+}
+
+/**
+ * Money arrived for a deal, by bank transfer or USDT: hold it, or hold it for review, or, if the deal is no
+ * longer waiting for money (it closed, or was already paid), send this payment straight back.
+ */
+async function paymentArrived(d: Deps, tx: Tx, deal: DealRow, paymentId: string, amountKobo: number, hold: string | null) {
+  const s = await settingsOf(d);
+  const now = nowOf(d);
+  await post(tx.db, deal.id, "payment_received", [
+    { account: "partner_cash", debit: amountKobo },
+    { account: "held_funds", credit: amountKobo },
+  ]);
+
+  if (deal.state !== "accepted") {
+    await post(tx.db, deal.id, "refund_due", [
+      { account: "held_funds", debit: amountKobo },
+      { account: "refunds_due", credit: amountKobo },
+    ], deal.state === "held" || deal.state === "disputed" ? "a second payment for a deal already paid" : "payment arrived after the deal closed");
+    await tx.db.query("update payments set sent_back = true where id = $1", [paymentId]);
+    await createTransfer(d, tx, deal.id, "refund", amountKobo, { refundPaymentId: paymentId, sendBack: true });
+    await notify(d, tx, deal.buyer_id, deal.id, "late_payment_refunded", deal.state === "held" || deal.state === "disputed"
+      ? `Another payment of ${naira(amountKobo)} arrived for a deal you'd already paid. We're sending it back.`
+      : `Your payment of ${naira(amountKobo)} arrived after the deal closed. We're sending it back.`);
+    return;
+  }
+
+  const handoverDue = addHours(now, s.handover_window_hours);
+  await tx.db.query("update deals set state = 'held', handover_due_at = $2, review_hold = $3, review_hold_reason = $4 where id = $1",
+    [deal.id, handoverDue, !!hold, hold]);
+  const code = await releaseCodeFor(d.secrets.releaseCode, deal.id);
+  await tx.db.query("insert into release_codes (deal_id, code_hmac) values ($1, $2) on conflict (deal_id) do nothing",
+    [deal.id, await releaseCheck(d.secrets.releaseCode, deal.id, code)]);
+
+  const seller = firstName(await userName(tx.db, deal.seller_id));
+  if (hold) {
+    await notify(d, tx, deal.buyer_id, deal.id, "payment_review", "Your payment arrived. We're checking it and will email you. Don't meet yet.");
+    await notify(d, tx, deal.seller_id, deal.id, "payment_review", "A payment arrived, and NosHen is checking it. Don't hand over yet.");
+  } else {
+    await notify(d, tx, deal.buyer_id, deal.id, "payment_held", `${naira(amountKobo)} is held safely. Your release code is in the app. Meet ${seller} by ${when(handoverDue, now)}.`);
+    await notify(d, tx, deal.seller_id, deal.id, "payment_held", `${naira(deal.seller_share_kobo)} is held for you. Hand over by ${when(handoverDue, now)} and ask for the code.`);
+  }
+  schedule(d, tx, "handover_due", deal.id, handoverDue);
 }
 
 async function onTransferResult(d: Deps, event: Extract<PartnerEvent, { type: "transfer.succeeded" | "transfer.failed" }>) {
@@ -260,19 +305,33 @@ async function onTransferResult(d: Deps, event: Extract<PartnerEvent, { type: "t
     } else if (t.kind === "refund") {
       await post(tx.db, t.deal_id, "refund_sent", [{ account: "refunds_due", debit: amount }, { account: "partner_cash", credit: amount }]);
       const deal = await one(tx.db, "select buyer_id from deals where id = $1", [t.deal_id]);
-      await notify(d, tx, deal.buyer_id, t.deal_id, "refund_sent", `${naira(amount)} refunded to your bank account.`);
+      const to = await refundTarget(tx, t.refund_payment_id);
+      await notify(d, tx, deal.buyer_id, t.deal_id, "refund_sent", to
+        ? `${naira(amount)} refunded as USDT to your ${networkOf(to.network).name} address ending ${to.last4}.`
+        : `${naira(amount)} refunded to your bank account.`);
     }
   });
 }
 
 /** Records a transfer with its idempotency key, and asks the partner to send it after commit. */
 async function createTransfer(d: Deps, tx: Tx, dealId: string, kind: "payout" | "refund", amount: number,
-  to: { bankAccountId?: string; refundPaymentId?: string }) {
+  to: { bankAccountId?: string; refundPaymentId?: string; sendBack?: boolean }) {
   const t = await one<{ id: string; idempotency_key: string }>(tx.db,
     `insert into transfers (deal_id, kind, amount_kobo, bank_account_id, refund_payment_id, idempotency_key)
      values ($1, $2, $3, $4, $5, $6) returning id, idempotency_key`,
-    [dealId, kind, amount, to.bankAccountId ?? null, to.refundPaymentId ?? null, `${dealId}:${kind}`]);
+    [dealId, kind, amount, to.bankAccountId ?? null, to.refundPaymentId ?? null, to.sendBack ? `${to.refundPaymentId}:send-back` : `${dealId}:${kind}`]);
   let destination: { bankCode: string; accountNumber: string; accountName: string };
+  const usdtTo = await refundTarget(tx, to.refundPaymentId);
+  if (usdtTo) {
+    // Paid in USDT: the crypto partner sends it back as USDT to the address the buyer gave.
+    const address = await decryptField(d.secrets.fieldKey, asBytes(usdtTo.address_enc));
+    tx.after(async () => {
+      if (!d.crypto) throw new Error(`refund ${t!.id} is to a USDT address, but no crypto partner is set up`);
+      const r = await d.crypto.sendRefund({ transferId: t!.id, amountKobo: amount, idempotencyKey: t!.idempotency_key, network: usdtTo.network, address });
+      await d.db.query("update transfers set status = case when status = 'pending' then 'sent'::transfer_status else status end, partner_ref = coalesce(partner_ref, $2) where id = $1", [t!.id, r.partnerRef]);
+    });
+    return;
+  }
   if (to.bankAccountId) {
     const a = await one(tx.db, "select bank_code, account_number_enc, account_name from bank_accounts where id = $1", [to.bankAccountId]);
     destination = { bankCode: a.bank_code, accountNumber: await decryptField(d.secrets.fieldKey, asBytes(a.account_number_enc)), accountName: a.account_name };
@@ -284,6 +343,15 @@ async function createTransfer(d: Deps, tx: Tx, dealId: string, kind: "payout" | 
     const r = await d.partner.sendTransfer({ transferId: t!.id, kind, amountKobo: amount, idempotencyKey: t!.idempotency_key, destination });
     await d.db.query("update transfers set status = case when status = 'pending' then 'sent'::transfer_status else status end, partner_ref = coalesce(partner_ref, $2) where id = $1", [t!.id, r.partnerRef]);
   });
+}
+
+/** Where a refund of this payment goes when it was paid in USDT: the buyer's own address. Null for a bank payment. */
+async function refundTarget(tx: Tx, paymentId: string | null | undefined) {
+  if (!paymentId) return null;
+  const r = await one<{ network: UsdtNetwork; address_enc: unknown; last4: string }>(tx.db,
+    `select c.network, c.refund_address_enc as address_enc, c.refund_address_last4 as last4
+       from payments p join crypto_deposits c on c.id = p.crypto_deposit_id where p.id = $1 and p.method = 'usdt'`, [paymentId]);
+  return r ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -383,9 +451,12 @@ export async function refund(d: Deps, tx: Tx, deal: DealRow, why: "cancelled" | 
   await post(tx.db, deal.id, "refund_due", [{ account: "held_funds", debit: paid }, { account: "refunds_due", credit: paid }], why);
   await tx.db.query("update deals set state = 'refunded', review_hold = false, review_hold_reason = null where id = $1", [deal.id]);
   await tx.db.query("update release_codes set voided_at = now() where deal_id = $1 and used_at is null and voided_at is null", [deal.id]);
-  const p = await one<{ id: string }>(tx.db, "select id from payments where deal_id = $1 order by received_at limit 1", [deal.id]);
+  const p = await one<{ id: string }>(tx.db, "select id from payments where deal_id = $1 and not sent_back order by received_at limit 1", [deal.id]);
   if (p && paid > 0) await createTransfer(d, tx, deal.id, "refund", paid, { refundPaymentId: p.id });
-  await notify(d, tx, deal.buyer_id, deal.id, "refund_due", `${naira(paid)} is being refunded to the account you paid from.`);
+  const to = await refundTarget(tx, p?.id);
+  await notify(d, tx, deal.buyer_id, deal.id, "refund_due", to
+    ? `${naira(paid)} is being refunded as USDT to your ${networkOf(to.network).name} address ending ${to.last4}, at the day's rate.`
+    : `${naira(paid)} is being refunded to the account you paid from.`);
 }
 
 // ---------------------------------------------------------------------------

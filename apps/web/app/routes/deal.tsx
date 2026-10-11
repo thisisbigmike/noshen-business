@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Form, Link, data, redirect, useNavigation, useRevalidator } from "react-router";
 import type { Route } from "./+types/deal";
-import { requireUser, withApp, messageOf } from "../../server/web";
+import { countryOf, requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "@noshen/engine/queries";
 import { acceptDeal, cancelDeal, confirmReceived, declineDeal, markDelivered, rate, sendMessage } from "@noshen/engine/deals";
 import { BottomAction, Button, CheckedForm, ErrorText, FieldError, Icon, Info, Kv, MoneyStatus, TextArea, Timeline, TopBar, useEscape } from "@noshen/ui/ui";
@@ -11,6 +11,8 @@ import { disputeReasonLabel, firstName, isOpen } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
+import { networkOf } from "@noshen/shared/payments";
+import { PayOptions } from "../lib/pay-options";
 
 export const handle = { tabs: false };
 export const meta: Route.MetaFunction = ({ loaderData: d }) => [{ title: d ? `Deal with ${firstName(d.otherName)} · NosHen` : "Deal · NosHen" }];
@@ -21,9 +23,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const v = await dealView(d.db, params.id);
     if (!v || (v.deal.buyer_id !== user.id && v.deal.seller_id !== user.id)) throw data("This deal isn't yours.", { status: 404 });
     const role = v.deal.buyer_id === user.id ? ("buyer" as const) : ("seller" as const);
-    const paid = v.payments.reduce((s: number, p: any) => s + Number(p.amount_kobo), 0);
+    const counted = v.payments.filter((p: any) => !p.sent_back);
+    const paid = counted.reduce((s: number, p: any) => s + Number(p.amount_kobo), 0);
+    // How the buyer paid, for "refunded to…": a USDT network, or null for a bank transfer.
+    const paidUsdtOn = counted[0]?.method === "usdt" ? networkOf(counted[0].network).name : null;
     return {
-      me: user.id, role, paid,
+      me: user.id, role, paid, paidUsdtOn, country: countryOf(request), usdtOn: !!d.crypto,
       deal: v.deal, listing: { id: v.listing.id, title: v.listing.title, category: v.listing.category, area: placeLabel(v.listing.area, v.listing.state), photo: v.listing.photo_keys?.[0] ?? null },
       names: { buyer: v.buyer.name, seller: v.seller.name }, otherName: role === "buyer" ? v.seller.name : v.buyer.name,
       events: v.events, messages: v.messages, dispute: v.dispute, evidence: v.evidence, ratings: v.ratings,
@@ -61,6 +66,8 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
   const nav = useNavigation();
   const busy = nav.state !== "idle";
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  useEscape(payOpen, () => setPayOpen(false));
   const cancelling = busy && nav.formData?.get("intent") === "cancel";
   // Close the confirm sheet once the cancel has gone through (the deal's state changes) or failed (the error shows on the page).
   useEffect(() => { setCancelOpen(false); }, [deal.state]);
@@ -68,7 +75,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
   useEscape(cancelOpen, () => setCancelOpen(false), cancelling);
   const other = firstName(x.otherName);
   const endedBy = [...x.events].reverse().find((e: any) => e.to_state === "declined")?.actor ?? null;
-  const t = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4, endedBy });
+  const t = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4, endedBy, paidUsdtOn: x.paidUsdtOn });
   const steps = dealSteps(deal, role, names, x.events, x.dispute);
 
   // Keep the page current while waiting on the other person or the bank.
@@ -80,7 +87,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
   }, [deal.state]);
 
   const canCancel = (deal.state === "requested" || deal.state === "accepted" || (deal.state === "held" && !deal.delivered_at));
-  const actions = actionsFor(x, other, () => setCancelOpen(true), canCancel);
+  const actions = actionsFor(x, other, () => setCancelOpen(true), canCancel, () => setPayOpen(true));
 
   return (
     <div>
@@ -134,13 +141,28 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
       </main>
       {actions.length ? <aside className="mobile-only" aria-label="What you can do now"><BottomAction staticOnDesktop={false}>{actions}</BottomAction></aside> : null}
 
+      {payOpen ? (
+        <div className="sheet-backdrop" onClick={() => setPayOpen(false)}>
+          <div className="sheet pay-sheet" role="dialog" aria-modal="true" aria-labelledby="pay-title" onClick={(e) => e.stopPropagation()}>
+            <div className="row-between" style={{ alignItems: "flex-start" }}>
+              <div className="stack" style={{ gap: 4 }}>
+                <h2 id="pay-title" className="heading">How do you want to pay?</h2>
+                <p className="body muted">{naira(deal.amount_due_kobo)} for the {listing.title}. However you pay, NosHen holds it until you have the item.</p>
+              </div>
+              <button type="button" className="icon-btn" aria-label="Close" autoFocus onClick={() => setPayOpen(false)}><Icon name="x" size={20} /></button>
+            </div>
+            <PayOptions dealId={deal.id} country={x.country} usdtOn={x.usdtOn} />
+          </div>
+        </div>
+      ) : null}
+
       {cancelOpen ? (
         <div className="sheet-backdrop" onClick={() => !cancelling && setCancelOpen(false)}>
           <Form method="post" className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="cancel-title">
             <input type="hidden" name="intent" value="cancel" />
             <h2 id="cancel-title" className="heading">{deal.state === "requested" && role === "buyer" ? "Cancel this request?" : "Cancel this deal?"}</h2>
             <p className="body">{deal.state === "held"
-              ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee included, to the account you paid from.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
+              ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee included, ${x.paidUsdtOn ? `as USDT on ${x.paidUsdtOn} to the address you gave, at the rate on the day` : "to the account you paid from"}.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
               : "Nothing has been paid, so there's nothing to refund."}</p>
             <Button type="submit" variant="danger" size="lg" block disabled={busy}>{cancelling ? "Cancelling…" : deal.state === "requested" && role === "buyer" ? "Cancel request" : "Cancel deal"}</Button>
             <Button size="lg" block autoFocus disabled={cancelling} onClick={() => setCancelOpen(false)}>{deal.state === "requested" && role === "buyer" ? "Keep the request" : "Keep the deal"}</Button>
@@ -153,7 +175,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
 
 type View = Route.ComponentProps["loaderData"];
 
-function actionsFor(x: View, other: string, openCancel: () => void, canCancel: boolean) {
+function actionsFor(x: View, other: string, openCancel: () => void, canCancel: boolean, openPay: () => void) {
   const { deal, role } = x;
   const out: React.ReactNode[] = [];
   const post = (intent: string, label: string, variant: "primary" | "secondary" | "danger" = "secondary") => (
@@ -164,7 +186,9 @@ function actionsFor(x: View, other: string, openCancel: () => void, canCancel: b
     if (role === "seller") out.push(post("accept", "Accept request", "primary"), post("decline", "Decline"));
     else out.push(cancel);
   } else if (deal.state === "accepted") {
-    if (role === "buyer") out.push(<Button key="pay" variant="primary" size="lg" block to={`/d/${deal.id}/pay`}>Pay {naira(deal.amount_due_kobo)}</Button>);
+    // Opens the ways to pay in a sheet here; without JavaScript, the link goes to the same choices on their own page.
+    if (role === "buyer") out.push(<Button key="pay" variant="primary" size="lg" block to={`/d/${deal.id}/pay`}
+      onClick={(e) => { e.preventDefault(); openPay(); }}>Pay {naira(deal.amount_due_kobo)}</Button>);
     out.push(cancel);
   } else if (deal.state === "held" && !deal.review_hold) {
     if (deal.handover === "meetup") {

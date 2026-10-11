@@ -2,7 +2,8 @@ import { env } from "cloudflare:workers";
 import { withDb, type Db } from "./db";
 import type { Deps } from "./core";
 import { FakePartner } from "./partner/fake";
-import type { PaymentsPartner, PartnerEvent } from "./partner/types";
+import { FakeCryptoPartner } from "./partner/fake-crypto";
+import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
 import { ConsoleEmail, NoEmail, type EmailSender } from "./email";
 import { FakeIdProvider } from "./idcheck";
 
@@ -11,7 +12,7 @@ export const workflowTimers: Deps["timers"] = {
   async schedule(t) {
     const id = t.kind === "partner_event" ? `pe-${t.event!.id}`.slice(0, 100) : `${t.kind}-${t.dealId}-${t.at.getTime()}`.slice(0, 100);
     try {
-      await env.DEAL_TIMERS.create({ id, params: { kind: t.kind, dealId: t.dealId, at: t.at.toISOString(), event: t.event } });
+      await env.DEAL_TIMERS.create({ id, params: { kind: t.kind, dealId: t.dealId, at: t.at.toISOString(), event: t.event, source: t.source } });
     } catch (e) {
       // An instance with this id already exists: the timer is already set.
       if (!String(e).includes("already")) console.error("could not schedule timer", t.kind, e);
@@ -25,6 +26,18 @@ export function partnerFor(): PaymentsPartner {
       workflowTimers.schedule({ kind: "partner_event", at: new Date(Date.now() + 4000), event }));
   }
   throw new Error(`Payment partner "${env.PARTNER}" isn't set up yet. See packages/engine/src/partner/.`);
+}
+
+/**
+ * The crypto partner for USDT payments. The pretend one comes with pretend bank payments; a real one is added
+ * here once it's chosen (and cleared by the lawyer). Until then, a site with real payments offers bank transfer only.
+ */
+export function cryptoFor(): CryptoPartner | undefined {
+  if (env.PARTNER === "fake") {
+    return new FakeCryptoPartner(env.FAKE_PARTNER_SECRET, async (event: PartnerEvent) =>
+      workflowTimers.schedule({ kind: "partner_event", at: new Date(Date.now() + 4000), event, source: "crypto" }));
+  }
+  return undefined;
 }
 
 /**
@@ -47,6 +60,7 @@ export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
   return {
     db,
     partner: partnerFor(),
+    crypto: cryptoFor(),
     mail,
     ids: new FakeIdProvider(),
     timers: workflowTimers,
