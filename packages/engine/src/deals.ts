@@ -7,7 +7,7 @@ import { asBytes, decryptField, encryptField, releaseCheck, releaseCodeFor, timi
 import type { PartnerEvent } from "./partner/types";
 import type { Settings } from "./settings";
 import { overLimit, sellerLimitText, type SellerLimit } from "@noshen/shared/limits";
-import { networkOf, usdt, type UsdtNetwork } from "@noshen/shared/payments";
+import { coinAmount, coinName, cryptoLabel, networkOf, type Coin, type Network } from "@noshen/shared/payments";
 
 export { overLimit, sellerLimitText, type SellerLimit };
 import {
@@ -161,7 +161,7 @@ export function namesMatch(a: string, b: string) {
 
 /**
  * Handles a verified partner webhook exactly once (partner_events is unique on the event id). `source` says which
- * partner signed it: the crypto partner can only report USDT, and the bank partner only bank transfers.
+ * partner signed it: the crypto partner can only report USDT or USDC, and the bank partner only bank transfers.
  */
 export async function handlePartnerEvent(d: Deps, event: PartnerEvent, source?: "crypto"): Promise<"processed" | "duplicate"> {
   if ((event.type === "crypto.received") !== (source === "crypto") && event.type !== "transfer.succeeded" && event.type !== "transfer.failed")
@@ -216,19 +216,20 @@ async function onCollection(d: Deps, partnerEventId: string, event: Extract<Part
 }
 
 /**
- * USDT arrived at a deal's address. The crypto partner has turned it into naira for the deal (amount_kobo): the
- * deal's amount due when the buyer sent the USDT asked for while it held. There's no name to check on a wallet.
+ * USDT or USDC arrived at a deal's address. The crypto partner has turned it into naira for the deal (amount_kobo):
+ * the deal's amount due when the buyer sent the amount asked for while it held. There's no name to check on a wallet.
  */
 async function onCryptoReceived(d: Deps, partnerEventId: string, event: Extract<PartnerEvent, { type: "crypto.received" }>) {
   await inTx(d.db, { type: "partner" }, async (tx) => {
-    const dep = await one<{ id: string; deal_id: string; network: UsdtNetwork }>(tx.db,
-      "select id, deal_id, network from crypto_deposits where provider_ref = $1", [event.data.deposit_ref]);
+    const dep = await one<{ id: string; deal_id: string; coin: Coin; network: Network }>(tx.db,
+      "select id, deal_id, coin, network from crypto_deposits where provider_ref = $1", [event.data.deposit_ref]);
+    const coin = dep?.coin ?? event.data.coin;
     const network = dep?.network ?? event.data.network;
     const insert = (dealId: string | null, amountOk: boolean) => one<{ id: string }>(tx.db,
       `insert into payments (deal_id, partner_event_id, amount_kobo, matches_amount_due, matches_buyer_name, received_at,
-                             method, crypto_deposit_id, network, tx_hash, amount_usdt_micro)
-       values ($1, $2, $3, $4, null, $5, 'usdt', $6, $7, $8, $9) returning id`,
-      [dealId, partnerEventId, event.data.amount_kobo, amountOk, event.data.received_at, dep?.id ?? null, network, event.data.tx_hash, event.data.amount_usdt_micro]);
+                             method, crypto_deposit_id, coin, network, tx_hash, amount_coin_micro)
+       values ($1, $2, $3, $4, null, $5, 'crypto', $6, $7, $8, $9, $10) returning id`,
+      [dealId, partnerEventId, event.data.amount_kobo, amountOk, event.data.received_at, dep?.id ?? null, coin, network, event.data.tx_hash, event.data.amount_micro]);
     if (!dep) {
       await insert(null, false);
       return; // unmatched money: shows in the console's money page for a person to return
@@ -237,13 +238,13 @@ async function onCryptoReceived(d: Deps, partnerEventId: string, event: Extract<
     const amountOk = event.data.amount_kobo === N(deal.amount_due_kobo);
     const pay = await insert(deal.id, amountOk);
     const hold = amountOk ? null
-      : `Wrong amount: received ${usdt(event.data.amount_usdt_micro)} on ${networkOf(dep.network).name} (${naira(event.data.amount_kobo)}), due ${naira(deal.amount_due_kobo)}`;
+      : `Wrong amount: received ${coinAmount(event.data.amount_micro, dep.coin)} on ${networkOf(dep.network).name} (${naira(event.data.amount_kobo)}), due ${naira(deal.amount_due_kobo)}`;
     await paymentArrived(d, tx, deal, pay!.id, event.data.amount_kobo, hold);
   });
 }
 
 /**
- * Money arrived for a deal, by bank transfer or USDT: hold it, or hold it for review, or, if the deal is no
+ * Money arrived for a deal, by bank transfer or stablecoin: hold it, or hold it for review, or, if the deal is no
  * longer waiting for money (it closed, or was already paid), send this payment straight back.
  */
 async function paymentArrived(d: Deps, tx: Tx, deal: DealRow, paymentId: string, amountKobo: number, hold: string | null) {
@@ -307,7 +308,7 @@ async function onTransferResult(d: Deps, event: Extract<PartnerEvent, { type: "t
       const deal = await one(tx.db, "select buyer_id from deals where id = $1", [t.deal_id]);
       const to = await refundTarget(tx, t.refund_payment_id);
       await notify(d, tx, deal.buyer_id, t.deal_id, "refund_sent", to
-        ? `${naira(amount)} refunded as USDT to your ${networkOf(to.network).name} address ending ${to.last4}.`
+        ? `${naira(amount)} refunded as ${coinName(to.coin)} to your ${networkOf(to.network).name} address ending ${to.last4}.`
         : `${naira(amount)} refunded to your bank account.`);
     }
   });
@@ -321,13 +322,13 @@ async function createTransfer(d: Deps, tx: Tx, dealId: string, kind: "payout" | 
      values ($1, $2, $3, $4, $5, $6) returning id, idempotency_key`,
     [dealId, kind, amount, to.bankAccountId ?? null, to.refundPaymentId ?? null, to.sendBack ? `${to.refundPaymentId}:send-back` : `${dealId}:${kind}`]);
   let destination: { bankCode: string; accountNumber: string; accountName: string };
-  const usdtTo = await refundTarget(tx, to.refundPaymentId);
-  if (usdtTo) {
-    // Paid in USDT: the crypto partner sends it back as USDT to the address the buyer gave.
-    const address = await decryptField(d.secrets.fieldKey, asBytes(usdtTo.address_enc));
+  const coinTo = await refundTarget(tx, to.refundPaymentId);
+  if (coinTo) {
+    // Paid in USDT or USDC: the crypto partner sends it back in the same coin to the address the buyer gave.
+    const address = await decryptField(d.secrets.fieldKey, asBytes(coinTo.address_enc));
     tx.after(async () => {
-      if (!d.crypto) throw new Error(`refund ${t!.id} is to a USDT address, but no crypto partner is set up`);
-      const r = await d.crypto.sendRefund({ transferId: t!.id, amountKobo: amount, idempotencyKey: t!.idempotency_key, network: usdtTo.network, address });
+      if (!d.crypto) throw new Error(`refund ${t!.id} is to a ${cryptoLabel(coinTo.coin, coinTo.network)} address, but no crypto partner is set up`);
+      const r = await d.crypto.sendRefund({ transferId: t!.id, amountKobo: amount, idempotencyKey: t!.idempotency_key, coin: coinTo.coin, network: coinTo.network, address });
       await d.db.query("update transfers set status = case when status = 'pending' then 'sent'::transfer_status else status end, partner_ref = coalesce(partner_ref, $2) where id = $1", [t!.id, r.partnerRef]);
     });
     return;
@@ -345,12 +346,12 @@ async function createTransfer(d: Deps, tx: Tx, dealId: string, kind: "payout" | 
   });
 }
 
-/** Where a refund of this payment goes when it was paid in USDT: the buyer's own address. Null for a bank payment. */
+/** Where a refund of this payment goes when it was paid in USDT or USDC: the buyer's own address. Null for a bank payment. */
 async function refundTarget(tx: Tx, paymentId: string | null | undefined) {
   if (!paymentId) return null;
-  const r = await one<{ network: UsdtNetwork; address_enc: unknown; last4: string }>(tx.db,
-    `select c.network, c.refund_address_enc as address_enc, c.refund_address_last4 as last4
-       from payments p join crypto_deposits c on c.id = p.crypto_deposit_id where p.id = $1 and p.method = 'usdt'`, [paymentId]);
+  const r = await one<{ coin: Coin; network: Network; address_enc: unknown; last4: string }>(tx.db,
+    `select c.coin, c.network, c.refund_address_enc as address_enc, c.refund_address_last4 as last4
+       from payments p join crypto_deposits c on c.id = p.crypto_deposit_id where p.id = $1 and p.method = 'crypto'`, [paymentId]);
   return r ?? null;
 }
 
@@ -455,7 +456,7 @@ export async function refund(d: Deps, tx: Tx, deal: DealRow, why: "cancelled" | 
   if (p && paid > 0) await createTransfer(d, tx, deal.id, "refund", paid, { refundPaymentId: p.id });
   const to = await refundTarget(tx, p?.id);
   await notify(d, tx, deal.buyer_id, deal.id, "refund_due", to
-    ? `${naira(paid)} is being refunded as USDT to your ${networkOf(to.network).name} address ending ${to.last4}, at the day's rate.`
+    ? `${naira(paid)} is being refunded as ${coinName(to.coin)} to your ${networkOf(to.network).name} address ending ${to.last4}, at the day's rate.`
     : `${naira(paid)} is being refunded to the account you paid from.`);
 }
 

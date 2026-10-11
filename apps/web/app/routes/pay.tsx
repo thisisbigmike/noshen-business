@@ -8,6 +8,7 @@ import { firstName } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { cleanCountry } from "@noshen/shared/payments";
 import { PayOptions } from "../lib/pay-options";
+import { cryptoQuotes } from "@noshen/engine/stablecoins";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Choose how to pay · NosHen" }];
@@ -22,7 +23,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const from = cleanCountry(new URL(request.url).searchParams.get("from"));
     return {
       dealId: v.deal.id, due: v.deal.amount_due_kobo, payBy: v.deal.payment_due_at, title: v.listing.title,
-      seller: firstName(v.seller.name), country: from ?? countryOf(request), usdtOn: !!d.crypto,
+      seller: firstName(v.seller.name), country: from ?? countryOf(request), quotes: await cryptoQuotes(d, Number(v.deal.amount_due_kobo)),
     };
   });
 }
@@ -40,7 +41,7 @@ export default function Pay({ loaderData: x }: Route.ComponentProps) {
           <p className="body muted">{x.title} · {x.seller} accepted</p>
           <p className="body">However you pay, NosHen holds the money until you have the item.</p>
         </section>
-        <PayOptions dealId={x.dealId} country={x.country} usdtOn={x.usdtOn} />
+        <PayOptions dealId={x.dealId} country={x.country} quotes={x.quotes} />
       </main>
     </div>
   );

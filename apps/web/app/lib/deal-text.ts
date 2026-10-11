@@ -29,7 +29,7 @@ export interface DealText {
 
 const d = (x: string | Date | null | undefined) => (x ? new Date(x) : null);
 
-export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buyer: string; seller: string }, paidKobo: number, extra: { decisionDue?: string | Date | null; evidenceDue?: string | Date | null; bankLast4?: string | null; endedBy?: "buyer" | "seller" | "system" | null; paidUsdtOn?: string | null } = {}, now = new Date()): DealText {
+export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buyer: string; seller: string }, paidKobo: number, extra: { decisionDue?: string | Date | null; evidenceDue?: string | Date | null; bankLast4?: string | null; endedBy?: "buyer" | "seller" | "system" | null; paidCrypto?: string | null } = {}, now = new Date()): DealText {
   const buyer = firstName(names.buyer);
   const seller = firstName(names.seller);
   const due = Number(deal.amount_due_kobo);
@@ -80,8 +80,8 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
         : { chip, amountKobo: share, amountSuffix: "paid out", next: `${naira(share)} sent to your bank account${extra.bankLast4 ? ` ••${extra.bankLast4}` : ""}.` };
     case "refunded":
       return role === "buyer"
-        ? { chip, amountKobo: paidKobo || due, amountSuffix: "refunded", next: extra.paidUsdtOn
-          ? `Refunded as USDT on ${extra.paidUsdtOn} to the address you gave, at the rate on the day.`
+        ? { chip, amountKobo: paidKobo || due, amountSuffix: "refunded", next: extra.paidCrypto
+          ? `Refunded as ${extra.paidCrypto} to the address you gave, at the rate on the day.`
           : "Refunded to the account you paid from. Bank transfers usually arrive within minutes." }
         : { chip, amountKobo: share, next: "This deal was cancelled and the buyer was refunded." };
     case "declined": {

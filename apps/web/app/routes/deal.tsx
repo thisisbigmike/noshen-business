@@ -11,7 +11,8 @@ import { disputeReasonLabel, firstName, isOpen } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
-import { networkOf } from "@noshen/shared/payments";
+import { cryptoLabel } from "@noshen/shared/payments";
+import { cryptoQuotes } from "@noshen/engine/stablecoins";
 import { PayOptions } from "../lib/pay-options";
 
 export const handle = { tabs: false };
@@ -25,10 +26,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const role = v.deal.buyer_id === user.id ? ("buyer" as const) : ("seller" as const);
     const counted = v.payments.filter((p: any) => !p.sent_back);
     const paid = counted.reduce((s: number, p: any) => s + Number(p.amount_kobo), 0);
-    // How the buyer paid, for "refunded to…": a USDT network, or null for a bank transfer.
-    const paidUsdtOn = counted[0]?.method === "usdt" ? networkOf(counted[0].network).name : null;
+    // How the buyer paid, for "refunded to…": "USDC on Base", or null for a bank transfer.
+    const paidCrypto = counted[0]?.method === "crypto" ? cryptoLabel(counted[0].coin, counted[0].network) : null;
+    // What the deal comes to in USDT and USDC, for the ways to pay (only while the buyer has to pay).
+    const quotes = role === "buyer" && v.deal.state === "accepted" ? await cryptoQuotes(d, Number(v.deal.amount_due_kobo)) : null;
     return {
-      me: user.id, role, paid, paidUsdtOn, country: countryOf(request), usdtOn: !!d.crypto,
+      me: user.id, role, paid, paidCrypto, country: countryOf(request), quotes,
       deal: v.deal, listing: { id: v.listing.id, title: v.listing.title, category: v.listing.category, area: placeLabel(v.listing.area, v.listing.state), photo: v.listing.photo_keys?.[0] ?? null },
       names: { buyer: v.buyer.name, seller: v.seller.name }, otherName: role === "buyer" ? v.seller.name : v.buyer.name,
       events: v.events, messages: v.messages, dispute: v.dispute, evidence: v.evidence, ratings: v.ratings,
@@ -75,7 +78,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
   useEscape(cancelOpen, () => setCancelOpen(false), cancelling);
   const other = firstName(x.otherName);
   const endedBy = [...x.events].reverse().find((e: any) => e.to_state === "declined")?.actor ?? null;
-  const t = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4, endedBy, paidUsdtOn: x.paidUsdtOn });
+  const t = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4, endedBy, paidCrypto: x.paidCrypto });
   const steps = dealSteps(deal, role, names, x.events, x.dispute);
 
   // Keep the page current while waiting on the other person or the bank.
@@ -151,7 +154,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
               </div>
               <button type="button" className="icon-btn" aria-label="Close" autoFocus onClick={() => setPayOpen(false)}><Icon name="x" size={20} /></button>
             </div>
-            <PayOptions dealId={deal.id} country={x.country} usdtOn={x.usdtOn} />
+            <PayOptions dealId={deal.id} country={x.country} quotes={x.quotes} />
           </div>
         </div>
       ) : null}
@@ -162,7 +165,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
             <input type="hidden" name="intent" value="cancel" />
             <h2 id="cancel-title" className="heading">{deal.state === "requested" && role === "buyer" ? "Cancel this request?" : "Cancel this deal?"}</h2>
             <p className="body">{deal.state === "held"
-              ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee included, ${x.paidUsdtOn ? `as USDT on ${x.paidUsdtOn} to the address you gave, at the rate on the day` : "to the account you paid from"}.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
+              ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee included, ${x.paidCrypto ? `as ${x.paidCrypto} to the address you gave, at the rate on the day` : "to the account you paid from"}.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
               : "Nothing has been paid, so there's nothing to refund."}</p>
             <Button type="submit" variant="danger" size="lg" block disabled={busy}>{cancelling ? "Cancelling…" : deal.state === "requested" && role === "buyer" ? "Cancel request" : "Cancel deal"}</Button>
             <Button size="lg" block autoFocus disabled={cancelling} onClick={() => setCancelOpen(false)}>{deal.state === "requested" && role === "buyer" ? "Keep the request" : "Keep the deal"}</Button>

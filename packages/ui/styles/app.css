@@ -200,12 +200,19 @@ textarea.nh-input { min-height: 96px; padding: 10px 12px; resize: vertical; line
 .pay-option:active { transform: scale(0.99); background: var(--tint); }
 .pay-option:focus-visible { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
 .pay-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--tint); color: var(--primary); }
-.pay-chain { display: inline-grid; place-items: center; flex: none; min-width: 40px; height: 40px; padding: 0 5px; border-radius: 12px; color: #fff; font: 700 11px/1 var(--font-mono); letter-spacing: 0.02em; }
-.pay-chain.sm { min-width: 0; height: 24px; padding: 0 8px; border-radius: 8px; font-size: 10px; }
-.chain-solana { background: linear-gradient(135deg, #9945ff, #19c98a); }
-.chain-bsc { background: #f0b90b; color: #1e2026; }
-.chain-base { background: #0052ff; }
-.chain-ethereum { background: #627eea; }
+.crypto-logo { position: relative; display: inline-block; flex: none; }
+.crypto-logo > img { display: block; }
+.crypto-logo.lead-network > img:first-child { border-radius: 28%; }
+.crypto-logo.lead-coin > img:first-child, .coin-logo { border-radius: 50%; }
+.crypto-logo .badge { position: absolute; right: -3px; bottom: -3px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); }
+.crypto-logo.lead-coin .badge { border-radius: 28%; }
+.coin-logo { display: block; flex: none; }
+/* USDT or USDC: two buttons, one pressed */
+.coin-switch { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--radius-full); background: var(--canvas); border: 1px solid var(--border); }
+.coin-switch button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 16px 6px 8px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-muted); font: inherit; font-weight: 600; cursor: pointer; transition: background-color var(--dur-fast), color var(--dur-fast); }
+.coin-switch button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+.coin-switch button:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
+.pay-quote { display: flex; flex-direction: column; gap: 2px; }
 .pay-tag { padding: 1px 8px; border-radius: var(--radius-full); background: var(--tint); color: var(--primary); font-weight: 600; }
 .pay-address { display: flex; gap: var(--space-4); align-items: center; }
 .pay-qr { flex: none; width: 128px; height: 128px; border-radius: var(--radius-md); overflow: hidden; background: #fff; }

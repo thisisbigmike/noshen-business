@@ -76,12 +76,12 @@ export async function pay(w: TestWorld, dealId: string, amountKobo: number, send
   return { event, result: await handlePartnerEvent(w.d, verified) };
 }
 
-/** The crypto partner telling us USDT arrived at a deal's address, signed like its real webhook. */
-export async function payUsdt(w: TestWorld, dealId: string, network: string, usdtMicro: number, amountKobo: number) {
-  const dep = (await w.db.query("select provider_ref from crypto_deposits where deal_id = $1 and network = $2", [dealId, network])).rows[0];
+/** The crypto partner telling us USDT or USDC arrived at a deal's address, signed like its real webhook. */
+export async function payCrypto(w: TestWorld, dealId: string, coin: string, network: string, micro: number, amountKobo: number) {
+  const dep = (await w.db.query("select provider_ref from crypto_deposits where deal_id = $1 and coin = $2 and network = $3", [dealId, coin, network])).rows[0];
   const event: PartnerEvent = {
     id: "evt_" + crypto.randomUUID(), type: "crypto.received",
-    data: { deposit_ref: dep.provider_ref, network, amount_usdt_micro: usdtMicro, amount_kobo: amountKobo, tx_hash: "0x" + "ab".repeat(32), received_at: new Date().toISOString() },
+    data: { deposit_ref: dep.provider_ref, coin, network, amount_micro: micro, amount_kobo: amountKobo, tx_hash: "0x" + "ab".repeat(32), received_at: new Date().toISOString() },
   };
   const body = JSON.stringify(event);
   const verified = await w.crypto.verifyWebhook(body, new Headers({ "x-fake-crypto-signature": await w.crypto.sign(body) }));

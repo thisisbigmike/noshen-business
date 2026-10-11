@@ -8,7 +8,7 @@ import { Button, ErrorText, Info, MoneyStatus, TextArea } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { firstName } from "@noshen/shared/deal";
 import { ago, when } from "@noshen/shared/time";
-import { isNetwork, networkOf, usdt } from "@noshen/shared/payments";
+import { coinAmount, isCoin, isNetwork, networkOf } from "@noshen/shared/payments";
 
 export const meta = () => [{ title: "Review hold · NosHen staff" }];
 
@@ -54,9 +54,9 @@ export default function Hold({ loaderData: v, actionData }: Route.ComponentProps
             <thead><tr><th>Check</th><th>Expected</th><th>What arrived</th><th /></tr></thead>
             <tbody>
               <tr><td>Amount</td><td className="tabular">{naira(v.deal.amount_due_kobo)}</td><td className="tabular">{pay ? naira(pay.amount_kobo) : "—"}</td><td>{pay?.matches_amount_due ? "Matches" : <span className="error-text">Doesn't match</span>}</td></tr>
-              {pay?.method === "usdt" ? (
+              {pay?.method === "crypto" ? (
                 // A wallet has no name to check. Show what was sent, on which network, and the transaction to look up.
-                <tr><td>Paid with</td><td>USDT</td><td>{usdt(pay.amount_usdt_micro)} on {isNetwork(pay.network) ? networkOf(pay.network).name : pay.network}<br /><span className="caption muted" style={{ wordBreak: "break-all" }}>tx {pay.tx_hash}</span></td><td>No name to check</td></tr>
+                <tr><td>Paid with</td><td>{String(pay.coin).toUpperCase()}</td><td>{isCoin(pay.coin) ? coinAmount(pay.amount_coin_micro, pay.coin) : pay.amount_coin_micro} on {isNetwork(pay.network) ? networkOf(pay.network).name : pay.network}<br /><span className="caption muted" style={{ wordBreak: "break-all" }}>tx {pay.tx_hash}</span></td><td>No name to check</td></tr>
               ) : (
                 <tr><td>Payer's name</td><td>{v.buyerKycName ?? v.buyer.name}</td><td>{pay?.sender_name ?? "—"}</td><td>{pay?.matches_buyer_name ? "Matches" : <span className="error-text">Doesn't match</span>}</td></tr>
               )}

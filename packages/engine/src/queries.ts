@@ -86,7 +86,7 @@ export async function dealView(db: Db, dealId: string) {
     one(db, "select * from listings where id = $1", [deal.listing_id]),
     sellerSummary(db, deal.buyer_id),
     sellerSummary(db, deal.seller_id),
-    many(db, `select amount_kobo, sender_name, matches_amount_due, matches_buyer_name, received_at, method, network, tx_hash, amount_usdt_micro, sent_back
+    many(db, `select amount_kobo, sender_name, matches_amount_due, matches_buyer_name, received_at, method, coin, network, tx_hash, amount_coin_micro, sent_back
               from payments where deal_id = $1 order by received_at`, [dealId]),
     many(db, "select type, actor, actor_id, from_state, to_state, payload, at from deal_events where deal_id = $1 order by id", [dealId]),
     many(db, "select m.id, m.sender_id, m.body, m.flagged, m.at from messages m where m.deal_id = $1 order by m.id", [dealId]),
@@ -154,7 +154,7 @@ export async function moneySummary(db: Db) {
      where d.state in ('held','disputed') group by d.state`);
   const transfers = await many(db,
     `select t.created_at, t.kind, t.deal_id, t.amount_kobo, t.status from transfers t order by t.created_at desc limit 50`);
-  const unmatched = await many(db, "select amount_kobo, sender_name, method, network, tx_hash, received_at from payments where deal_id is null order by received_at desc");
+  const unmatched = await many(db, "select amount_kobo, sender_name, method, coin, network, tx_hash, received_at from payments where deal_id is null order by received_at desc");
   return { check, byState, transfers, unmatched };
 }
 

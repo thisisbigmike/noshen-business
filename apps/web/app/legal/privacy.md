@@ -13,7 +13,7 @@ NosHen is the data controller for the personal data described here. Our Data Pro
 - **Account data:** your email address, your full name, and the settings you choose. If you sign in with Google, see "If you sign in with Google" below for exactly what we receive.
 - **Identity check data (sellers, and buyers on larger deals):** the NIN or BVN you enter, which we send to our identity provider to check. We keep the result, the verified name and the provider's reference, not the full number.
 - **Bank account data:** the bank and account number you add for payouts or refunds, and the account name returned by the bank check. We store account numbers encrypted.
-- **USDT payment data, if you pay with USDT:** the USDT address you give for refunds (stored encrypted), and the network, amount and transaction of your payment. Transactions on public blockchains can be seen by anyone; we don't publish which ones are yours.
+- **Crypto payment data, if you pay with USDT or USDC:** the address you give for refunds (stored encrypted), and the network, amount and transaction of your payment. Transactions on public blockchains can be seen by anyone; we don't publish which ones are yours.
 - **Listing data:** photos, descriptions, category, price, condition and area, and, where the category asks for one, the item's IMEI, serial number or chassis number.
 - **Deal data:** your buy requests, deals, deadlines, release and refund history, and ratings you give and receive.
 - **Messages and evidence:** chat messages in your deals, and photos and notes you add when a problem is reported.
@@ -22,7 +22,7 @@ NosHen is the data controller for the personal data described here. Our Data Pro
 ### From others
 
 - **Our payment partner:** confirmation of payments, including the name, bank and account number of the account a payment came from, and the status of payouts and refunds.
-- **Our crypto partner, if you pay with USDT:** confirmation that USDT arrived, its network and transaction, and the naira it was turned into.
+- **Our crypto partner, if you pay with USDT or USDC:** confirmation that it arrived, the coin, its network and transaction, and the naira it was turned into.
 - **Our identity provider:** the result of your NIN or BVN check.
 - **Google, if you sign in with it:** your basic Google profile (see below).
 - **Other users:** what the other person in your deal says or uploads about the deal, and ratings they give you.
@@ -78,7 +78,7 @@ We do not sell personal data. We share it only with:
 
 - **The other person in your deal:** your first name, whether you are verified, your ratings and number of completed deals, your listing, your messages in that deal, and, if a problem is reported, the evidence you add. We never show your email address to the other person, and a buyer's release code is never shared with anyone by us.
 - **Our payment partner,** <mark>[PAYMENT PARTNER]</mark>, to collect, hold, release and refund money, and to meet its own legal duties, including anti-money-laundering checks.
-- **Our crypto partner,** <mark>[CRYPTO PARTNER]</mark>, if you pay with USDT: to receive it, turn it into naira, and send refunds to the address you gave, and to meet its own legal duties, including anti-money-laundering checks.
+- **Our crypto partner,** <mark>[CRYPTO PARTNER]</mark>, if you pay with USDT or USDC: to receive it, turn it into naira, and send refunds to the address you gave, and to meet its own legal duties, including anti-money-laundering checks.
 - **Our identity provider,** <mark>[ID PROVIDER]</mark>, to check NIN or BVN.
 - **Service providers** that work for us under contract: hosting, file storage and security (Cloudflare), our database (Neon), product analytics and error tracking (PostHog, in its EU region), sign-in (Google, only if you use it), email delivery (<mark>[EMAIL PROVIDER]</mark>) and support tools. They may only use the data to provide their service to us.
 - **Professional advisers,** such as lawyers, auditors and insurers.

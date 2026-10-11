@@ -179,17 +179,21 @@ select pg_temp.expect_error($$
   values ('00000000-0000-0000-0000-0000000000d1', 'payout', 45000000, '00000000-0000-0000-0000-0000000000c1',
           '00000000-0000-0000-0000-0000000000d1:payout:2') $$, 'a second payout for the same deal');
 
--- Paying with USDT: a USDT payment must say which network and transaction it came in on.
+-- Paying with USDT or USDC: a crypto payment must say which coin, network and transaction it came in on.
 insert into partner_events (id, partner, event_id, type, payload) values
-  ('00000000-0000-0000-0000-0000000000e9', 'fake-crypto', 'evt_schema_usdt', 'crypto.received', '{}');
+  ('00000000-0000-0000-0000-0000000000e9', 'fake-crypto', 'evt_schema_crypto', 'crypto.received', '{}');
 select pg_temp.expect_error($$
   insert into payments (deal_id, partner_event_id, amount_kobo, matches_amount_due, received_at, method)
-  values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e9', 1000, true, now(), 'usdt') $$,
-  'a USDT payment without its network and transaction');
+  values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e9', 1000, true, now(), 'crypto') $$,
+  'a crypto payment without its coin, network and transaction');
 select pg_temp.expect_error($$
-  insert into payments (deal_id, partner_event_id, amount_kobo, matches_amount_due, received_at, method, network, tx_hash, amount_usdt_micro)
-  values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e9', 1000, true, now(), 'usdt', 'tron', '0xab', 1) $$,
-  'USDT on a network NosHen does not take');
+  insert into payments (deal_id, partner_event_id, amount_kobo, matches_amount_due, received_at, method, coin, network, tx_hash, amount_coin_micro)
+  values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e9', 1000, true, now(), 'crypto', 'usdt', 'tron', '0xab', 1) $$,
+  'a network NosHen does not take');
+select pg_temp.expect_error($$
+  insert into payments (deal_id, partner_event_id, amount_kobo, matches_amount_due, received_at, method, coin, network, tx_hash, amount_coin_micro)
+  values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e9', 1000, true, now(), 'crypto', 'dai', 'base', '0xab', 1) $$,
+  'a coin NosHen does not take');
 
 select 'all schema checks passed' as result;
 

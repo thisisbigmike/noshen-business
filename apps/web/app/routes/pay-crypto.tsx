@@ -1,38 +1,39 @@
 import { useEffect, useState } from "react";
 import { Form, Link, data, redirect, useNavigation, useRevalidator, useSearchParams } from "react-router";
 import { renderSVG } from "uqr";
-import type { Route } from "./+types/pay-usdt";
+import type { Route } from "./+types/pay-crypto";
 import { messageOf, requireUser, withApp } from "../../server/web";
 import { dealView } from "@noshen/engine/queries";
 import { isDev } from "@noshen/engine/context";
-import { prepareUsdtPayment, usdtPaymentFor } from "@noshen/engine/usdt";
+import { cryptoPaymentFor, prepareCryptoPayment } from "@noshen/engine/stablecoins";
 import { BottomAction, Button, CheckedForm, ErrorText, Info, Kv, MoneyStatus, TextField, TopBar } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { firstName } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
-import { QUOTE_MINUTES, groupAddress, isNetwork, networkLabel, networkOf, usdt, usdtAddressProblem, usdtPlain } from "@noshen/shared/payments";
+import { QUOTE_MINUTES, addressProblem, coinAmount, coinName, cryptoLabel, groupAddress, isCoin, isNetwork, networkLabel, networkOf, plainAmount } from "@noshen/shared/payments";
+import { CryptoLogo } from "../lib/crypto-logo";
 import { CopyButton } from "../lib/copy-button";
 
 export const handle = { tabs: false };
 export const meta: Route.MetaFunction = ({ params }) =>
-  [{ title: `Pay with USDT on ${isNetwork(params.network) ? networkOf(params.network).name : "crypto"} · NosHen` }];
+  [{ title: `Pay with ${isCoin(params.coin) && isNetwork(params.network) ? cryptoLabel(params.coin, params.network) : "crypto"} · NosHen` }];
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const network = params.network;
-  if (!isNetwork(network)) throw data("Not found", { status: 404 });
+  const { coin, network } = params;
+  if (!isCoin(coin) || !isNetwork(network)) throw data("Not found", { status: 404 });
   return withApp(async (d) => {
     const user = await requireUser(request, d);
     if (!d.crypto) throw redirect(`/d/${params.id}/pay`);
     const v = await dealView(d.db, params.id);
     if (!v || v.deal.buyer_id !== user.id) throw data("Not found", { status: 404 });
     if (v.deal.state !== "accepted") throw redirect(`/d/${params.id}`);
-    const { payment, refundAddress } = await usdtPaymentFor(d, user.id, v.deal.id, network);
+    const { payment, refundAddress } = await cryptoPaymentFor(d, user.id, v.deal.id, coin, network);
     // Before they continue: roughly what they'll send. The exact amount is fixed when the address is shown.
-    const estimate = payment ? null : await d.crypto.quote(Number(v.deal.amount_due_kobo), new Date());
+    const estimate = payment ? null : await d.crypto.quote(Number(v.deal.amount_due_kobo), coin, new Date());
     return {
       deal: { id: v.deal.id as string, due: v.deal.amount_due_kobo as string, payBy: v.deal.payment_due_at as string | null, handover: v.deal.handover as string },
-      title: v.listing.title as string, seller: firstName(v.seller.name), network, payment, refundAddress,
-      estimate: estimate ? { usdtMicro: estimate.usdtMicro, rateKoboPerUsdt: estimate.rateKoboPerUsdt } : null,
+      title: v.listing.title as string, seller: firstName(v.seller.name), coin, network, payment, refundAddress,
+      estimate: estimate ? { micro: estimate.micro, rateKobo: estimate.rateKobo } : null,
       qr: payment ? renderSVG(payment.address, { ecc: "M", border: 2, pixelSize: 6, blackColor: "#000", whiteColor: "#fff" }) : null,
       test: d.crypto.test, dev: isDev(), now: Date.now(),
     };
@@ -45,13 +46,13 @@ export async function action({ request, params }: Route.ActionArgs) {
   try {
     await withApp(async (d) => {
       const user = await requireUser(request, d);
-      await prepareUsdtPayment(d, user.id, params.id, params.network, intent === "start" ? String(f.get("refund") ?? "") : undefined);
+      await prepareCryptoPayment(d, user.id, params.id, params.coin, params.network, intent === "start" ? String(f.get("refund") ?? "") : undefined);
     });
   } catch (e) {
     if (e instanceof Response) throw e;
     return { error: messageOf(e), intent };
   }
-  return redirect(`/d/${params.id}/pay/usdt/${params.network}`);
+  return redirect(`/d/${params.id}/pay/${params.coin}/${params.network}`);
 }
 
 /** Seconds until a time, ticking. Starts from the server's clock so the first render matches. */
@@ -67,8 +68,9 @@ function useSecondsLeft(until: Date | string | null | undefined, serverNow: numb
 }
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-export default function PayUsdt({ loaderData: x, actionData }: Route.ComponentProps) {
+export default function PayCrypto({ loaderData: x, actionData }: Route.ComponentProps) {
   const n = networkOf(x.network);
+  const c = coinName(x.coin);
   const [params] = useSearchParams();
   const p = x.payment;
   const editing = !p || params.has("edit");
@@ -87,23 +89,23 @@ export default function PayUsdt({ loaderData: x, actionData }: Route.ComponentPr
 
   const send = async (short: boolean) => {
     setDevMsg("Sending…");
-    const r = await fetch("/api/dev/crypto/send", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dealId: x.deal.id, network: x.network, short }) });
+    const r = await fetch("/api/dev/crypto/send", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dealId: x.deal.id, coin: x.coin, network: x.network, short }) });
     setDevMsg(r.ok ? "The test wallet sent it, and the crypto partner's webhook arrived. This page will update." : ((await r.json()) as { error?: string }).error ?? "Something went wrong.");
     revalidator.revalidate();
   };
 
   return (
     <div>
-      <TopBar title="Pay with USDT" back={`/d/${x.deal.id}/pay`} />
+      <TopBar title={`Pay with ${c}`} back={`/d/${x.deal.id}/pay`} />
       <main className="page narrow no-tabs stack-4">
-        <h1 className="heading desktop-only">Pay with USDT on {n.name}</h1>
-        <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/deals">Deals</Link> / <Link to={`/d/${x.deal.id}`}>{x.title}</Link> / <Link to={`/d/${x.deal.id}/pay`}>Pay</Link> / USDT on {n.name}</nav>
+        <h1 className="heading desktop-only">Pay with {c} on {n.name}</h1>
+        <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/deals">Deals</Link> / <Link to={`/d/${x.deal.id}`}>{x.title}</Link> / <Link to={`/d/${x.deal.id}/pay`}>Pay</Link> / {c} on {n.name}</nav>
 
         <section className="card stack">
           <div className="row-between wrap"><MoneyStatus state="awaiting" />{x.deal.payBy ? <span className="caption muted">Pay by {when(new Date(x.deal.payBy))}</span> : null}</div>
-          <p className="big-amount tabular">{p && !editing && !expired ? usdt(p.usdtMicro) : naira(x.deal.due)}</p>
+          <p className="big-amount tabular">{p && !editing && !expired ? coinAmount(p.micro, x.coin) : naira(x.deal.due)}</p>
           <p className="body muted">{p && !editing && !expired ? `${naira(x.deal.due)} · ` : ""}{x.title} · {x.seller} accepted</p>
-          <p className="row" style={{ gap: 8 }}><span className={`pay-chain sm chain-${n.id}`} aria-hidden="true">{n.tag}</span><span className="body">USDT on {networkLabel(n)}</span></p>
+          <p className="row" style={{ gap: 10 }}><CryptoLogo coin={x.coin} network={x.network} size={28} lead="coin" /><span className="body">{c} on {networkLabel(n)}</span></p>
         </section>
 
         {editing ? (
@@ -111,22 +113,22 @@ export default function PayUsdt({ loaderData: x, actionData }: Route.ComponentPr
             <input type="hidden" name="intent" value="start" />
             <section className="card stack">
               <h2 className="title">{p ? "Change where refunds go" : "First, where should refunds go?"}</h2>
-              <p className="body muted">If the deal is cancelled, or a problem is decided in your favour, we send your money back as USDT on {n.name} to this address.</p>
-              <TextField label={`Your USDT address on ${n.name}`} name="refund" className="mono-field" defaultValue={x.refundAddress ?? ""} required
-                missing={usdtAddressProblem(n.id, "") ?? undefined} validate={(v) => usdtAddressProblem(n.id, v)}
+              <p className="body muted">If the deal is cancelled, or a problem is decided in your favour, we send your money back as {c} on {n.name} to this address.</p>
+              <TextField label={`Your ${c} address on ${n.name}`} name="refund" className="mono-field" defaultValue={x.refundAddress ?? ""} required
+                missing={addressProblem(x.coin, n.id, "") ?? undefined} validate={(v) => addressProblem(x.coin, n.id, v)}
                 autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false}
-                hint="Copy it from your wallet. For an exchange account, use the exchange's USDT deposit address on this network." />
+                hint={`Copy it from your wallet. For an exchange account, use the exchange's ${c} deposit address on this network.`} />
             </section>
             {x.estimate ? (
-              <Info icon="coin">You'll send about <strong>{usdt(x.estimate.usdtMicro)}</strong> ({naira(x.estimate.rateKoboPerUsdt)} per USDT{x.test ? ", a test rate" : ""}). When you continue, the exact amount is fixed for {QUOTE_MINUTES} minutes.</Info>
+              <Info icon="coin">You'll send about <strong>{coinAmount(x.estimate.micro, x.coin)}</strong> ({naira(x.estimate.rateKobo)} per {c}{x.test ? ", a test rate" : ""}). When you continue, the exact amount is fixed for {QUOTE_MINUTES} minutes.</Info>
             ) : null}
             <ErrorText>{actionData?.intent === "start" ? actionData.error : null}</ErrorText>
             <Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? "Getting the address…" : p ? "Save" : "Show where to send"}</Button>
-            {p ? <Button block to={`/d/${x.deal.id}/pay/usdt/${n.id}`}>Keep the address ending {p.refundLast4}</Button> : null}
+            {p ? <Button block to={`/d/${x.deal.id}/pay/${x.coin}/${n.id}`}>Keep the address ending {p.refundLast4}</Button> : null}
           </CheckedForm>
         ) : expired ? (
           <section className="card stack-4">
-            <Info icon="clock"><strong>This amount has run out.</strong> USDT prices move, so we fix the amount for {QUOTE_MINUTES} minutes at a time.</Info>
+            <Info icon="clock"><strong>This amount has run out.</strong> {c} prices move against the naira, so we fix the amount for {QUOTE_MINUTES} minutes at a time.</Info>
             <p className="body">Already sent it? Don't send it again. When it arrives, we'll check it and email you.</p>
             <Form method="post" replace>
               <input type="hidden" name="intent" value="refresh" />
@@ -136,7 +138,7 @@ export default function PayUsdt({ loaderData: x, actionData }: Route.ComponentPr
           </section>
         ) : (
           <>
-            {x.test ? <Info icon="alert-triangle" tone="warn"><strong>Test mode: don't send real USDT.</strong> This address is pretend, so wallets won't accept it. Use the test buttons below instead.</Info> : null}
+            {x.test ? <Info icon="alert-triangle" tone="warn"><strong>Test mode: don't send real {c}.</strong> This address is pretend, so wallets won't accept it. Use the test buttons below instead.</Info> : null}
             <section className="card stack-4" aria-label="Where to send">
               <div className="stack">
                 <span className="label muted">Send to this address</span>
@@ -147,20 +149,20 @@ export default function PayUsdt({ loaderData: x, actionData }: Route.ComponentPr
                 <div><CopyButton text={p!.address} label="Copy address" /></div>
               </div>
               <div>
-                <div className="kv" style={{ alignItems: "center" }}><span className="stack"><span className="muted">Exact amount</span><span className="title tabular">{usdt(p!.usdtMicro)}</span></span><CopyButton text={usdtPlain(p!.usdtMicro)} /></div>
+                <div className="kv" style={{ alignItems: "center" }}><span className="stack"><span className="muted">Exact amount</span><span className="title tabular">{coinAmount(p!.micro, x.coin)}</span></span><CopyButton text={plainAmount(p!.micro)} /></div>
                 <Kv k="Network" v={networkLabel(n)} />
-                <Kv k="Rate" v={`${naira(p!.rateKoboPerUsdt)} per USDT${x.test ? " (test rate)" : ""}`} />
+                <Kv k="Rate" v={`${naira(p!.rateKobo)} per ${c}${x.test ? " (test rate)" : ""}`} />
                 <Kv k="This amount holds for" v={<span className="tabular" aria-live="off">{mmss(left)}</span>} />
                 <Kv k="Refunds go to" v={<span>Address ending {p!.refundLast4} · <Link to="?edit=1">Change</Link></span>} />
               </div>
             </section>
-            <Info icon="alert-triangle" tone="warn"><strong>Send only USDT on {n.name}.</strong> Another coin, or USDT on another network, can't be recovered.</Info>
-            <Info icon="coin">Make sure exactly {usdt(p!.usdtMicro)} arrives. If your exchange takes its fee out of what you send, add the fee on top.</Info>
-            <p className="caption muted">Our crypto partner turns the USDT into {naira(x.deal.due)} for this deal, and our licensed partner holds it. {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}.</p>
+            <Info icon="alert-triangle" tone="warn"><strong>Send only {c} on {n.name}.</strong> Another coin, or {c} on another network, can't be recovered.</Info>
+            <Info icon="coin">Make sure exactly {coinAmount(p!.micro, x.coin)} arrives. If your exchange takes its fee out of what you send, add the fee on top.</Info>
+            <p className="caption muted">Our crypto partner turns the {c} into {naira(x.deal.due)} for this deal, and our licensed partner holds it. {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}.</p>
             {x.dev ? (
               <div className="dev stack">
-                <p className="label">Test mode: no real USDT moves. Pretend to be your wallet:</p>
-                <div className="row wrap"><Button onClick={() => send(false)}>Send {usdt(p!.usdtMicro)}</Button><Button onClick={() => send(true)}>Send too little</Button></div>
+                <p className="label">Test mode: no real {c} moves. Pretend to be your wallet:</p>
+                <div className="row wrap"><Button onClick={() => send(false)}>Send {coinAmount(p!.micro, x.coin)}</Button><Button onClick={() => send(true)}>Send too little</Button></div>
                 {devMsg ? <p className="caption">{devMsg}</p> : null}
               </div>
             ) : null}

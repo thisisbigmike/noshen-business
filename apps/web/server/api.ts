@@ -8,7 +8,7 @@ import { dealView, dealsFor } from "@noshen/engine/queries";
 import { DealError } from "@noshen/engine/core";
 import { FakePartner } from "@noshen/engine/partner/fake";
 import { FakeCryptoPartner } from "@noshen/engine/partner/fake-crypto";
-import { koboForUsdt } from "@noshen/shared/payments";
+import { koboForCoin } from "@noshen/shared/payments";
 import { WebhookSignatureError, type PartnerEvent } from "@noshen/engine/partner/types";
 import { optionalUser } from "./web";
 import { servePhoto } from "@noshen/engine/photos";
@@ -106,26 +106,26 @@ api.post("/api/dev/partner/transfer-in", async (c) => {
 });
 
 /**
- * Pretends to be the buyer's wallet: sends a signed "USDT received" webhook for a deal's address, with the exact
+ * Pretends to be the buyer's wallet: sends a signed "USDT or USDC received" webhook for a deal's address, with the exact
  * amount asked for, or too little. Pretend payments only, and only the signed-in buyer of that deal.
  */
 api.post("/api/dev/crypto/send", async (c) => {
   if (!isDev()) return c.notFound();
   const me = await optionalUser(c.req.raw);
   if (!me) return c.json({ error: "Sign in first." }, 401);
-  const { dealId, network, short } = await c.req.json<{ dealId: string; network: string; short?: boolean }>();
+  const { dealId, coin, network, short } = await c.req.json<{ dealId: string; coin: string; network: string; short?: boolean }>();
   const dep = await withApp((d) => one(d.db,
-    `select c.*, x.buyer_id from crypto_deposits c join deals x on x.id = c.deal_id where c.deal_id = $1 and c.network = $2`, [dealId, network]));
+    `select c.*, x.buyer_id from crypto_deposits c join deals x on x.id = c.deal_id where c.deal_id = $1 and c.coin = $2 and c.network = $3`, [dealId, coin, network]));
   if (!dep || dep.buyer_id !== me.id) return c.json({ error: "Only the buyer can pay into this deal." }, 403);
-  const quoted = Number(dep.usdt_micro);
+  const quoted = Number(dep.amount_micro);
   const sent = short ? Math.floor((quoted * 0.9) / 10_000) * 10_000 : quoted;
   // The partner credits the deal its amount due if the right USDT came while the amount held; otherwise it converts at its rate.
   const inTime = new Date(dep.quote_expires_at) > new Date();
-  const kobo = sent === quoted && inTime ? Number(dep.amount_kobo) : koboForUsdt(sent, Number(dep.rate_kobo_per_usdt));
+  const kobo = sent === quoted && inTime ? Number(dep.amount_kobo) : koboForCoin(sent, Number(dep.rate_kobo));
   const hex = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
   const event: PartnerEvent = {
     id: `evt_${crypto.randomUUID()}`, type: "crypto.received",
-    data: { deposit_ref: dep.provider_ref, network, amount_usdt_micro: sent, amount_kobo: kobo, tx_hash: network === "solana" ? `test${hex(40)}` : `0x${hex(32)}`, received_at: new Date().toISOString() },
+    data: { deposit_ref: dep.provider_ref, coin: dep.coin, network: dep.network, amount_micro: sent, amount_kobo: kobo, tx_hash: network === "solana" ? `test${hex(40)}` : `0x${hex(32)}`, received_at: new Date().toISOString() },
   };
   const partner = cryptoFor() as FakeCryptoPartner;
   const body = JSON.stringify(event);
