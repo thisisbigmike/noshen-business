@@ -2,7 +2,7 @@
 
 **Version 1.0. Last updated:** <mark>[DATE]</mark>
 
-NosHen, at <mark>[DOMAIN]</mark> and in our web app (the "**Service**"), is owned and operated by <mark>[COMPANY LEGAL NAME]</mark>, a company registered in Nigeria with RC number <mark>[RC NUMBER]</mark>, whose registered address is <mark>[ADDRESS]</mark> ("**NosHen**", "**we**", "**us**" or "**our**").
+NosHen, at noshen-web.usenoshen.workers.dev and in our web app (the "**Service**"), is run by the NosHen team ("**NosHen**", "**we**", "**us**" or "**our**"). The company is being registered in Nigeria; its legal name, RC number and registered address will be added here once it is.
 
 These Terms of Use ("**Terms**") govern your use of the Service. They include the [Protected Deal Terms](/deal-terms), which explain how protected deals work, and the list of [prohibited items](/prohibited-items), and they should be read with our [Privacy Policy](/privacy). By creating an account or using the Service, you agree to these Terms. If you do not agree, please do not use the Service.
 
@@ -126,7 +126,7 @@ If you break these Terms or the law, and NosHen suffers loss or faces a claim as
 
 16.4. **Whole agreement.** These Terms, the Protected Deal Terms and the Privacy Policy are the whole agreement between you and NosHen about the Service. If a court finds part of them invalid, the rest still applies. If we don't enforce a term straight away, we can still enforce it later. "Including" means "including without limitation". You may not transfer these Terms to anyone else; we may transfer them to a business that takes over the Service, and we will tell you if we do.
 
-16.5. **Contact.** <mark>[COMPANY LEGAL NAME]</mark>, <mark>[ADDRESS]</mark>, <mark>[SUPPORT EMAIL]</mark>, <mark>[SUPPORT PHONE]</mark>.
+16.5. **Contact.** The NosHen team (company registration in progress), <mark>[ADDRESS]</mark>, <mark>[SUPPORT EMAIL]</mark>, <mark>[SUPPORT PHONE]</mark>.
 
 ---
 

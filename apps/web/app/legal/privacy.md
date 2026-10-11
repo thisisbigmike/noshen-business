@@ -2,7 +2,7 @@
 
 **Effective:** <mark>[DATE]</mark>
 
-<mark>[COMPANY LEGAL NAME]</mark> ("**NosHen**", "**we**", "**us**" or "**our**") runs NosHen, a service for buying and selling items in Nigeria where the buyer's money is held by a licensed partner until the buyer has the item. This Privacy Policy explains what personal data we collect when you use NosHen (our website, web app, emails and support), why, who we share it with, how long we keep it, and your rights under the Nigeria Data Protection Act 2023 ("**NDPA**").
+The NosHen team (company registration in progress) ("**NosHen**", "**we**", "**us**" or "**our**") runs NosHen, a service for buying and selling items in Nigeria where the buyer's money is held by a licensed partner until the buyer has the item. This Privacy Policy explains what personal data we collect when you use NosHen (our website, web app, emails and support), why, who we share it with, how long we keep it, and your rights under the Nigeria Data Protection Act 2023 ("**NDPA**").
 
 NosHen is the data controller for the personal data described here. Our Data Protection Officer is <mark>[DPO NAME]</mark>, at <mark>[PRIVACY EMAIL]</mark>.
 
@@ -10,7 +10,7 @@ NosHen is the data controller for the personal data described here. Our Data Pro
 
 ### From you
 
-- **Account data:** your email address, your full name, and the settings you choose. If you sign in with Google, we receive your name and email address from Google, and nothing else from your Google account.
+- **Account data:** your email address, your full name, and the settings you choose. If you sign in with Google, see "If you sign in with Google" below for exactly what we receive.
 - **Identity check data (sellers, and buyers on larger deals):** the NIN or BVN you enter, which we send to our identity provider to check. We keep the result, the verified name and the provider's reference, not the full number.
 - **Bank account data:** the bank and account number you add for payouts or refunds, and the account name returned by the bank check. We store account numbers encrypted.
 - **Listing data:** photos, descriptions, category, price, condition and area, and, where the category asks for one, the item's IMEI, serial number or chassis number.
@@ -22,9 +22,22 @@ NosHen is the data controller for the personal data described here. Our Data Pro
 
 - **Our payment partner:** confirmation of payments, including the name, bank and account number of the account a payment came from, and the status of payouts and refunds.
 - **Our identity provider:** the result of your NIN or BVN check.
-- **Google, if you sign in with it:** your name and email address.
+- **Google, if you sign in with it:** your basic Google profile (see below).
 - **Other users:** what the other person in your deal says or uploads about the deal, and ratings they give you.
 - **Links you arrive from:** if you sign up through a listing link or a friend's invitation, which link or person brought you.
+
+### If you sign in with Google
+
+When you choose "Continue with Google", Google asks your permission before sharing anything with NosHen. We ask only for your basic profile, and we receive:
+
+- your **name**, **email address** and **profile picture**; and
+- an **identifier for your Google account** and short-lived **sign-in tokens**, which prove that Google signed you in.
+
+We use this only to create your NosHen account, sign you in, and show your first name to the other person in your deals. We don't access your Gmail, contacts, files, calendar or anything else in your Google account. We don't use data from Google for advertising, we don't sell it, and we only share it with the service providers in section 4 that run NosHen for us (hosting and database), under contract. It's stored with your account, encrypted in transit and at rest, and kept only as long as section 6 says.
+
+You can stop NosHen using your Google account at any time at [myaccount.google.com/permissions](https://myaccount.google.com/permissions). To have the data we received deleted, contact us (section 11).
+
+NosHen's use and transfer to any other app of information received from Google APIs will adhere to the [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy), including the Limited Use requirements.
 
 ### Automatically
 
@@ -120,7 +133,7 @@ We may update this Privacy Policy. We will tell you about material changes by em
 
 ## 11. Contact us
 
-<mark>[COMPANY LEGAL NAME]</mark>, <mark>[ADDRESS]</mark>.
+The NosHen team (company registration in progress), <mark>[ADDRESS]</mark>.
 Data Protection Officer: <mark>[DPO NAME]</mark>, <mark>[PRIVACY EMAIL]</mark>, <mark>[PHONE]</mark>.
 
 ---

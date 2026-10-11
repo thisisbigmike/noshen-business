@@ -4,7 +4,7 @@
 
 These Protected Deal Terms ("**Deal Terms**") explain how a protected deal works on NosHen: how the buyer's money is held, when it is released to the seller, and what happens when something goes wrong. They form part of the NosHen [Terms of Use](/terms). If the two conflict on how a deal works, these Deal Terms apply.
 
-In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean <mark>[COMPANY LEGAL NAME]</mark>; the "**buyer**" and "**seller**" are the two users in a deal; and the "**Partner**" is <mark>[PAYMENT PARTNER]</mark>, the licensed financial institution that holds deal money.
+In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (company registration in progress); the "**buyer**" and "**seller**" are the two users in a deal; and the "**Partner**" is <mark>[PAYMENT PARTNER]</mark>, the licensed financial institution that holds deal money.
 
 ## 1. What a protected deal is
 
