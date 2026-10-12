@@ -33,6 +33,8 @@ export interface Deps {
   push?: PushConfig;
   /** Live deal rooms: open deal pages update the moment something happens. Missing where there are none (tests). */
   live?: LiveRooms;
+  /** Sends staff alerts waiting in the outbox (the staff site sends them; the customer site asks it to). */
+  staffAlerts?: (d: Deps) => Promise<unknown>;
   ids: IdProvider;
   timers: Timers;
   secrets: { releaseCode: string; fieldKey: string };

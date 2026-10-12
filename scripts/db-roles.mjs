@@ -52,10 +52,14 @@ await check("noshen_web", [
   ["can't change settings", "update settings set key = key where false", "denied"],
   ["sees no staff password logins", `select count(*)::int as n from account where "providerId" = 'credential'`, (r) => r.n === 0],
   ["sees no staff sessions", `select count(*)::int as n from "session" s join staff st on st.auth_user_id = s."userId"`, (r) => r.n === 0],
+  ["can raise a staff alert", "insert into staff_alerts (kind, title, body, url) select 'check', 'x', 'x', '/' where false returning 1", any],
+  ["can't read staff alerts", "select * from staff_alerts limit 1", "denied"],
+  ["can't read staff devices", "select * from staff_push_subscriptions limit 1", "denied"],
 ]);
 await check("noshen_admin", [
   ["reads the audit log", "select count(*) from staff_actions", any],
   ["reads staff", "select count(*) from staff", any],
   ["reads listings", "select count(*) from listings", any],
+  ["sends staff alerts", "select count(*) from staff_alerts where sent_at is null", any],
 ]);
 await owner.end();

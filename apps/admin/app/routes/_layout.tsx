@@ -3,6 +3,7 @@ import type { Route } from "./+types/_layout";
 import { requireStaff, withApp } from "../../server/web";
 import { staffCounts } from "@noshen/engine/queries";
 import { useLive } from "../lib/live";
+import { StaffPushSwitch, useStaffLive } from "../lib/push";
 import { Button, Icon, Wordmark } from "@noshen/ui/ui";
 import type { IconName } from "@noshen/ui/icons";
 import { ThemeToggle } from "@noshen/ui/theme";
@@ -28,6 +29,8 @@ const SECTIONS: { title: string; links: { to: string; label: string; icon: IconN
 export default function StaffLayout({ loaderData: { staff, counts } }: Route.ComponentProps) {
   // Every staff page stays current: queues, counts and records reload every 15 seconds while the tab is open.
   useLive(15_000);
+  // …and at once when a staff alert arrives on this device.
+  useStaffLive();
   const initials = staff.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const link = (l: (typeof SECTIONS)[number]["links"][number]) => {
     const n = l.count?.(counts) ?? 0;
@@ -47,6 +50,7 @@ export default function StaffLayout({ loaderData: { staff, counts } }: Route.Com
             <div key={s.title} className="console-group"><p className="console-group-title">{s.title}</p>{s.links.map(link)}</div>
           ))}
         </nav>
+        <StaffPushSwitch />
         <div className="console-me">
           <span className="avatar" aria-hidden="true">{initials}</span>
           <div className="grow" style={{ minWidth: 0 }}>
@@ -64,6 +68,7 @@ export default function StaffLayout({ loaderData: { staff, counts } }: Route.Com
           <div className="row"><ThemeToggle /><Form method="post" action="/signout"><button type="submit" className="icon-btn" aria-label="Sign out"><Icon name="logout" /></button></Form></div>
         </div>
         <nav className="console-pills" aria-label="Console">{SECTIONS.flatMap((s) => s.links).map(link)}</nav>
+        <StaffPushSwitch />
       </header>
 
       <main className="console-main"><Outlet /></main>

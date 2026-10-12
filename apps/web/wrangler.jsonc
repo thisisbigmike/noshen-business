@@ -60,6 +60,8 @@
       "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],
       "workflows": [{ "name": "noshen-deal-timers", "binding": "DEAL_TIMERS", "class_name": "DealTimers" }],
       "durable_objects": { "bindings": [{ "name": "DEAL_ROOMS", "class_name": "DealRoom" }] },
+      // The staff site, to send staff alerts at once (it alone may read staff devices). See engine/staff-alerts.ts.
+      "services": [{ "binding": "STAFF_SITE", "service": "noshen-admin" }],
       "triggers": { "crons": ["*/15 * * * *"] }
     }
   }

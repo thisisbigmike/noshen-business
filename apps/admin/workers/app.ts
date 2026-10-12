@@ -1,6 +1,8 @@
 import { createRequestHandler } from "react-router";
 import { accessGate } from "../server/access";
 import { api } from "../server/api";
+import { withApp } from "@noshen/engine/context";
+import { flushStaffAlerts } from "@noshen/engine/staff-alerts";
 
 // Deadlines set by staff decisions run as this Worker's own Workflow (see wrangler.jsonc).
 export { DealTimers } from "@noshen/engine/timers";
@@ -21,10 +23,21 @@ function harden(res: Response): Response {
 /** The staff site. Every request passes the Cloudflare Access check first, then staff sign-in. */
 export default {
   async fetch(request, env, ctx) {
+    // The customer site (through its service binding) asks for waiting staff alerts to be sent. It carries nothing
+    // and returns nothing: the alerts are read from the database with this site's own login. Harmless to repeat.
+    if (new URL(request.url).pathname === "/internal/staff-alerts/flush" && request.method === "POST") {
+      ctx.waitUntil(withApp((d) => flushStaffAlerts(d)).catch((e) => console.error("staff alerts", e)));
+      return new Response(null, { status: 202 });
+    }
     const gate = await accessGate(request);
     if (gate instanceof Response) return harden(gate);
     const { pathname } = new URL(gate.url);
     if (pathname.startsWith("/api/") || pathname.startsWith("/photos/")) return harden(await api.fetch(gate, env, ctx));
     return harden(await pages(gate));
+  },
+
+  // Every minute: send any staff alert still waiting (say, raised where the staff site couldn't be asked at once).
+  async scheduled(_event, _env, ctx) {
+    ctx.waitUntil(withApp((d) => flushStaffAlerts(d)).then((n) => { if (n) console.log("staff alerts sent", n); }));
   },
 } satisfies ExportedHandler<Env>;

@@ -68,7 +68,9 @@
       "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],
       "workflows": [{ "name": "noshen-admin-deal-timers", "binding": "DEAL_TIMERS", "class_name": "DealTimers" }],
       // The customer site's live deal rooms, so a staff decision shows on the buyer's and seller's open pages at once.
-      "durable_objects": { "bindings": [{ "name": "DEAL_ROOMS", "class_name": "DealRoom", "script_name": "noshen-web" }] }
+      "durable_objects": { "bindings": [{ "name": "DEAL_ROOMS", "class_name": "DealRoom", "script_name": "noshen-web" }] },
+      // Every minute: send any staff alert still waiting in the outbox.
+      "triggers": { "crons": ["* * * * *"] }
     }
   }
 }

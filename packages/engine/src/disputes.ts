@@ -4,6 +4,7 @@ import { firstName, DISPUTE_REASONS, type DisputeReason } from "@noshen/shared/d
 import { when, addHours } from "@noshen/shared/time";
 import { type Deps, DealError, N, amountPaid, lockDeal, notify, nowOf, schedule, settingsOf, userName } from "./core";
 import { refund, release } from "./deals";
+import { alertStaff } from "./staff-alerts";
 
 import { disputeReasonLabel as reasonLabel } from "@noshen/shared/deal";
 
@@ -31,6 +32,9 @@ export async function reportProblem(d: Deps, buyerId: string, dealId: string, in
     await notify(d, tx, deal.seller_id, dealId, "problem_reported",
       `${buyer} reported a problem: ${reasonLabel(input.reason)}. Add photos or notes by ${when(evidenceDue, now)}. A reviewer decides by ${when(decisionDue, now)}.`);
     schedule(d, tx, "evidence_close", dealId, evidenceDue);
+    const item = await one<{ title: string }>(tx.db, "select title from listings where id = $1", [deal.listing_id]);
+    await alertStaff(d, tx, "dispute", `New dispute: ${item?.title ?? "a deal"}`,
+      `${reasonLabel(input.reason)}. ${naira(await amountPaid(tx.db, dealId))} frozen. Decide by ${when(decisionDue, now)}.`, `/disputes/${disp!.id}`);
     return disp!.id;
   });
 }

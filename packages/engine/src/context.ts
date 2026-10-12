@@ -7,6 +7,7 @@ import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/typ
 import { ConsoleEmail, NoEmail, type EmailSender } from "./email";
 import { FakeIdProvider } from "./idcheck";
 import type { PushConfig } from "./push";
+import { flushStaffAlerts } from "./staff-alerts";
 
 /** Deal timers run as Cloudflare Workflows: one instance per deadline, sleeping until it's due. */
 export const workflowTimers: Deps["timers"] = {
@@ -78,6 +79,18 @@ export function liveFor(): LiveRooms | undefined {
   };
 }
 
+/**
+ * How staff alerts leave the outbox. The staff site sends them itself; the customer site asks the staff site to,
+ * through a service binding (production), since its own database login can't read staff devices. Without either
+ * (local customer site), the staff site's one-minute check sends them.
+ */
+export function staffAlertsFor(): Deps["staffAlerts"] {
+  const e = env as unknown as { ADMIN_URL?: string; STAFF_SITE?: Fetcher };
+  if (e.STAFF_SITE) return () => e.STAFF_SITE!.fetch("https://staff/internal/staff-alerts/flush", { method: "POST" });
+  if (e.ADMIN_URL) return (d) => flushStaffAlerts(d);
+  return undefined;
+}
+
 export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
   return {
     db,
@@ -86,6 +99,7 @@ export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
     mail,
     push: pushFor(),
     live: liveFor(),
+    staffAlerts: staffAlertsFor(),
     ids: new FakeIdProvider(),
     timers: workflowTimers,
     secrets: { releaseCode: env.RELEASE_CODE_SECRET, fieldKey: env.FIELD_KEY },

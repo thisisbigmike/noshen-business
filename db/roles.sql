@@ -17,6 +17,15 @@ grant usage, select on all sequences in schema public to noshen_admin;
 grant select, insert, update, delete on all tables in schema public to noshen_web;
 grant usage, select on all sequences in schema public to noshen_web;
 revoke all on staff, staff_actions, "twoFactor" from noshen_web;
+-- Staff notifications: the customer site may add an alert to the outbox, nothing more. It can't read the outbox
+-- or the staff's devices.
+do $$ begin
+  if to_regclass('public.staff_alerts') is not null then
+    revoke all on staff_push_subscriptions from noshen_web;
+    revoke all on staff_alerts from noshen_web;
+    grant insert (kind, title, body, url) on staff_alerts to noshen_web;
+  end if;
+end $$;
 -- Only this column, to refuse a staff account a session on the customer site.
 grant select (auth_user_id) on staff to noshen_web;
 revoke insert, update, delete on settings from noshen_web;

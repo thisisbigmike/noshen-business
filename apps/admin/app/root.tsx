@@ -5,6 +5,7 @@ import "@noshen/ui/styles/components.css";
 import "@noshen/ui/styles/app.css";
 import "./console.css";
 import { themeFromCookie, type Theme } from "@noshen/ui/theme";
+import { pushFor } from "@noshen/engine/context";
 
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -14,7 +15,7 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function loader({ request }: Route.LoaderArgs) {
-  return { theme: themeFromCookie(request.headers.get("Cookie")) };
+  return { theme: themeFromCookie(request.headers.get("Cookie")), pushKey: pushFor()?.publicKey ?? null };
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {

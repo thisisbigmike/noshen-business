@@ -1,4 +1,5 @@
-import { inTx, many } from "./db";
+import { inTx, many, one } from "./db";
+import { alertStaff } from "./staff-alerts";
 import { firstName } from "@noshen/shared/deal";
 import { type Deps, lockDeal, notify, nowOf, userName } from "./core";
 import { release } from "./deals";
@@ -47,7 +48,12 @@ export async function sweep(d: Deps, onlyDealId?: string) {
 
   for (const r of await many<{ id: string }>(d.db,
     `select x.id from disputes x where x.state = 'collecting_evidence' and x.evidence_due_at <= $1 ${onlyDealId ? "and x.deal_id = $2" : ""}`, params())) {
-    await d.db.query("update disputes set state = 'in_review' where id = $1 and state = 'collecting_evidence'", [r.id]);
+    await inTx(d.db, { type: "system" }, async (tx) => {
+      const moved = await tx.db.query("update disputes set state = 'in_review' where id = $1 and state = 'collecting_evidence'", [r.id]);
+      if (!moved.rowCount) return;
+      const item = await one<{ title: string }>(tx.db, "select l.title from disputes x join deals dl on dl.id = x.deal_id join listings l on l.id = dl.listing_id where x.id = $1", [r.id]);
+      await alertStaff(d, tx, "dispute_ready", `Dispute ready to decide: ${item?.title ?? "a deal"}`, "The time for photos and notes has ended. Over to a reviewer.", `/disputes/${r.id}`);
+    });
     done.push(`evidence closed ${r.id}`);
   }
 

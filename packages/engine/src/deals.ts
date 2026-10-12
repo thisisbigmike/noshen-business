@@ -8,6 +8,7 @@ import type { PartnerEvent } from "./partner/types";
 import type { Settings } from "./settings";
 import { overLimit, sellerLimitText, type SellerLimit } from "@noshen/shared/limits";
 import { coinAmount, coinName, cryptoLabel, networkOf, type Coin, type Network } from "@noshen/shared/payments";
+import { alertStaff } from "./staff-alerts";
 
 export { overLimit, sellerLimitText, type SellerLimit };
 import {
@@ -205,6 +206,8 @@ async function onCollection(d: Deps, partnerEventId: string, event: Extract<Part
         `insert into payments (deal_id, partner_event_id, amount_kobo, sender_name, sender_bank_code, sender_account_enc, matches_amount_due, matches_buyer_name, received_at)
          values (null, $1, $2, $3, $4, $5, false, null, $6)`,
         [partnerEventId, event.data.amount_kobo, event.data.sender_name, event.data.sender_bank_code, senderEnc, event.data.received_at]);
+      await alertStaff(d, tx, "unmatched_payment", "A payment matched no deal",
+        `${naira(event.data.amount_kobo)} from ${event.data.sender_name}. It needs returning.`, "/money");
       return; // unmatched money: shows in the console's money page for a person to return
     }
     const deal = await lockDeal(tx.db, found.id);
@@ -244,6 +247,8 @@ async function onCryptoReceived(d: Deps, partnerEventId: string, event: Extract<
       [dealId, partnerEventId, event.data.amount_kobo, amountOk, event.data.received_at, dep?.id ?? null, coin, network, event.data.tx_hash, event.data.amount_micro]);
     if (!dep) {
       await insert(null, false);
+      await alertStaff(d, tx, "unmatched_payment", "A crypto payment matched no deal",
+        `${naira(event.data.amount_kobo)} on ${String(network)}. It needs returning.`, "/money");
       return; // unmatched money: shows in the console's money page for a person to return
     }
     const deal = await lockDeal(tx.db, dep.deal_id);
@@ -291,6 +296,8 @@ async function paymentArrived(d: Deps, tx: Tx, deal: DealRow, paymentId: string,
 
   const seller = firstName(await userName(tx.db, deal.seller_id));
   if (hold) {
+    const item = await one<{ title: string }>(tx.db, "select title from listings where id = $1", [deal.listing_id]);
+    await alertStaff(d, tx, "review_hold", `Payment to check: ${item?.title ?? "a deal"}`, hold, `/holds/${deal.id}`);
     await notify(d, tx, deal.buyer_id, deal.id, "payment_review", "Your payment arrived. We're checking it and will email you. Don't meet yet.");
     await notify(d, tx, deal.seller_id, deal.id, "payment_review", "A payment arrived, and NosHen is checking it. Don't hand over yet.");
   } else {
@@ -307,6 +314,11 @@ async function onTransferResult(d: Deps, event: Extract<PartnerEvent, { type: "t
     if (event.type === "transfer.failed") {
       await tx.db.query("update transfers set status = 'failed', failure_reason = $2, partner_ref = coalesce(partner_ref, $3) where id = $1",
         [t.id, event.data.reason ?? "failed", event.data.partner_ref]);
+      if (t.deal_id) {
+        const item = await one<{ title: string }>(tx.db, "select l.title from deals x join listings l on l.id = x.listing_id where x.id = $1", [t.deal_id]);
+        await alertStaff(d, tx, "payout_failed", `${t.kind === "payout" ? "Payout" : "Refund"} failed: ${item?.title ?? "a deal"}`,
+          `${naira(N(t.amount_kobo))} was rejected: ${event.data.reason ?? "no reason given"}. Send it again from the deal.`, `/deals/${t.deal_id}`);
+      }
       return; // shows in the console's failed-payouts queue
     }
     await tx.db.query("update transfers set status = 'succeeded', partner_ref = coalesce(partner_ref, $2) where id = $1", [t.id, event.data.partner_ref]);
@@ -497,6 +509,9 @@ export async function releaseByCode(d: Deps, sellerId: string, dealId: string, c
       if (tries >= max) {
         const until = addMinutes(now, s.release_code.lock_minutes);
         await tx.db.query("update release_codes set failed_attempts = 0, locked_until = $2 where deal_id = $1", [dealId, until]);
+        const item = await one<{ title: string }>(tx.db, "select title from listings where id = $1", [deal.listing_id]);
+        await alertStaff(d, tx, "code_locked", `Release code locked: ${item?.title ?? "a deal"}`,
+          `${max} wrong tries at the hand-over. Locked until ${when(until, now)}; you can unlock it from the deal.`, `/deals/${dealId}`);
         await tx.db.query("insert into deal_events (deal_id, type, actor, actor_id, payload) values ($1, 'release_code_locked', 'system', null, '{}')", [dealId]);
         return { ok: false, locked: true, message: `Too many wrong codes. Ask the buyer to check their code, then try again at ${when(until, now)}.` };
       }

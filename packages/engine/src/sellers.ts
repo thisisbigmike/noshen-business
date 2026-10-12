@@ -6,6 +6,7 @@ import { type Deps, DealError, N, notify, settingsOf } from "./core";
 import type { Condition } from "@noshen/shared/deal";
 import { categoryOf, idProblem, isCategory, normaliseId, type CategoryKey } from "@noshen/shared/categories";
 import { naira } from "@noshen/shared/money";
+import { alertStaff } from "./staff-alerts";
 import { sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
 
 export async function setName(d: Deps, userId: string, fullName: string) {
@@ -156,6 +157,8 @@ export async function publish(d: Deps, userId: string, listingId: string): Promi
       : null;
     const status = dup ? "blocked" : "live";
     await tx.db.query("update listings set status = $2, published_at = now() where id = $1", [listingId, status]);
+    if (dup) await alertStaff(d, tx, "listing_check", `Listing to check: ${l.title}`,
+      `The same ${categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "number"} is on another live listing.`, "/listings?status=blocked");
     if (dup) await notify(d, tx, userId, null, "listing_review", `We're checking your listing because the same ${categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "number"} is on another live listing.`);
     return status as "live" | "blocked";
   });

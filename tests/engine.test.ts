@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { world, person, verifiedSeller, liveListing, pay, payCrypto, settleAll, balances, stateOf, type TestWorld } from "./helpers";
 import {
   requestDeal, sellerLimit, acceptDeal, releaseByCode, releaseCodeForBuyer, markDelivered, confirmReceived, cancelDeal, handlePartnerEvent, sendMessage, rate, explainHold,
@@ -673,5 +673,37 @@ describe("a payment from someone else's account", () => {
     const due = Number((await w.db.query("select amount_due_kobo from deals where id = $1", [dealId])).rows[0].amount_due_kobo);
     await pay(w, dealId, due, "UGOCHUKWU REX JOHN");
     expect((await w.db.query("select state, review_hold from deals where id = $1", [dealId])).rows[0]).toEqual({ state: "held", review_hold: false });
+  });
+});
+
+describe("staff alerts", () => {
+  it("queues an alert when a payment needs checking or a dispute is opened, and sends each once to staff devices", async () => {
+    const { flushStaffAlerts } = await import("@noshen/engine/staff-alerts");
+    const { newVapidKeys, b64u } = await import("@noshen/engine/push");
+    await w.db.query("delete from staff_alerts");
+    const { dealId } = await heldDeal(250_000, "meetup", "SOMEONE ELSE ENTIRELY");
+    const { buyer, dealId: d2 } = await heldDeal();
+    await reportProblem(w.d, buyer, d2, { reason: "not_as_described", description: "Screen is cracked" });
+    const alerts = (await w.db.query("select kind, title, url from staff_alerts where sent_at is null order by id")).rows;
+    expect(alerts.map((a: any) => a.kind)).toEqual(["review_hold", "dispute"]);
+    expect(alerts[0].url).toBe(`/holds/${dealId}`);
+    expect(alerts[1].title).toMatch(/^New dispute: /);
+
+    // One staff device; the push service is stubbed.
+    const ua = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]) as CryptoKeyPair;
+    await w.db.query("insert into staff_push_subscriptions (staff_id, endpoint, p256dh, auth) values ($1, 'https://push.example/staff-1', $2, $3)",
+      [staffId, b64u.encode(new Uint8Array(await crypto.subtle.exportKey("raw", ua.publicKey))), b64u.encode(new Uint8Array(16))]);
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => { calls.push(url); return new Response(null, { status: 201 }); });
+    try {
+      const keys = await newVapidKeys();
+      const d = { ...w.d, push: { ...keys, subject: "https://noshen.example" } };
+      expect(await flushStaffAlerts(d)).toBe(2);
+      expect(calls).toEqual(["https://push.example/staff-1", "https://push.example/staff-1"]);
+      expect(await flushStaffAlerts(d)).toBe(0); // each alert goes once
+    } finally {
+      vi.unstubAllGlobals();
+      await w.db.query("delete from staff_push_subscriptions");
+    }
   });
 });
