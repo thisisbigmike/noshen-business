@@ -2,18 +2,18 @@ import { useState } from "react";
 import { Link, data, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/sell-details";
 import { requireUser, withApp, messageOf } from "../../server/web";
-import { saveDraft, publish } from "@noshen/engine/sellers";
-import { DealError } from "@noshen/engine/core";
+import { saveDraft } from "@noshen/engine/sellers";
 import { one } from "@noshen/engine/db";
-import { BottomAction, Button, CheckedForm, ErrorText, FieldError, Icon, Info, Select, TextArea, TextField, TopBar } from "@noshen/ui/ui";
+import { BottomAction, Button, CheckedForm, ErrorText, Icon, Info, Select, TextArea, TextField, TopBar } from "@noshen/ui/ui";
 import { CONDITIONS, type Condition } from "@noshen/shared/deal";
 import { NIGERIA_STATES, areaProblem, comingSoonList, stateLabel } from "@noshen/shared/locations";
-import { CATEGORIES, categoryOf, idProblem, isCategory, type CategoryKey } from "@noshen/shared/categories";
+import { categoryOf, idProblem, isCategory, type CategoryKey } from "@noshen/shared/categories";
 import { feeFor, naira } from "@noshen/shared/money";
 import { settingsOf } from "@noshen/engine/core";
 import { sellerLimit } from "@noshen/engine/deals";
 import { overLimit, sellerLimitText } from "@noshen/shared/limits";
 
+export const handle = { tabs: false };
 export const meta = () => [{ title: "Details · Sell · NosHen" }];
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -22,6 +22,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const l = await one(d.db, "select * from listings where id = $1", [params.id]);
     if (!l || l.seller_id !== user.id) throw data("Not found", { status: 404 });
     if (l.status !== "draft") throw redirect(`/sell/${l.id}/share`);
+    if ((l.photo_keys ?? []).length < 3) throw redirect(`/sell/${l.id}/photos`);
     const st = await settingsOf(d);
     // A new listing starts where the seller's last one was, so a seller in Kano isn't shown Lagos.
     const last = l.state ? null : await one<{ state: string; area: string }>(d.db,
@@ -41,50 +42,37 @@ export async function action({ request, params }: Route.ActionArgs) {
     priceNaira: Number(String(f.get("price") ?? "").replace(/[^\d]/g, "")), condition: String(f.get("condition")) as Condition,
     state: String(f.get("state") ?? ""), area: String(f.get("area") ?? ""), imeiOrSerial: String(f.get("imei") ?? ""),
   };
+  // Saved, not published: the seller checks everything on the next step first.
   try {
     await withApp(async (d) => {
       const user = await requireUser(request, d);
       await saveDraft(d, user.id, params.id, [], input);
-      try {
-        await publish(d, user.id, params.id);
-      } catch (e) {
-        if (e instanceof DealError && e.code === "seller_checks") throw redirect(`/account/verify?next=${encodeURIComponent(`/sell/${params.id}/details`)}`);
-        throw e;
-      }
     });
   } catch (e) {
     if (e instanceof Response) throw e;
     return { error: messageOf(e) };
   }
-  return redirect(`/sell/${params.id}/share`);
+  return redirect(`/sell/${params.id}/review`);
 }
 
 export default function SellDetails({ loaderData: { listing: l, place, limit, min, max, fee }, actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";
   const untouched = l.title === "Untitled listing";
-  const [cat, setCat] = useState<string>(untouched ? "" : l.category);
   const [cond, setCond] = useState<string>(l.condition);
   const [price, setPrice] = useState<string>(untouched ? "" : String(Number(l.price_kobo) / 100));
   const p = Number(price.replace(/[^\d]/g, "")) * 100;
-  const c = cat ? categoryOf(cat) : null;
+  const c = categoryOf(l.category);
   return (
     <CheckedForm method="post">
-      <TopBar title={<span>Details <span className="caption muted">Step 2 of 3</span></span>} back="/sell" />
+      <TopBar title={<span>Details <span className="caption muted">Step 3 of 4</span></span>} back={`/sell/${l.id}/photos`} />
       <main className="page narrow stack-4">
-        <h1 className="heading desktop-only">Details <span className="caption muted">Step 2 of 3</span></h1>
-        <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="label" style={{ marginBottom: 8 }}>What are you selling?</legend>
-          <div className="cat-grid">
-            {CATEGORIES.map((x) => (
-              <label key={x.key} className="cat-choice">
-                <input type="radio" name="category" value={x.key} checked={cat === x.key} onChange={() => setCat(x.key)} required data-missing="Choose what you're selling, so buyers can find it." />
-                <span className="cat-icon"><Icon name={x.icon} size={22} /></span>
-                <span className="body">{x.label}</span>
-              </label>
-            ))}
-          </div>
-          <FieldError name="category" />
-        </fieldset>
+        <h1 className="heading desktop-only">Details <span className="caption muted">Step 3 of 4</span></h1>
+        <input type="hidden" name="category" value={l.category} />
+        <div className="chosen-cat">
+          <span className="cat-icon"><Icon name={c.icon} size={22} /></span>
+          <span className="grow stack" style={{ gap: 0 }}><span className="caption muted">Selling</span><span className="label">{c.label}</span></span>
+          <Link to="/sell" className="caption tap" style={{ padding: "0 8px" }}>Change</Link>
+        </div>
         <TextField label="Title" name="title" defaultValue={untouched ? "" : l.title} placeholder={c?.titleExample ?? "What it is, in a few words"} maxLength={80} required
           missing={`Give it a title, like “${c?.titleExample ?? "iPhone 13, 128GB"}”.`} validate={(v) => (v.trim().length < 3 ? `Make the title a little longer: at least 3 characters, like “${c?.titleExample ?? "iPhone 13, 128GB"}”.` : null)} />
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
@@ -113,7 +101,7 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
         <Info icon="shield-check">Your listing shows "Protected by NosHen". Buyers pay NosHen, and you're paid when they give you their code.</Info>
         <p className="caption muted">Some things can't be sold on NosHen, such as anything stolen or fake. See the <Link to="/prohibited-items">prohibited items</Link>.</p>
         <ErrorText>{actionData?.error}</ErrorText>
-        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? "Publishing…" : "Publish listing"}</Button></BottomAction>
+        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight="arrow-right">{busy ? "Saving…" : "Next: review"}</Button></BottomAction>
       </main>
     </CheckedForm>
   );

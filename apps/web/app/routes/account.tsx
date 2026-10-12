@@ -64,7 +64,7 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
             {x.listings.map((l: any) => (
               <div key={l.id} className="kv" style={{ alignItems: "center" }}>
                 <span className="stack" style={{ gap: 0 }}>
-                  <Link to={l.status === "draft" ? (l.title === "Untitled listing" ? "/sell" : `/sell/${l.id}/details`) : `/l/${l.id}`} className="body">{l.title === "Untitled listing" ? "Draft listing" : l.title}</Link>
+                  <Link to={l.status === "draft" ? (l.title === "Untitled listing" ? `/sell/${l.id}/photos` : `/sell/${l.id}/review`) : `/l/${l.id}`} className="body">{l.title === "Untitled listing" ? "Draft listing" : l.title}</Link>
                   <span className="caption muted">{STATUS_WORD[l.status] ?? l.status} · {naira(l.price_kobo)}{Number(l.requests) ? ` · ${l.requests} request${Number(l.requests) > 1 ? "s" : ""}` : ""}</span>
                 </span>
                 {l.status === "live" || l.status === "paused" ? (

@@ -501,3 +501,23 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
   .nav-progress.on { animation: none; transform: scaleX(0.6); }
   .nh-listing:active, a.nh-deal:active, .chip:active, .tab:active, .tab.tab-main:active, .icon-btn:active, .cat-choice:active, .choice:active { transform: none; }
 }
+
+/* Selling, step 1: each category is a big button; one tap moves on. */
+.cat-start .cat-choice { width: 100%; font: inherit; color: var(--ink); text-align: left; min-height: 72px; }
+.cat-start .cat-choice:disabled { cursor: progress; opacity: 0.6; }
+.cat-start .cat-choice[aria-busy="true"] { opacity: 1; border: 2px solid var(--primary); padding: 9px 11px; background: var(--tint); color: var(--primary-ink); }
+.cat-start .cat-choice[aria-pressed="true"] .cat-icon, .cat-start .cat-choice[aria-busy="true"] .cat-icon { background: var(--primary); color: var(--on-primary); }
+@media (hover: hover) { .cat-start .cat-choice:hover:not(:disabled) { border-color: var(--primary); } }
+.resume-card, .chosen-cat { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); text-decoration: none; box-shadow: var(--shadow-sm); }
+.resume-card { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); background: var(--tint); transition: transform var(--dur-fast) var(--ease-out); }
+.resume-card > .nh-icon:last-child { flex: none; color: var(--ink-muted); }
+.resume-card:active { transform: scale(0.985); }
+.chosen-cat .cat-icon { background: var(--primary); color: var(--on-primary); }
+
+/* Selling, step 4: the listing as buyers will see it, then each part with a way back to edit it. */
+.review-photos { display: flex; gap: 8px; padding: 8px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; background: var(--canvas); }
+.review-photos::-webkit-scrollbar { display: none; }
+.review-photo { position: relative; flex: none; width: min(78%, 320px); aspect-ratio: 4 / 3; border-radius: var(--radius-md); overflow: hidden; scroll-snap-align: start; background: var(--surface); }
+.review-photo img { width: 100%; height: 100%; object-fit: cover; }
+.review-photo .tag { position: absolute; left: 8px; bottom: 8px; padding: 0 8px; border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-size: 12px; font-weight: 600; }
+.edit-link { padding: 0 4px; font-weight: 600; }

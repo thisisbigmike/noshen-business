@@ -35,7 +35,7 @@ export default function Share({ loaderData: { listing: l, url } }: Route.Compone
   }
   return (
     <div>
-      <TopBar title={<span>Share <span className="caption muted">Step 3 of 3</span></span>} back="/deals?tab=selling" />
+      <TopBar title="Share your listing" back="/deals?tab=selling" />
       <main className="page narrow stack-4">
         <div className="stack"><h1 className="heading">Your listing is live</h1><p className="body muted">Share the link where your buyers are. Anyone who opens it can buy with protection.</p></div>
         <section className="stack">

@@ -75,6 +75,24 @@ export interface ListingInput {
   imeiOrSerial?: string;
 }
 
+/**
+ * The first step of selling: what it is. Starts a draft listing in that category, or changes the category of the
+ * listing already in progress (its photos stay). Returns the draft's id.
+ */
+export async function startListing(d: Deps, userId: string, category: string): Promise<string> {
+  if (!isCategory(category)) throw new DealError("category", "Choose what you're selling.");
+  const draft = await one<{ id: string }>(d.db,
+    "select id from listings where seller_id = $1 and status = 'draft' order by created_at desc limit 1", [userId]);
+  if (draft) {
+    await d.db.query("update listings set category = $2 where id = $1", [draft.id, category]);
+    return draft.id;
+  }
+  const r = await one<{ id: string }>(d.db,
+    `insert into listings (seller_id, category, title, price_kobo, condition, area, photo_keys) values ($1, $2, 'Untitled listing', 100, 'good', '', '{}') returning id`,
+    [userId, category]);
+  return r!.id;
+}
+
 export async function saveDraft(d: Deps, userId: string, listingId: string | null, photoKeys: string[], input: ListingInput | null) {
   if (!listingId) {
     const r = await one<{ id: string }>(d.db,
