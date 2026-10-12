@@ -521,3 +521,9 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 .review-photo img { width: 100%; height: 100%; object-fit: cover; }
 .review-photo .tag { position: absolute; left: 8px; bottom: 8px; padding: 0 8px; border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-size: 12px; font-weight: 600; }
 .edit-link { padding: 0 4px; font-weight: 600; }
+
+/* Kind of size (EU / UK / US, S M L…): chips that wrap; the chosen one is filled. */
+.size-kinds { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.size-kinds .chip { cursor: pointer; }
+.size-kinds .chip:has(input:checked) { border-color: var(--ink); background: var(--ink); color: var(--canvas); }
+.size-kinds .chip:has(input:focus-visible) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }

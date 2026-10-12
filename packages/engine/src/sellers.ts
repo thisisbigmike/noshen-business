@@ -6,6 +6,7 @@ import { type Deps, DealError, N, notify, settingsOf } from "./core";
 import type { Condition } from "@noshen/shared/deal";
 import { categoryOf, idProblem, isCategory, normaliseId, type CategoryKey } from "@noshen/shared/categories";
 import { naira } from "@noshen/shared/money";
+import { sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
 
 export async function setName(d: Deps, userId: string, fullName: string) {
   const name = fullName.trim().replace(/\s+/g, " ");
@@ -73,6 +74,9 @@ export interface ListingInput {
   /** Town or neighbourhood, like Yaba or Wuse 2. */
   area: string;
   imeiOrSerial?: string;
+  /** For clothes, shoes, hair and baby items: the kind of size (see @noshen/shared/sizes) and the size. */
+  sizeSystem?: string;
+  size?: string;
 }
 
 /**
@@ -121,9 +125,14 @@ export async function saveDraft(d: Deps, userId: string, listingId: string | nul
     const area = input.area.trim().replace(/\s+/g, " ");
     const areaWrong = areaProblem(area);
     if (areaWrong) throw new DealError("area", areaWrong);
+    const hasSize = !!sizeRuleFor(input.category) && !!input.size;
+    const sizeWrong = sizeProblem(input.category, input.sizeSystem, input.size);
+    if (sizeWrong) throw new DealError("size", sizeWrong);
     await d.db.query(
-      `update listings set category = $2, title = $3, description = $4, price_kobo = $5, condition = $6, area = $7, imei_or_serial = $8, state = $9 where id = $1`,
-      [listingId, input.category, input.title.trim().slice(0, 80), input.description?.trim().slice(0, 2000) || null, price, input.condition, area, imei || null, input.state]);
+      `update listings set category = $2, title = $3, description = $4, price_kobo = $5, condition = $6, area = $7, imei_or_serial = $8, state = $9,
+              size_system = $10, size = $11 where id = $1`,
+      [listingId, input.category, input.title.trim().slice(0, 80), input.description?.trim().slice(0, 2000) || null, price, input.condition, area, imei || null, input.state,
+       hasSize ? input.sizeSystem : null, hasSize ? input.size : null]);
   }
   return listingId!;
 }

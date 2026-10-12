@@ -9,6 +9,7 @@ import { CONDITIONS, type Condition } from "@noshen/shared/deal";
 import { NIGERIA_STATES, areaProblem, comingSoonList, stateLabel } from "@noshen/shared/locations";
 import { categoryOf, idProblem, isCategory, type CategoryKey } from "@noshen/shared/categories";
 import { feeFor, naira } from "@noshen/shared/money";
+import { sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
 import { settingsOf } from "@noshen/engine/core";
 import { sellerLimit } from "@noshen/engine/deals";
 import { overLimit, sellerLimitText } from "@noshen/shared/limits";
@@ -41,6 +42,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     title: String(f.get("title") ?? ""), description: String(f.get("description") ?? ""),
     priceNaira: Number(String(f.get("price") ?? "").replace(/[^\d]/g, "")), condition: String(f.get("condition")) as Condition,
     state: String(f.get("state") ?? ""), area: String(f.get("area") ?? ""), imeiOrSerial: String(f.get("imei") ?? ""),
+    sizeSystem: String(f.get("size_system") ?? ""), size: String(f.get("size") ?? ""),
   };
   // Saved, not published: the seller checks everything on the next step first.
   try {
@@ -59,11 +61,21 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
   const busy = useNavigation().state !== "idle";
   const untouched = l.title === "Untitled listing";
   const [cond, setCond] = useState<string>(l.condition);
+  // Size, for clothes, shoes, hair and baby items: first the kind (EU, UK, US, S/M/L…), then the size from its list.
+  const sizeRule = sizeRuleFor(l.category);
+  const [sizeKind, setSizeKind] = useState<string>(l.size_system ?? sizeRule?.systems[0]?.id ?? "");
+  const [size, setSize] = useState<string>(l.size ?? "");
+  const [sizeError, setSizeError] = useState<string | null>(null);
+  const kind = sizeRule?.systems.find((x) => x.id === sizeKind) ?? sizeRule?.systems[0];
   const [price, setPrice] = useState<string>(untouched ? "" : String(Number(l.price_kobo) / 100));
   const p = Number(price.replace(/[^\d]/g, "")) * 100;
   const c = categoryOf(l.category);
   return (
-    <CheckedForm method="post">
+    <CheckedForm method="post" onSubmit={(e) => {
+      const problem = sizeRule ? sizeProblem(l.category, kind?.id, size) : null;
+      setSizeError(problem);
+      if (problem) { e.preventDefault(); document.getElementById("size-field")?.scrollIntoView({ block: "center", behavior: "smooth" }); }
+    }}>
       <TopBar title={<span>Details <span className="caption muted">Step 3 of 4</span></span>} back={`/sell/${l.id}/photos`} />
       <main className="page narrow stack-4">
         <h1 className="heading desktop-only">Details <span className="caption muted">Step 3 of 4</span></h1>
@@ -81,6 +93,27 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
             <label key={v} className="choice"><input type="radio" name="condition" value={v} checked={cond === v} onChange={() => setCond(v)} /><span className="stack" style={{ gap: 0 }}><span className="body">{label}</span><span className="caption muted">{hint}</span></span></label>
           ))}
         </fieldset>
+        {sizeRule && kind ? (
+          <fieldset id="size-field" className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="label" style={{ marginBottom: 8 }}>{sizeRule.label}{sizeRule.required ? "" : " (optional)"}</legend>
+            {sizeRule.systems.length > 1 ? (
+              <div className="size-kinds" role="radiogroup" aria-label={`Kind of ${sizeRule.label.toLowerCase()}`}>
+                {sizeRule.systems.map((x) => (
+                  <label key={x.id} className="chip">
+                    <input type="radio" name="size_system" value={x.id} checked={kind.id === x.id} className="sr-only"
+                      onChange={() => { setSizeKind(x.id); setSize(x.values.length === 1 ? x.values[0] : ""); setSizeError(null); }} />
+                    {x.label}
+                  </label>
+                ))}
+              </div>
+            ) : <input type="hidden" name="size_system" value={kind.id} />}
+            {kind.values.length > 1 ? (
+              <Select key={kind.id} name="size" label={sizeRule.label} hideLabel value={size} onChange={(v) => { setSize(v); setSizeError(null); }}
+                options={[{ value: "", label: `Choose ${kind.prefix ? `${kind.prefix} ` : ""}${sizeRule.label.toLowerCase()}` }, ...kind.values.map((v) => ({ value: v, label: kind.prefix && kind.id !== "waist" ? `${kind.prefix} ${v}` : v }))]} />
+            ) : <input type="hidden" name="size" value={kind.values[0]} />}
+            {sizeError ? <p className="nh-field-msg nh-field-msg-error caption" role="alert"><Icon name="alert-triangle" size={16} />{sizeError}</p> : <p className="caption muted">{sizeRule.hint}</p>}
+          </fieldset>
+        ) : null}
         <TextField label="Price (₦)" name="price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d,]/g, ""))} placeholder="45,000" required missing="Enter a price in naira, like 45,000."
           validate={(v) => { const k = Number(v.replace(/[^\d]/g, "")) * 100; return k < min ? `The lowest price on NosHen is ${naira(min)}. You've entered ${naira(k)}.` : max !== null && k > max ? `The highest price on NosHen is ${naira(max)}. You've entered ${naira(k)}.` : !Number.isSafeInteger(k) ? "That price is too large. Check the number of zeros." : null; }}
           hint={p >= min && (max === null || p <= max) && Number.isSafeInteger(p) ? `The buyer pays ${naira(p + feeFor(p, fee))} with NosHen's fee. You get ${naira(p)}.` : max === null ? `From ${naira(min)}. There's no top price.` : `From ${naira(min)} to ${naira(max)}.`} />

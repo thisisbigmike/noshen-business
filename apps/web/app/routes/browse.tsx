@@ -3,6 +3,7 @@ import type { Route } from "./+types/browse";
 import { withApp } from "../../server/web";
 import { browse, statesWithListings } from "@noshen/engine/queries";
 import { Button, Icon, ListingCard, ProtectionBadge, Select, Wordmark } from "@noshen/ui/ui";
+import { sizeLabel } from "@noshen/shared/sizes";
 import { ago } from "@noshen/shared/time";
 import { CATEGORIES, categoryOf, isCategory } from "@noshen/shared/categories";
 import { photoUrl } from "@noshen/shared/photos";
@@ -105,7 +106,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
             ) : (
               <div className="grid-cards">
                 {listings.map((l: any) => (
-                  <ListingCard key={l.id} href={`/l/${l.id}`} title={l.title} priceKobo={l.price_kobo} area={placeLabel(l.area, l.state)}
+                  <ListingCard key={l.id} href={`/l/${l.id}`} title={l.title} priceKobo={l.price_kobo} area={[sizeLabel(l.category, l.size_system, l.size), placeLabel(l.area, l.state)].filter(Boolean).join(" · ")}
                     posted={ago(l.published_at)} imageUrl={l.photo_keys?.[0] ? photoUrl(l.photo_keys[0]) : undefined} />
                 ))}
               </div>

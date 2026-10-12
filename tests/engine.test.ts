@@ -8,6 +8,7 @@ import { sweep } from "@noshen/engine/sweep";
 import { DealError, settingsOf } from "@noshen/engine/core";
 import { feeFor, naira } from "@noshen/shared/money";
 import { saveDraft, publish } from "@noshen/engine/sellers";
+import { sizeLabel } from "@noshen/shared/sizes";
 import { moderateListing, setAccountStatus, setDealLimit, unlockReleaseCode, retryTransfer, checkDeadlinesNow } from "@noshen/engine/staff";
 import { adminOverview, browse, staffListings, staffUsers, statesWithListings, staffDeals, staffDeal, staffPerson, staffCounts, auditLog, listingView } from "@noshen/engine/queries";
 import { cryptoQuotes, prepareCryptoPayment, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
@@ -48,11 +49,11 @@ describe("listings across the marketplace", () => {
 
   it("publishes clothes, shoes and hair without an ID number", async () => {
     const seller = await verifiedSeller(w, "Kunle Adeyemi");
-    const dress = await draft(seller, { category: "fashion", title: "Ankara maxi dress, size 12", priceNaira: 18_000 });
+    const dress = await draft(seller, { category: "fashion", title: "Ankara maxi dress", priceNaira: 18_000, sizeSystem: "uk", size: "12" });
     expect(await publish(w.d, seller, dress)).toBe("live");
-    const shoes = await draft(seller, { category: "shoes", title: "Nike Air Force 1, size 43", priceNaira: 45_000 });
+    const shoes = await draft(seller, { category: "shoes", title: "Nike Air Force 1", priceNaira: 45_000, sizeSystem: "eu", size: "43" });
     expect(await publish(w.d, seller, shoes)).toBe("live");
-    const wig = await draft(seller, { category: "hair", title: "Bone straight wig, 22 inches", priceNaira: 185_000 });
+    const wig = await draft(seller, { category: "hair", title: "Bone straight wig", priceNaira: 185_000, sizeSystem: "inches", size: "22 inches" });
     expect(await publish(w.d, seller, wig)).toBe("live");
   });
 
@@ -294,7 +295,7 @@ describe("staff console", () => {
 
 describe("anywhere in Nigeria", () => {
   const draft = (seller: string, place: { state: string; area: string }) =>
-    saveDraft(w.d, seller, null, ["a", "b", "c"], { category: "fashion", title: "Ankara dress", priceNaira: 20_000, condition: "good", ...place } as any);
+    saveDraft(w.d, seller, null, ["a", "b", "c"], { category: "fashion", title: "Ankara dress", priceNaira: 20_000, condition: "good", sizeSystem: "letter", size: "M", ...place } as any);
 
   it("lists in any state, including Abuja, and finds it by state or by searching the area", async () => {
     const seller = await verifiedSeller(w, "Amina Bello");
@@ -307,6 +308,23 @@ describe("anywhere in Nigeria", () => {
     expect((await browse(w.db, { state: "Kano" })).map((l: any) => l.id)).not.toContain(abuja);
     expect((await browse(w.db, { q: "wuse" })).map((l: any) => l.id)).toContain(abuja);
     expect((await statesWithListings(w.db)).map((s) => s.state)).toEqual(expect.arrayContaining(["Kano", "FCT"]));
+  });
+
+  it("needs a size for shoes and clothes, of the right kind, and keeps it", async () => {
+    const seller = await verifiedSeller(w, "Size Seller");
+    const base = { title: "Air Max 90", priceNaira: 40_000, condition: "good" as const, state: "Lagos", area: "Yaba" };
+    await expect(saveDraft(w.d, seller, null, ["a", "b", "c"], { ...base, category: "shoes" })).rejects.toThrow(/Choose the shoe size/);
+    await expect(saveDraft(w.d, seller, null, ["a", "b", "c"], { ...base, category: "shoes", sizeSystem: "eu", size: "9.5" })).rejects.toThrow(/from the list/);
+    const id = await saveDraft(w.d, seller, null, ["a", "b", "c"], { ...base, category: "shoes", sizeSystem: "uk", size: "9.5" });
+    await publish(w.d, seller, id);
+    const l = (await w.db.query("select size_system, size from listings where id = $1", [id])).rows[0];
+    expect(l).toEqual({ size_system: "uk", size: "9.5" });
+    expect(sizeLabel("shoes", l.size_system, l.size)).toBe("UK 9.5");
+    expect(sizeLabel("fashion", "letter", "M")).toBe("M");
+    expect(sizeLabel("fashion", "waist", "32 in")).toBe("Waist 32 in");
+    // A phone has no size: anything sent is ignored.
+    const phone = await saveDraft(w.d, seller, null, ["a", "b", "c"], { ...base, category: "phone", imeiOrSerial: "352918112999991", sizeSystem: "eu", size: "42" });
+    expect((await w.db.query("select size from listings where id = $1", [phone])).rows[0].size).toBeNull();
   });
 
   it("refuses a made-up state, a missing area, and a street address", async () => {

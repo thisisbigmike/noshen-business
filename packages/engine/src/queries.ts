@@ -35,7 +35,7 @@ export async function browse(db: Db, f: { cat?: string; state?: string; sort?: s
   // A search matches the title or the place, so "Yaba" or "Kano" finds things for sale there.
   if (f.q) { p.push(`%${f.q}%`); where.push(`(title ilike $${p.length} or area ilike $${p.length} or state ilike $${p.length})`); }
   const order = f.sort === "price_asc" ? "price_kobo asc" : f.sort === "price_desc" ? "price_kobo desc" : "published_at desc";
-  return many(db, `select id, title, price_kobo, area, state, category, condition, photo_keys, published_at from listings where ${where.join(" and ")} order by ${order} limit 60`, p);
+  return many(db, `select id, title, price_kobo, area, state, category, condition, size_system, size, photo_keys, published_at from listings where ${where.join(" and ")} order by ${order} limit 60`, p);
 }
 
 /** States with something for sale, busiest first, for the location chips on Browse. */

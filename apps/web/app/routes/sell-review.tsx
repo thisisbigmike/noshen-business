@@ -12,6 +12,7 @@ import { feeFor, naira } from "@noshen/shared/money";
 import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
 import { overLimit, sellerLimitText } from "@noshen/shared/limits";
+import { sizeLabel, sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Review · Sell · NosHen" }];
@@ -24,7 +25,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     if (l.status !== "draft") throw redirect(`/sell/${l.id}/share`);
     // Each step must be done before the review: photos, then the details.
     if ((l.photo_keys ?? []).length < 3) throw redirect(`/sell/${l.id}/photos`);
-    if (l.title === "Untitled listing" || !l.state || !l.area?.trim()) throw redirect(`/sell/${l.id}/details`);
+    if (l.title === "Untitled listing" || !l.state || !l.area?.trim() || sizeProblem(l.category, l.size_system, l.size)) throw redirect(`/sell/${l.id}/details`);
     const s = await settingsOf(d);
     const price = Number(l.price_kobo);
     const limit = await sellerLimit(d.db, user.id, s);
@@ -85,6 +86,7 @@ export default function SellReview({ loaderData: { listing: l, fee, limitText, r
             <p className="big-amount">{naira(price)}</p>
             <div className="row wrap" style={{ gap: 8 }}>
               <span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span>
+              {sizeLabel(l.category, l.size_system, l.size) ? <span className="nh-status nh-status-awaiting label">{sizeLabel(l.category, l.size_system, l.size)}</span> : null}
               <span className="caption muted row" style={{ gap: 4 }}><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)}</span>
             </div>
             <div className="row"><ProtectionBadge /></div>
@@ -101,6 +103,7 @@ export default function SellReview({ loaderData: { listing: l, fee, limitText, r
           <Kv k="Category" v={c.label} />
           <Kv k="Title" v={l.title} />
           <Kv k="Condition" v={condition ? `${condition[1]}: ${condition[2]}` : l.condition} />
+          {sizeRuleFor(l.category) ? <Kv k={sizeRuleFor(l.category)!.label} v={sizeLabel(l.category, l.size_system, l.size) ?? <span className="muted">Not given</span>} /> : null}
           {c.id && l.imei_or_serial ? <Kv k={c.id.label.replace(" (optional)", "")} v={<span>{l.imei_or_serial}<br /><span className="caption muted">Buyers see it only after they pay.</span></span>} /> : null}
         </section>
 

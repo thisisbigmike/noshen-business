@@ -11,6 +11,7 @@ import { categoryOf } from "@noshen/shared/categories";
 import { ago } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
+import { sizeLabel, sizeRuleFor } from "@noshen/shared/sizes";
 import { overLimit, sellerLimit, sellerLimitText } from "@noshen/engine/deals";
 
 export const handle = { tabs: false };
@@ -65,6 +66,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   const condition = CONDITIONS.find(([k]) => k === l.condition);
   const price = Number(l.price_kobo);
   const cat = categoryOf(l.category);
+  const size = sizeLabel(l.category, l.size_system, l.size);
   const status = l.status !== "live" ? (l.status === "sold" ? "This item has been sold." : "This listing is paused.") : null;
 
   const buy = mine ? (
@@ -96,7 +98,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             <div className="stack mobile-only">
               <h1 className="title">{l.title}</h1>
               <p className="big-amount">{naira(price)}</p>
-              <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span><span className="caption muted row"><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
+              <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}<span className="caption muted row"><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
               <div className="row"><ProtectionBadge /></div>
             </div>
             {status ? <p className="info warn">{status}</p> : null}
@@ -114,6 +116,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
               <h2 className="title">About this {cat.noun === "pair" ? "pair" : cat.noun}</h2>
               <Kv k="Category" v={cat.label} />
               <Kv k="Condition" v={`${condition?.[1]}: ${condition?.[2]}`} />
+              {size ? <Kv k={sizeRuleFor(l.category)?.label ?? "Size"} v={size} /> : null}
               <Kv k="Location" v={placeLabel(l.area, l.state)} />
               {cat.id && l.imei_or_serial ? <Kv k={cat.id.label.replace(" (optional)", "")} v="Shown to you after you pay, so you can check it at the hand-over" /> : null}
               {l.description ? <><p className="label" style={{ marginTop: 8 }}>From {sellerName}</p><p className="body">{l.description}</p></> : null}
@@ -122,7 +125,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
           <aside className="side desktop-only card stack-4">
             <h1 className="heading">{l.title}</h1>
             <p className="big-amount">{naira(price)}</p>
-            <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span><span className="caption muted">{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
+            <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}<span className="caption muted">{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
             <ProtectionBadge />
             {!status && limitText ? <Info icon="info-circle">{limitText}</Info> : null}
             {buy}
