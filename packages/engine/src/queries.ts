@@ -27,13 +27,31 @@ export async function listingView(db: Db, id: string) {
   return { listing: l, seller: await sellerSummary(db, l.seller_id) };
 }
 
-export async function browse(db: Db, f: { cat?: string; state?: string; sort?: string; q?: string }) {
+export interface BrowseFilters {
+  cat?: string; state?: string; sort?: string; q?: string;
+  /** Price range, in kobo. */
+  minKobo?: number; maxKobo?: number;
+  /** Any of these conditions ("new", "like_new", "good", "fair"). */
+  conditions?: string[];
+  /** One kind of size (see @noshen/shared/sizes) and any of these sizes. */
+  sizeSystem?: string; sizes?: string[];
+  /** Only sellers who've passed the ID and bank checks. */
+  verifiedOnly?: boolean;
+}
+
+export async function browse(db: Db, f: BrowseFilters) {
   const where = ["status = 'live'", "exists (select 1 from users u where u.id = listings.seller_id and u.status = 'active')"];
   const p: unknown[] = [];
   if (isCategory(f.cat)) { p.push(f.cat); where.push(`category = $${p.length}`); }
   if (isState(f.state)) { p.push(f.state); where.push(`state = $${p.length}`); }
   // A search matches the title or the place, so "Yaba" or "Kano" finds things for sale there.
   if (f.q) { p.push(`%${f.q}%`); where.push(`(title ilike $${p.length} or area ilike $${p.length} or state ilike $${p.length})`); }
+  if (f.minKobo && Number.isSafeInteger(f.minKobo)) { p.push(f.minKobo); where.push(`price_kobo >= $${p.length}`); }
+  if (f.maxKobo && Number.isSafeInteger(f.maxKobo)) { p.push(f.maxKobo); where.push(`price_kobo <= $${p.length}`); }
+  if (f.conditions?.length) { p.push(f.conditions); where.push(`condition::text = any($${p.length})`); }
+  if (f.sizeSystem && f.sizes?.length) { p.push(f.sizeSystem, f.sizes); where.push(`size_system = $${p.length - 1} and size = any($${p.length})`); }
+  if (f.verifiedOnly) where.push(`exists (select 1 from kyc_checks k where k.user_id = listings.seller_id and k.result = 'verified')
+    and exists (select 1 from bank_accounts b where b.user_id = listings.seller_id and b.is_default and b.removed_at is null)`);
   const order = f.sort === "price_asc" ? "price_kobo asc" : f.sort === "price_desc" ? "price_kobo desc" : "published_at desc";
   return many(db, `select id, title, price_kobo, area, state, category, condition, size_system, size, photo_keys, published_at from listings where ${where.join(" and ")} order by ${order} limit 60`, p);
 }

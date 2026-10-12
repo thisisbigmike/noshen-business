@@ -70,9 +70,16 @@ function useLiveUpdates() {
       sw.register("/sw.js").catch(() => {});
       sw.addEventListener("message", onMessage);
     }
+    // Android offers to install NosHen as an app: keep the offer for the "Install the NosHen app" button.
+    const onInstallable = (e: Event) => {
+      e.preventDefault();
+      (window as { __noshenInstall?: Event }).__noshenInstall = e;
+      window.dispatchEvent(new Event("noshen:installable"));
+    };
+    window.addEventListener("beforeinstallprompt", onInstallable);
     const id = setInterval(refresh, 30_000);
     document.addEventListener("visibilitychange", refresh);
-    return () => { clearInterval(id); document.removeEventListener("visibilitychange", refresh); sw?.removeEventListener("message", onMessage); };
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", refresh); sw?.removeEventListener("message", onMessage); window.removeEventListener("beforeinstallprompt", onInstallable); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 

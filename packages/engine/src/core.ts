@@ -131,7 +131,9 @@ export async function notify(d: Deps, tx: Tx, userId: string, dealId: string | n
   // On their phone or computer straight away, on every device they turned notifications on for.
   if (d.push) {
     const push = d.push;
-    tx.after(() => pushToUser(d, push, userId, { title: "NosHen", body: text, url: dealId ? `/d/${dealId}` : "/notifications", tag: dealId ?? template }));
+    // Titled with the item it's about, so it reads as what it is: an update on your deal, not a generic money alert.
+    const item = dealId ? await one<{ title: string }>(tx.db, "select l.title from deals x join listings l on l.id = x.listing_id where x.id = $1", [dealId]) : null;
+    tx.after(() => pushToUser(d, push, userId, { title: item ? `Your deal: ${item.title}` : "NosHen account", body: text, url: dealId ? `/d/${dealId}` : "/notifications", tag: dealId ?? template }));
   }
   if (d.mail.enabled === false) return;
   const to = await one<{ email: string | null }>(tx.db, "select email from users where id = $1", [userId]);

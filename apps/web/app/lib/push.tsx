@@ -45,9 +45,9 @@ export function usePush() {
       const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(key) }));
       const r = await post("/api/push/subscribe", sub.toJSON());
       if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Couldn't turn notifications on.");
+      // No notification straight away: a site that sends one the moment it's allowed looks like spam to the browser.
       setState("on");
-      setNote("Notifications are on. We've sent a test to this device.");
-      await post("/api/push/test", {});
+      setNote("Notifications are on for this device. Tap “Send a test” to see one.");
     } catch (e) {
       setNote(e instanceof Error ? e.message : "Couldn't turn notifications on. Try again.");
     } finally {
@@ -74,7 +74,25 @@ export function usePush() {
     setBusy(false);
   }
 
-  return { available: !!key, state, busy, note, turnOn, turnOff, test };
+  // Installing NosHen as an app (Android): its notifications then come from the NosHen app, with its own icon.
+  const [installable, setInstallable] = useState(false);
+  useEffect(() => {
+    const check = () => setInstallable(!!(window as { __noshenInstall?: Event }).__noshenInstall);
+    check();
+    window.addEventListener("noshen:installable", check);
+    return () => window.removeEventListener("noshen:installable", check);
+  }, []);
+  async function install() {
+    const e = (window as { __noshenInstall?: Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> } }).__noshenInstall;
+    if (!e) return;
+    await e.prompt();
+    const { outcome } = await e.userChoice;
+    (window as { __noshenInstall?: Event }).__noshenInstall = undefined;
+    setInstallable(false);
+    if (outcome === "accepted") setNote("NosHen is on your Home Screen. Open it from there for the best notifications.");
+  }
+
+  return { available: !!key, state, busy, note, turnOn, turnOff, test, installable, install };
 }
 
 /** The card for Alerts and Account: turn notifications on or off for this device, with help when it can't. */
@@ -103,6 +121,12 @@ export function PushCard({ compact }: { compact?: boolean }) {
           <div className="row wrap" style={{ gap: 8 }}>
             <Button size="sm" onClick={p.test} disabled={p.busy}>Send a test</Button>
             <Button size="sm" onClick={p.turnOff} disabled={p.busy}>Turn off</Button>
+          </div>
+        ) : null}
+        {p.installable && !compact ? (
+          <div className="stack" style={{ gap: 4 }}>
+            <div><Button size="sm" icon="device-mobile" onClick={p.install}>Install the NosHen app</Button></div>
+            <p className="caption muted">Adds NosHen to your Home Screen. Notifications then come from the NosHen app, not a website.</p>
           </div>
         ) : null}
       </div>

@@ -91,7 +91,7 @@ api.post("/api/push/test", async (c) => {
   if (!me) return c.json({ error: "Sign in first." }, 401);
   const cfg = pushFor();
   if (!cfg) return c.json({ error: "Notifications aren't set up on this site yet." }, 503);
-  await withApp((d) => pushToUser(d, cfg, me.id, { title: "NosHen", body: "Notifications are on. You'll hear here when something happens in your deals.", url: "/notifications", tag: "test" }));
+  await withApp((d) => pushToUser(d, cfg, me.id, { title: "NosHen test", body: "This is a test you asked for. Updates on your deals will look like this.", url: "/notifications", tag: "test" }));
   return c.json({ ok: true });
 });
 
