@@ -327,6 +327,24 @@ describe("anywhere in Nigeria", () => {
     expect((await w.db.query("select size from listings where id = $1", [phone])).rows[0].size).toBeNull();
   });
 
+  it("filters Browse by price, condition, size and verified sellers", async () => {
+    const seller = await verifiedSeller(w, "Filter Seller");
+    const unverified = await person(w, "New Seller");
+    const base = { title: "Filter test sneakers", condition: "good" as const, state: "Lagos", area: "Yaba", category: "shoes" as const };
+    const a = await saveDraft(w.d, seller, null, ["a", "b", "c"], { ...base, priceNaira: 30_000, sizeSystem: "eu", size: "42" });
+    await publish(w.d, seller, a);
+    const b = await saveDraft(w.d, seller, null, ["a", "b", "c"], { ...base, priceNaira: 90_000, condition: "new", sizeSystem: "eu", size: "44" });
+    await publish(w.d, seller, b);
+    const c = await saveDraft(w.d, unverified, null, ["a", "b", "c"], { ...base, priceNaira: 40_000, sizeSystem: "uk", size: "8" });
+    await w.db.query("update listings set status = 'live', published_at = now() where id = $1", [c]);
+    const ids = async (f: Parameters<typeof browse>[1]) => (await browse(w.db, { q: "Filter test", ...f })).map((l: any) => l.id).sort();
+    expect(await ids({ maxKobo: 5_000_000 })).toEqual([a, c].sort());
+    expect(await ids({ minKobo: 5_000_000 })).toEqual([b]);
+    expect(await ids({ conditions: ["new"] })).toEqual([b]);
+    expect(await ids({ sizeSystem: "eu", sizes: ["42", "44"] })).toEqual([a, b].sort());
+    expect(await ids({ verifiedOnly: true })).toEqual([a, b].sort());
+  });
+
   it("refuses a made-up state, a missing area, and a street address", async () => {
     const seller = await verifiedSeller(w, "Wrong Place");
     await expect(draft(seller, { state: "Atlantis", area: "Yaba" })).rejects.toThrow("Choose the state");

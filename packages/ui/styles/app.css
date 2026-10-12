@@ -548,3 +548,21 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 @keyframes nh-bubble { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
 @keyframes nh-typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .bubble, .bubble.typing span { animation: none; } }
+
+/* Browse: the Filters button, its panel, and the filters that are on. */
+.filter-btn { flex: 0 0 auto; gap: 8px; }
+.filter-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-full); background: var(--primary); color: var(--on-primary); font-size: 12px; }
+.filter-sheet { gap: var(--space-4); }
+.filter-sheet .filter-section { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0 0 var(--space-4); border: 0; border-bottom: 1px solid var(--border); }
+.filter-sheet .filter-section legend { margin-bottom: 10px; }
+.filter-sheet .chip { cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; }
+.filter-sheet .chip:has(input:checked), .filter-sheet .chip[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--canvas); }
+.filter-sheet .chip:has(input:focus-visible) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
+.price-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; }
+.price-input { display: flex; flex-direction: column; gap: 2px; padding: 8px 14px; border: 1px solid var(--ink-muted); border-radius: var(--radius-md); background: var(--surface); }
+.price-input:focus-within { border-color: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent); }
+.price-input input { width: 100%; border: 0; outline: 0; padding: 0; background: transparent; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.filter-actions { position: sticky; bottom: calc(-1 * var(--space-6)); display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-6)); padding: 12px var(--space-4) calc(12px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--border); }
+@media (min-width: 768px) { .filter-actions { margin: 0 calc(-1 * var(--space-6)) calc(-1 * var(--space-6)); padding: 12px var(--space-6); } }
+.active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.active-chip { gap: 6px; border-color: var(--ink); }
