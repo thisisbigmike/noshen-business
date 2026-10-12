@@ -31,10 +31,10 @@ export default function AppShell({ loaderData }: Route.ComponentProps) {
   return (
     <div className={hideTabs ? "shell" : "shell with-tabs"}>
       <header className="desktop-nav">
-        <Link to="/" aria-label="NosHen home" style={{ textDecoration: "none", justifySelf: "start" }}><Wordmark /></Link>
+        <Link to="/" prefetch="intent" aria-label="NosHen home" style={{ textDecoration: "none", justifySelf: "start" }}><Wordmark /></Link>
         <nav aria-label="Main">
           {DESKTOP.map(([to, label, icon]) => (
-            <NavLink key={to} to={to} end={to === "/browse"} className="navlink">
+            <NavLink key={to} to={to} end={to === "/browse"} className="navlink" prefetch="intent">
               <Icon name={icon} size={18} />{label}{label === "Deals" && badge ? <span className="count" aria-label={`, ${badge} need you`}>{badge}</span> : null}
             </NavLink>
           ))}
@@ -56,7 +56,8 @@ export default function AppShell({ loaderData }: Route.ComponentProps) {
           {TABS.map(([to, label, icon]) => {
             const n = countFor(to);
             return (
-              <NavLink key={to} to={to} end={to === "/browse"} className={to === "/sell" ? "tab tab-main" : "tab"} title={label}>
+              // Each page starts loading as the finger lands on its tab. Not Alerts: opening it marks alerts as read.
+              <NavLink key={to} to={to} end={to === "/browse"} className={to === "/sell" ? "tab tab-main" : "tab"} title={label} prefetch={to === "/notifications" ? "none" : "intent"}>
                 <Icon name={icon} size={to === "/sell" ? 24 : 22} />
                 <span className="tab-label">{label}</span>
                 {n ? <span className="badge" aria-label={to === "/deals" ? `${n} deal${n > 1 ? "s" : ""} need you` : `${n} new`}>{n}</span> : null}

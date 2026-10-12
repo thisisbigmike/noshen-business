@@ -227,9 +227,9 @@ export function ProtectionBadge({ variant = "tint", children }: { variant?: "tin
 export function ListingCard({ title, priceKobo, area, posted, imageUrl, href }: { title: string; priceKobo: number | string; area?: string; posted?: string; imageUrl?: string; href: string }) {
   const meta = [area, posted].filter(Boolean).join(" · ");
   return (
-    <Link className="nh-listing" to={href}>
+    <Link className="nh-listing" to={href} prefetch="intent">
       <div className="nh-listing-photo">
-        {imageUrl ? <img src={imageUrl} alt="" loading="lazy" /> : <Icon name="camera" size={32} label="No photo yet" />}
+        {imageUrl ? <img src={imageUrl} alt="" loading="lazy" decoding="async" /> : <Icon name="camera" size={32} label="No photo yet" />}
         <ProtectionBadge variant="glass">Protected</ProtectionBadge>
       </div>
       <div className="nh-listing-body">
@@ -258,7 +258,7 @@ export function DealCard({ state, word, amountKobo, item, counterpart, deadline,
   );
   const cls = cx("nh-deal", `nh-deal-${state}`, state === "held" && "beam");
   return href
-    ? <Link to={href} className={cls} style={{ textDecoration: "none", maxWidth: "none" }} aria-label={`Deal: ${item}`}>{body}</Link>
+    ? <Link to={href} prefetch="intent" className={cls} style={{ textDecoration: "none", maxWidth: "none" }} aria-label={`Deal: ${item}`}>{body}</Link>
     : <section className={cls} style={{ maxWidth: "none" }} aria-label={`Deal: ${item}`}>{body}</section>;
 }
 

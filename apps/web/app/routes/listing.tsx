@@ -77,7 +77,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className="listing-screen">
-      <TopBar title={<Wordmark size="sm" />} back="/browse" right={<Link className="caption" style={{ padding: "0 8px" }} to="/browse">See more listings</Link>} />
+      <TopBar title={<Wordmark size="sm" />} back="/browse" right={<Link className="caption tap" style={{ padding: "0 12px" }} to="/browse">See more listings</Link>} />
       <main className="page flush no-tabs">
         <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/browse">Browse</Link> / <Link to={`/browse?cat=${cat.key}`}>{cat.label}</Link> / {placeLabel(l.area, l.state)}</nav>
         <div className="two-col">

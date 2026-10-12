@@ -71,7 +71,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
         <Link to="/" aria-label="NosHen home" style={{ textDecoration: "none" }}><Wordmark size="sm" /></Link>
         <nav className="row">
           <ThemeToggle />
-          <Link to="/browse" className="label">Browse</Link>
+          <Link to="/browse" className="label tap">Browse</Link>
           <Button variant="primary" pill to={x.signedIn ? "/deals" : "/signin"}>{x.signedIn ? "Deals" : "Sign in"}</Button>
         </nav>
       </header>
@@ -315,7 +315,7 @@ function LiveStrip({ items }: { items: { id: string; title: string; area: string
     <section className="live-strip" aria-labelledby="live-title">
       <div className="lp-inner row-between">
         <h2 id="live-title" className="label"><span className="live-dot" aria-hidden="true" />For sale on NosHen now</h2>
-        <Link to="/browse" className="label row">See all<Icon name="arrow-right" size={16} /></Link>
+        <Link to="/browse" className="label row tap">See all<Icon name="arrow-right" size={16} /></Link>
       </div>
       <div className="marquee">
         <ul className="marquee-track">

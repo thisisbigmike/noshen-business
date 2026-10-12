@@ -1,4 +1,5 @@
-import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteLoaderData } from "react-router";
+import { useEffect, useState } from "react";
+import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRouteLoaderData } from "react-router";
 import type { Route } from "./+types/root";
 import "@noshen/ui/styles/tokens.css";
 import "@noshen/ui/styles/components.css";
@@ -45,7 +46,29 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  return <><NavProgress /><Outlet /></>;
+}
+
+/**
+ * A thin bar along the top while the next page loads. It waits a moment first, so a quick move between pages
+ * shows nothing; a slow one (a weak connection) shows the app is working, then fills and fades when it's done.
+ */
+function NavProgress() {
+  const busy = useNavigation().state !== "idle";
+  const [phase, setPhase] = useState<"idle" | "on" | "done">("idle");
+  useEffect(() => {
+    if (busy) {
+      const t = setTimeout(() => setPhase("on"), 150);
+      return () => clearTimeout(t);
+    }
+    setPhase((p) => (p === "on" ? "done" : "idle"));
+  }, [busy]);
+  useEffect(() => {
+    if (phase !== "done") return;
+    const t = setTimeout(() => setPhase("idle"), 450);
+    return () => clearTimeout(t);
+  }, [phase]);
+  return <div className={phase === "idle" ? "nav-progress" : `nav-progress ${phase}`} aria-hidden="true" />;
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
