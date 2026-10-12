@@ -60,7 +60,9 @@
         "PARTNER": "fake",
         "PARTNER_BANK_NAME": "Test Bank (demo)",
         "EMAIL": "none",
-        "ID_PROVIDER": "fake"
+        "ID_PROVIDER": "fake",
+        // Phone notifications (Web Push): the public key browsers subscribe with. Its private half is the secret VAPID_PRIVATE_JWK.
+        "VAPID_PUBLIC_KEY": "BN2iM4wO9eZDlmuNBOiTOgbyGsIyeSnQjYLBQCKHs8UBm0i0_jjcjJ-1Gwsm0P39c6L9eDVxoCgzVrnDtM-Mucg"
       },
       "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "50eda60146f14d95afdbf83685c361b3" }],
       "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],

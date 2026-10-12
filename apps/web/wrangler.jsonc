@@ -49,7 +49,9 @@
         "PARTNER_BANK_NAME": "Test Bank (demo)",
         // No email provider until there's a domain: sign-in is by Google, and updates are in the app.
         "EMAIL": "none",
-        "ID_PROVIDER": "fake"
+        "ID_PROVIDER": "fake",
+        // Phone notifications (Web Push): the public key browsers subscribe with. Its private half is the secret VAPID_PRIVATE_JWK.
+        "VAPID_PUBLIC_KEY": "BN2iM4wO9eZDlmuNBOiTOgbyGsIyeSnQjYLBQCKHs8UBm0i0_jjcjJ-1Gwsm0P39c6L9eDVxoCgzVrnDtM-Mucg"
       },
       "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "6e865a502a8e457bb56922a1a5d7f806" }],
       "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],

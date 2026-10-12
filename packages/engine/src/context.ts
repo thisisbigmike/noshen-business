@@ -6,6 +6,7 @@ import { FakeCryptoPartner } from "./partner/fake-crypto";
 import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
 import { ConsoleEmail, NoEmail, type EmailSender } from "./email";
 import { FakeIdProvider } from "./idcheck";
+import type { PushConfig } from "./push";
 
 /** Deal timers run as Cloudflare Workflows: one instance per deadline, sleeping until it's due. */
 export const workflowTimers: Deps["timers"] = {
@@ -56,12 +57,20 @@ export function mailFor(): EmailSender {
   throw new Error(`Email provider "${env.EMAIL}" isn't set up yet. See packages/engine/src/email.ts.`);
 }
 
+/** Keys for phone and computer notifications, when they're set (VAPID_PUBLIC_KEY, and the secret VAPID_PRIVATE_JWK). */
+export function pushFor(): PushConfig | undefined {
+  const e = env as unknown as { VAPID_PUBLIC_KEY?: string; VAPID_PRIVATE_JWK?: string; APP_URL: string };
+  if (!e.VAPID_PUBLIC_KEY || !e.VAPID_PRIVATE_JWK) return undefined;
+  return { publicKey: e.VAPID_PUBLIC_KEY, privateJwk: e.VAPID_PRIVATE_JWK, subject: e.APP_URL.startsWith("https:") ? e.APP_URL : "https://noshen-web.usenoshen.workers.dev" };
+}
+
 export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
   return {
     db,
     partner: partnerFor(),
     crypto: cryptoFor(),
     mail,
+    push: pushFor(),
     ids: new FakeIdProvider(),
     timers: workflowTimers,
     secrets: { releaseCode: env.RELEASE_CODE_SECRET, fieldKey: env.FIELD_KEY },

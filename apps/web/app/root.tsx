@@ -1,21 +1,23 @@
 import { useEffect, useState } from "react";
-import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRouteLoaderData } from "react-router";
+import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRevalidator, useRouteLoaderData } from "react-router";
 import type { Route } from "./+types/root";
 import "@noshen/ui/styles/tokens.css";
 import "@noshen/ui/styles/components.css";
 import "@noshen/ui/styles/app.css";
 import { themeFromCookie, type Theme } from "@noshen/ui/theme";
-import { isDemo } from "@noshen/engine/context";
+import { isDemo, pushFor } from "@noshen/engine/context";
 
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+  { rel: "manifest", href: "/manifest.webmanifest" },
+  { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
   { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Sora:wght@600&family=Figtree:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap" },
 ];
 
 export function loader({ request }: Route.LoaderArgs) {
-  return { theme: themeFromCookie(request.headers.get("Cookie")), demo: isDemo() };
+  return { theme: themeFromCookie(request.headers.get("Cookie")), demo: isDemo(), pushKey: pushFor()?.publicKey ?? null };
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -27,6 +29,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#0f6e56" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="NosHen" />
         <meta name="color-scheme" content={theme} />
         <Meta />
         <Links />
@@ -46,7 +50,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  useLiveUpdates();
   return <><NavProgress /><Outlet /></>;
+}
+
+/**
+ * Keeps what's on screen current. The service worker (public/sw.js) shows notifications on this device; when one
+ * arrives while NosHen is open, the page reloads its data straight away (the bell, a deal's state). Without
+ * notifications, the page still checks every 30 seconds while it's in front, and when the person comes back to it.
+ */
+function useLiveUpdates() {
+  const revalidator = useRevalidator();
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible" && revalidator.state === "idle") revalidator.revalidate(); };
+    let sw: ServiceWorkerContainer | null = null;
+    const onMessage = (e: MessageEvent) => { if (e.data?.type === "noshen:update") refresh(); };
+    if ("serviceWorker" in navigator) {
+      sw = navigator.serviceWorker;
+      sw.register("/sw.js").catch(() => {});
+      sw.addEventListener("message", onMessage);
+    }
+    const id = setInterval(refresh, 30_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", refresh); sw?.removeEventListener("message", onMessage); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /**

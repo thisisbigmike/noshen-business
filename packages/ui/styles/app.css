@@ -527,3 +527,9 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 .size-kinds .chip { cursor: pointer; }
 .size-kinds .chip:has(input:checked) { border-color: var(--ink); background: var(--ink); color: var(--canvas); }
 .size-kinds .chip:has(input:focus-visible) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
+
+/* Notifications on this device: turn them on, with help when the browser can't. */
+.push-card { display: flex; gap: 12px; align-items: flex-start; padding: var(--space-4); border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border)); border-radius: var(--radius-lg); background: linear-gradient(135deg, var(--tint), var(--surface) 70%); box-shadow: var(--shadow-sm); }
+.push-card.compact { padding: 12px 14px; }
+.push-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--primary); color: var(--on-primary); }
+.ok-note { color: var(--primary-ink); font-weight: 600; }

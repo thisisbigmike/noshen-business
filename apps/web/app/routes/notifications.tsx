@@ -4,6 +4,7 @@ import { requireUser, withApp } from "../../server/web";
 import { notificationsFor } from "@noshen/engine/queries";
 import { Icon, TopBar } from "@noshen/ui/ui";
 import { when } from "@noshen/shared/time";
+import { PushCard } from "../lib/push";
 
 export const meta = () => [{ title: "Notifications · NosHen" }];
 
@@ -17,11 +18,12 @@ export default function Notifications({ loaderData }: Route.ComponentProps) {
       <TopBar title="Notifications" />
       <main className="page narrow stack-4">
         <h1 className="heading desktop-only">Notifications</h1>
+        <PushCard />
         {loaderData.items.length === 0 ? (
           <div className="card stack empty" style={{ alignItems: "center", textAlign: "center" }}>
             <span className="empty-icon"><Icon name="bell" size={26} /></span>
             <p className="title">Nothing yet</p>
-            <p className="body muted">Updates about your deals appear here, and by email.</p>
+            <p className="body muted">Updates about your deals appear here as they happen.</p>
           </div>
         ) : (
           <ul className="feed">

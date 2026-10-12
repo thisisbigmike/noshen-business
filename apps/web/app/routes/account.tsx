@@ -8,6 +8,7 @@ import { Button, ErrorText, Icon, Info, Kv, TopBar } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { LEGAL_NAV } from "@noshen/shared/legal-pages";
 import { ThemeSwitch } from "@noshen/ui/theme";
+import { PushCard } from "../lib/push";
 
 export const meta = () => [{ title: "Account · NosHen" }];
 
@@ -79,6 +80,7 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
           </section>
         ) : null}
         <ErrorText>{(actionData as any)?.error}</ErrorText>
+        <PushCard />
         <section className="card stack" aria-labelledby="appearance">
           <p className="title" id="appearance">Appearance</p>
           <p className="caption muted">Light is the default. Your choice is saved on this device.</p>

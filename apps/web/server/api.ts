@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { env } from "cloudflare:workers";
 import { createAuth } from "./auth";
-import { withApp, partnerFor, cryptoFor, mailFor, isDev, isLocal } from "@noshen/engine/context";
+import { withApp, partnerFor, cryptoFor, mailFor, pushFor, isDev, isLocal } from "@noshen/engine/context";
+import { pushToUser } from "@noshen/engine/core";
 import { handlePartnerEvent } from "@noshen/engine/deals";
 import { sweep } from "@noshen/engine/sweep";
 import { dealView, dealsFor } from "@noshen/engine/queries";
@@ -50,6 +51,48 @@ api.post("/api/webhooks/crypto", async (c) => {
   }
   const result = await withApp((d) => handlePartnerEvent(d, event, "crypto"));
   return c.json({ ok: true, result });
+});
+
+// Phone and computer notifications: a device turns them on (or off) for the signed-in person. Only NosHen's own
+// pages may call these (checked by Origin, on top of the sign-in cookie being same-site).
+api.use("/api/push/*", async (c, next) => {
+  if (c.req.header("origin") !== new URL(env.APP_URL).origin) return c.json({ error: "Not allowed." }, 403);
+  await next();
+});
+// Phone and computer notifications: a device turns them on (or off) for the signed-in person.
+api.post("/api/push/subscribe", async (c) => {
+  const me = await optionalUser(c.req.raw);
+  if (!me) return c.json({ error: "Sign in first." }, 401);
+  if (!pushFor()) return c.json({ error: "Notifications aren't set up on this site yet." }, 503);
+  const sub = await c.req.json<{ endpoint?: string; keys?: { p256dh?: string; auth?: string } }>().catch(() => ({}) as never);
+  const ok = typeof sub?.endpoint === "string" && /^https:\/\//.test(sub.endpoint) && sub.endpoint.length < 1000
+    && /^[A-Za-z0-9_-]{80,100}$/.test(sub.keys?.p256dh ?? "") && /^[A-Za-z0-9_-]{16,32}$/.test(sub.keys?.auth ?? "");
+  if (!ok) return c.json({ error: "That isn't a valid notification subscription." }, 400);
+  // One device, one person: if someone else used this browser before, it now notifies whoever signed in.
+  await withApp((d) => d.db.query(
+    `insert into push_subscriptions (user_id, endpoint, p256dh, auth, user_agent) values ($1, $2, $3, $4, $5)
+     on conflict (endpoint) do update set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth,
+       user_agent = excluded.user_agent, failures = 0`,
+    [me.id, sub.endpoint, sub.keys!.p256dh, sub.keys!.auth, (c.req.header("user-agent") ?? "").slice(0, 300)]));
+  return c.json({ ok: true });
+});
+
+api.post("/api/push/unsubscribe", async (c) => {
+  const me = await optionalUser(c.req.raw);
+  if (!me) return c.json({ error: "Sign in first." }, 401);
+  const { endpoint } = await c.req.json<{ endpoint?: string }>().catch(() => ({}) as never);
+  if (typeof endpoint === "string") await withApp((d) => d.db.query("delete from push_subscriptions where endpoint = $1 and user_id = $2", [endpoint, me.id]));
+  return c.json({ ok: true });
+});
+
+/** Sends a test notification to the signed-in person's devices, so they can see it works. */
+api.post("/api/push/test", async (c) => {
+  const me = await optionalUser(c.req.raw);
+  if (!me) return c.json({ error: "Sign in first." }, 401);
+  const cfg = pushFor();
+  if (!cfg) return c.json({ error: "Notifications aren't set up on this site yet." }, 503);
+  await withApp((d) => pushToUser(d, cfg, me.id, { title: "NosHen", body: "Notifications are on. You'll hear here when something happens in your deals.", url: "/notifications", tag: "test" }));
+  return c.json({ ok: true });
 });
 
 api.get("/photos/*", (c) => servePhoto(decodeURIComponent(c.req.path.slice("/photos/".length))));

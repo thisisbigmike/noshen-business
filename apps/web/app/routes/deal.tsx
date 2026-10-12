@@ -14,6 +14,7 @@ import { placeLabel } from "@noshen/shared/locations";
 import { cryptoLabel, type Coin, type Network } from "@noshen/shared/payments";
 import { cryptoQuotes, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
 import { RefundAddressForm } from "../lib/refund-address";
+import { PushCard } from "../lib/push";
 import { PayOptions } from "../lib/pay-options";
 
 export const handle = { tabs: false };
@@ -128,6 +129,8 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
             {deal.state === "held" && role === "seller" && deal.handover === "meetup" ? (
               <Info icon="shield-lock">Only {firstName(names.buyer)}'s phone shows the code. Nobody from NosHen will ever ask you for it.</Info>
             ) : null}
+
+            {isOpen(deal.state) ? <PushCard compact /> : null}
 
             {x.refundWaiting ? (
               <section className="card stack" aria-labelledby="refund-to">

@@ -2,6 +2,7 @@ import type { Db, Tx } from "./db";
 import { one } from "./db";
 import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
 import type { EmailSender } from "./email";
+import { sendPush, type PushConfig } from "./push";
 import type { IdProvider } from "./idcheck";
 import type { Settings } from "./settings";
 import { loadSettings } from "./settings";
@@ -21,6 +22,8 @@ export interface Deps {
   /** Paying with USDT. Missing when no crypto partner is set up: then buyers pay by bank transfer only. */
   crypto?: CryptoPartner;
   mail: EmailSender;
+  /** Phone and computer notifications. Missing when no keys are set up: then updates are in the app (and email). */
+  push?: PushConfig;
   ids: IdProvider;
   timers: Timers;
   secrets: { releaseCode: string; fieldKey: string };
@@ -106,6 +109,11 @@ export async function notify(d: Deps, tx: Tx, userId: string, dealId: string | n
     "insert into notifications (user_id, deal_id, channel, template, params, status, sent_at) values ($1, $2, 'in_app', $3, $4, 'sent', now())",
     [userId, dealId, template, JSON.stringify({ text })],
   );
+  // On their phone or computer straight away, on every device they turned notifications on for.
+  if (d.push) {
+    const push = d.push;
+    tx.after(() => pushToUser(d, push, userId, { title: "NosHen", body: text, url: dealId ? `/d/${dealId}` : "/notifications", tag: dealId ?? template }));
+  }
   if (d.mail.enabled === false) return;
   const to = await one<{ email: string | null }>(tx.db, "select email from users where id = $1", [userId]);
   if (!to?.email) return;
@@ -133,4 +141,23 @@ function subjectOf(text: string) {
 
 export function schedule(d: Deps, tx: Tx, kind: TimerKind, dealId: string, at: Date) {
   tx.after(() => d.timers.schedule({ kind, dealId, at }));
+}
+
+/**
+ * Sends one notification to every device a person turned notifications on for. A device whose push service says
+ * it's gone is forgotten; others that fail are retried with the next message. Never throws: a notification that
+ * doesn't arrive mustn't undo or block anything (the update is still in the app).
+ */
+export async function pushToUser(d: Deps, cfg: PushConfig, userId: string, msg: { title: string; body: string; url?: string; tag?: string }) {
+  try {
+    const subs = (await d.db.query("select id, endpoint, p256dh, auth from push_subscriptions where user_id = $1", [userId])).rows;
+    await Promise.all(subs.map(async (s: { id: string; endpoint: string; p256dh: string; auth: string }) => {
+      const r = await sendPush(cfg, s, msg).catch(() => "failed" as const);
+      if (r === "gone") await d.db.query("delete from push_subscriptions where id = $1", [s.id]);
+      else if (r === "sent") await d.db.query("update push_subscriptions set last_sent_at = now(), failures = 0 where id = $1", [s.id]);
+      else await d.db.query("update push_subscriptions set failures = failures + 1 where id = $1", [s.id]);
+    }));
+  } catch (e) {
+    console.error("push failed", e);
+  }
 }
