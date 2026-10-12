@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { world, person, verifiedSeller, liveListing, pay, payCrypto, settleAll, balances, stateOf, type TestWorld } from "./helpers";
 import {
-  requestDeal, sellerLimit, acceptDeal, releaseByCode, releaseCodeForBuyer, markDelivered, confirmReceived, cancelDeal, handlePartnerEvent, sendMessage, rate,
+  requestDeal, sellerLimit, acceptDeal, releaseByCode, releaseCodeForBuyer, markDelivered, confirmReceived, cancelDeal, handlePartnerEvent, sendMessage, rate, explainHold,
 } from "@noshen/engine/deals";
 import { reportProblem, decideDispute, resolveReviewHold, addEvidence } from "@noshen/engine/disputes";
 import { sweep } from "@noshen/engine/sweep";
@@ -643,5 +643,35 @@ describe("units: selling more than one of the same thing", () => {
     expect((await w.db.query("select status from listings where id = $1", [id])).rows[0].status).toBe("removed");
     expect(await browse(w.db, { q: "Units test perfume" })).toEqual([]);
     await expect(deleteSoldListings(w.d, { id: staffId, role: "reviewer" }, [id])).rejects.toThrow(/Only a sold listing/);
+  });
+});
+
+describe("a payment from someone else's account", () => {
+  it("is held; the buyer can say who paid, and the reviewer sees it", async () => {
+    const { buyer, dealId } = await heldDeal(250_000, "meetup", "ADEBAYO JOHNSON");
+    const deal = (await w.db.query("select review_hold, review_hold_reason from deals where id = $1", [dealId])).rows[0];
+    expect(deal.review_hold).toBe(true);
+    await expect(explainHold(w.d, buyer, dealId, "someone_i_know", "")).rejects.toThrow(/Say who paid/);
+    await explainHold(w.d, buyer, dealId, "someone_i_know", "My brother, Adebayo Johnson");
+    const after = (await w.db.query("select hold_payer, hold_note from deals where id = $1", [dealId])).rows[0];
+    expect(after).toEqual({ hold_payer: "someone_i_know", hold_note: "My brother, Adebayo Johnson" });
+    await explainHold(w.d, buyer, dealId, "unknown", ""); // they can change their answer
+    expect((await w.db.query("select hold_payer from deals where id = $1", [dealId])).rows[0].hold_payer).toBe("unknown");
+    await cancelDeal(w.d, buyer, dealId); // or back out: refunded to the account it came from
+    expect(await stateOf(w, dealId)).toBe("refunded");
+    await expect(explainHold(w.d, buyer, dealId, "unknown", "")).rejects.toThrow(/isn't being checked/);
+    await settleAll(w);
+  });
+
+  it("isn't held when the sender's name matches the buyer's ID-checked name", async () => {
+    const seller = await verifiedSeller(w, "Tunde Bakare");
+    const buyer = await person(w, "Rex John");
+    await w.db.query("insert into kyc_checks (user_id, type, provider, provider_ref, result, verified_name, checked_at) values ($1, 'nin', 'fake', 'x', 'verified', 'UGOCHUKWU REX JOHN', now())", [buyer]);
+    const listing = await liveListing(w, seller, 100_000);
+    const dealId = await requestDeal(w.d, buyer, { listingId: listing, handover: "meetup" });
+    await acceptDeal(w.d, seller, dealId);
+    const due = Number((await w.db.query("select amount_due_kobo from deals where id = $1", [dealId])).rows[0].amount_due_kobo);
+    await pay(w, dealId, due, "UGOCHUKWU REX JOHN");
+    expect((await w.db.query("select state, review_hold from deals where id = $1", [dealId])).rows[0]).toEqual({ state: "held", review_hold: false });
   });
 });

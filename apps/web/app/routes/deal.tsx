@@ -3,7 +3,7 @@ import { Form, Link, data, redirect, useFetcher, useNavigation, useRevalidator }
 import type { Route } from "./+types/deal";
 import { countryOf, requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "@noshen/engine/queries";
-import { acceptDeal, cancelDeal, confirmReceived, declineDeal, markDelivered, rate, sendMessage } from "@noshen/engine/deals";
+import { acceptDeal, cancelDeal, confirmReceived, declineDeal, explainHold, markDelivered, rate, sendMessage } from "@noshen/engine/deals";
 import { BottomAction, Button, CheckedForm, ErrorText, Icon, Info, Kv, MoneyStatus, TextArea, Timeline, TopBar, useEscape } from "@noshen/ui/ui";
 import { dealSteps, dealText } from "../lib/deal-text";
 import { naira } from "@noshen/shared/money";
@@ -37,6 +37,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const refundWaiting = role === "buyer" ? (await refundsWaitingForAddress(d, user.id, v.deal.id))[0] ?? null : null;
     return {
       me: user.id, role, paid, paidCrypto, country: countryOf(request), quotes, refundWaiting,
+      // For the buyer, while a payment is being checked: who it came from, and how much.
+      holdPayment: role === "buyer" && v.deal.review_hold && counted[0] ? { amount_kobo: counted[0].amount_kobo as string, sender_name: (counted[0].sender_name ?? null) as string | null } : null,
       deal: v.deal, listing: { id: v.listing.id, title: v.listing.title, category: v.listing.category, area: placeLabel(v.listing.area, v.listing.state), photo: v.listing.photo_keys?.[0] ?? null },
       names: { buyer: v.buyer.name, seller: v.seller.name }, otherName: role === "buyer" ? v.seller.name : v.buyer.name,
       events: v.events, messages: v.messages, dispute: v.dispute, evidence: v.evidence, ratings: v.ratings,
@@ -60,6 +62,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         case "received": return confirmReceived(d, user.id, params.id);
         case "message": return sendMessage(d, user.id, params.id, String(form.get("body") ?? ""));
         case "rate": return rate(d, user.id, params.id, Number(form.get("stars")), String(form.get("comment") ?? ""));
+        case "explain": return explainHold(d, user.id, params.id, String(form.get("payer") ?? ""), String(form.get("note") ?? ""));
         case "refund": return saveRefundAddress(d, user.id, params.id, String(form.get("coin")), String(form.get("network")), String(form.get("address") ?? ""));
       }
     });
@@ -133,6 +136,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
               <Info icon="shield-lock">Only {firstName(names.buyer)}'s phone shows the code. Nobody from NosHen will ever ask you for it.</Info>
             ) : null}
 
+            {deal.review_hold && role === "buyer" ? <HoldCard x={x} other={other} busy={busy} error={actionData?.intent === "explain" ? (actionData as any).error : undefined} onCancel={() => setCancelOpen(true)} /> : null}
             {isOpen(deal.state) ? <PushCard compact /> : null}
 
             {x.refundWaiting ? (
@@ -148,7 +152,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
 
             {(deal.state === "released" || deal.state === "paid_out") ? <RateBox x={x} other={other} busy={busy} error={actionData?.intent === "rate" ? actionData.error : undefined} /> : null}
 
-            <ErrorText>{actionData && actionData.intent !== "message" && actionData.intent !== "rate" && actionData.intent !== "refund" ? (actionData as any).error : null}</ErrorText>
+            <ErrorText>{actionData && !["message", "rate", "refund", "explain"].includes(actionData.intent) ? (actionData as any).error : null}</ErrorText>
             {actions.length ? <div className="desktop-only stack">{actions}</div> : null}
 
             <section className="card stack-4" aria-labelledby="steps">
@@ -184,7 +188,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
             <input type="hidden" name="intent" value="cancel" />
             <h2 id="cancel-title" className="heading">{deal.state === "requested" && role === "buyer" ? "Cancel this request?" : "Cancel this deal?"}</h2>
             <p className="body">{deal.state === "held"
-              ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee included, ${x.paidCrypto ? `as ${x.paidCrypto} to your own address, at the rate on the day` : "to the account you paid from"}.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
+              ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee included, ${deal.review_hold && !x.paidCrypto ? "to the account it came from" : x.paidCrypto ? `as ${x.paidCrypto} to your own address, at the rate on the day` : "to the account you paid from"}.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
               : "Nothing has been paid, so there's nothing to refund."}</p>
             <Button type="submit" variant="danger" size="lg" block disabled={busy}>{cancelling ? "Cancelling…" : deal.state === "requested" && role === "buyer" ? "Cancel request" : "Cancel deal"}</Button>
             <Button size="lg" block autoFocus disabled={cancelling} onClick={() => setCancelOpen(false)}>{deal.state === "requested" && role === "buyer" ? "Keep the request" : "Keep the deal"}</Button>
@@ -196,6 +200,64 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
 }
 
 type View = Route.ComponentProps["loaderData"];
+
+const PAYERS: [string, string, string, string][] = [
+  ["someone_i_know", "Someone I know paid for me", "Family or a friend. Say who: “my brother, Adebayo Johnson”.", "someone you know paid for you"],
+  ["my_other_account", "It's my own account, in another name", "A business account, or a name you used to have. Say whose.", "it's your own account, in another name"],
+  ["unknown", "I don't know who sent this", "We'll check, and send it back to where it came from if we can't confirm it.", "you don't know who sent it"],
+];
+
+/**
+ * A payment held for review, for the buyer: why, in plain words; who paid (their answer goes to the reviewer); and
+ * a way out (cancel, and the money goes back to the account it came from).
+ */
+function HoldCard({ x, other, busy, error, onCancel }: { x: View; other: string; busy: boolean; error?: string; onCancel: () => void }) {
+  const { deal } = x;
+  const pay = x.holdPayment;
+  const nameIssue = String(deal.review_hold_reason ?? "").startsWith("Payment name");
+  const [payer, setPayer] = useState<string>(deal.hold_payer ?? "");
+  const [editing, setEditing] = useState(!deal.hold_payer);
+  useEffect(() => { if (deal.hold_explained_at) setEditing(false); }, [deal.hold_explained_at]);
+  const answered = PAYERS.find(([k]) => k === deal.hold_payer);
+  return (
+    <section className="card stack-4 hold-card" aria-labelledby="hold-title">
+      <div className="stack">
+        <h2 id="hold-title" className="title">We're checking your payment</h2>
+        <p className="body">{nameIssue
+          ? <>Your {naira(pay?.amount_kobo ?? deal.amount_due_kobo)} arrived from an account named <strong>{pay?.sender_name ?? "someone else"}</strong>, not yours. NosHen checks payments like this, in case someone else's account was used without them knowing.</>
+          : <>We received {naira(pay?.amount_kobo ?? 0)}, but the deal is {naira(deal.amount_due_kobo)}. A reviewer will either let the deal go ahead or send the money back to where it came from.</>}</p>
+        <p className="caption muted">Don't meet {other} yet. A NosHen reviewer decides soon, and we'll tell you both.</p>
+      </div>
+      {nameIssue ? (answered && !editing ? (
+        <div className="stack">
+          <Info icon="circle-check"><strong>Thanks. The reviewer has your answer:</strong> {answered[3]}{deal.hold_note ? ` (“${deal.hold_note}”)` : ""}.</Info>
+          <div><Button size="sm" onClick={() => setEditing(true)}>Change my answer</Button></div>
+        </div>
+      ) : (
+        <Form method="post" className="stack">
+          <input type="hidden" name="intent" value="explain" />
+          <p className="label">Who paid?</p>
+          {PAYERS.map(([k, label, hint]) => (
+            <label key={k} className="choice">
+              <input type="radio" name="payer" value={k} checked={payer === k} onChange={() => setPayer(k)} required />
+              <span className="stack" style={{ gap: 0 }}><span className="body">{label}</span><span className="caption muted">{hint}</span></span>
+            </label>
+          ))}
+          {payer && payer !== "unknown" ? (
+            <TextArea label={payer === "someone_i_know" ? "Who paid?" : "Whose account is it?"} name="note" rows={2} maxLength={500} required defaultValue={deal.hold_note ?? ""}
+              placeholder={payer === "someone_i_know" ? "My brother, Adebayo Johnson" : "My business account, AJ Stores"} />
+          ) : <input type="hidden" name="note" value="" />}
+          <ErrorText>{error}</ErrorText>
+          <Button type="submit" variant="primary" block disabled={busy || !payer}>Send my answer</Button>
+        </Form>
+      )) : null}
+      <div className="stack" style={{ gap: 4 }}>
+        <div><Button size="sm" onClick={onCancel}>Cancel and get it back</Button></div>
+        <p className="caption muted">Ends the deal. The money goes back to the account it came from. You can pay again from your own account with a new request.</p>
+      </div>
+    </section>
+  );
+}
 
 function actionsFor(x: View, other: string, openCancel: () => void, canCancel: boolean, openPay: () => void) {
   const { deal, role } = x;

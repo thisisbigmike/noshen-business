@@ -210,7 +210,10 @@ async function onCollection(d: Deps, partnerEventId: string, event: Extract<Part
     const deal = await lockDeal(tx.db, found.id);
     const buyerName = await userName(tx.db, deal.buyer_id);
     const amountOk = event.data.amount_kobo === N(deal.amount_due_kobo);
-    const nameOk = namesMatch(event.data.sender_name, buyerName);
+    // The name on their profile, or the name their ID check found (often fuller: middle names, a surname first).
+    const idName = await one<{ verified_name: string | null }>(tx.db,
+      "select verified_name from kyc_checks where user_id = $1 and result = 'verified' order by checked_at desc limit 1", [deal.buyer_id]);
+    const nameOk = namesMatch(event.data.sender_name, buyerName) || (!!idName?.verified_name && namesMatch(event.data.sender_name, idName.verified_name));
     const pay = await one<{ id: string }>(tx.db,
       `insert into payments (deal_id, partner_event_id, amount_kobo, sender_name, sender_bank_code, sender_account_enc, matches_amount_due, matches_buyer_name, received_at)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
@@ -541,6 +544,26 @@ export async function refund(d: Deps, tx: Tx, deal: DealRow, why: "cancelled" | 
   if (p && paid > 0) await createTransfer(d, tx, deal.id, "refund", paid, { refundPaymentId: p.id });
   await notify(d, tx, deal.buyer_id, deal.id, "refund_due",
     refundWords(await refundTarget(tx, p?.id), paid, `${naira(paid)} is being refunded to the account you paid from.`));
+}
+
+export type HoldPayer = "someone_i_know" | "my_other_account" | "unknown";
+
+/**
+ * The buyer answers a review hold: who paid, if the money came from an account in another name. The reviewer sees
+ * it before deciding. They can answer again to change it, until the hold is resolved.
+ */
+export async function explainHold(d: Deps, buyerId: string, dealId: string, payer: string, note: string) {
+  if (!["someone_i_know", "my_other_account", "unknown"].includes(payer)) throw new DealError("payer", "Choose who paid.");
+  const text = note.trim().slice(0, 500);
+  if (payer !== "unknown" && text.length < 3) throw new DealError("note", payer === "someone_i_know" ? "Say who paid, like “my brother, Adebayo Johnson”." : "Say whose account it is, like “my business account, AJ Stores”.");
+  return inTx(d.db, { type: "buyer", id: buyerId }, async (tx) => {
+    const deal = await lockDeal(tx.db, dealId);
+    if (deal.buyer_id !== buyerId) throw new DealError("forbidden", "Only the buyer can answer this.", 403);
+    if (!deal.review_hold) throw new DealError("state", "This payment isn't being checked any more.");
+    await tx.db.query("update deals set hold_payer = $2, hold_note = $3, hold_explained_at = now() where id = $1", [dealId, payer, text || null]);
+    await tx.db.query("insert into deal_events (deal_id, type, actor, actor_id, payload) values ($1, 'hold_explained', 'buyer', $2, $3)",
+      [dealId, buyerId, JSON.stringify({ payer })]);
+  });
 }
 
 // ---------------------------------------------------------------------------

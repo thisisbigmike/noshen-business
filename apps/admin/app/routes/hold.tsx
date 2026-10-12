@@ -62,6 +62,15 @@ export default function Hold({ loaderData: v, actionData }: Route.ComponentProps
               )}
             </tbody>
           </table>
+          <div className={v.deal.hold_payer ? "card stack buyer-says" : "card stack"}>
+            <p className="label">What {buyer} says</p>
+            {v.deal.hold_payer ? (
+              <>
+                <p className="body"><strong>{v.deal.hold_payer === "someone_i_know" ? "Someone they know paid for them" : v.deal.hold_payer === "my_other_account" ? "It's their own account, in another name" : "They don't know who sent it"}</strong>{v.deal.hold_note ? `: “${v.deal.hold_note}”` : "."}</p>
+                <p className="caption muted">Answered {when(new Date(v.deal.hold_explained_at))}. {v.deal.hold_payer === "unknown" ? "Refunding sends it back to the account it came from." : "If it fits, clear the hold; if in doubt, refund it to the account it came from."}</p>
+              </>
+            ) : <p className="caption muted">No answer yet. {buyer} has been asked on their deal page who paid.</p>}
+          </div>
           <div className="card stack">
             <p className="label"><Link to={`/users/${v.deal.buyer_id}`} className="ink-link">{v.buyer.name}</Link>, buyer</p>
             <p className="caption muted">Joined {v.buyerSince ? ago(v.buyerSince) : "recently"} · {v.buyerCompleted} completed purchases · {v.buyer.idVerified ? "ID verified" : "ID not verified"}</p>

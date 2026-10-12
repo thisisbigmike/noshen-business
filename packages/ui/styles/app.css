@@ -573,3 +573,4 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 .qty-stepper input::-webkit-outer-spin-button, .qty-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .qty-stepper .icon-btn { font-size: 22px; font-weight: 600; background: var(--tint); }
 .qty-stepper .icon-btn:disabled { opacity: 0.4; cursor: default; }
+.hold-card { border-color: color-mix(in srgb, var(--held) 40%, var(--border)); background: linear-gradient(180deg, var(--held-soft), var(--surface) 55%); }
