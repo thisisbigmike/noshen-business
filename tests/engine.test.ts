@@ -9,7 +9,7 @@ import { DealError, settingsOf } from "@noshen/engine/core";
 import { feeFor, naira } from "@noshen/shared/money";
 import { saveDraft, publish } from "@noshen/engine/sellers";
 import { sizeLabel } from "@noshen/shared/sizes";
-import { moderateListing, setAccountStatus, setDealLimit, unlockReleaseCode, retryTransfer, checkDeadlinesNow, deleteSoldListings } from "@noshen/engine/staff";
+import { moderateListing, setAccountStatus, setDealLimit, unlockReleaseCode, retryTransfer, checkDeadlinesNow, deleteSoldListings, staffRefund, staffRelease, giveMoreTime, openDisputeForBuyer, staffCancel, noteToBoth } from "@noshen/engine/staff";
 import { adminOverview, browse, staffListings, staffUsers, statesWithListings, staffDeals, staffDeal, staffPerson, staffCounts, auditLog, listingView } from "@noshen/engine/queries";
 import { cryptoQuotes, prepareCryptoPayment, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
 import { FAKE_RATE_KOBO } from "@noshen/engine/partner/fake-crypto";
@@ -601,6 +601,74 @@ describe("staff site actions", () => {
     await expect(retryTransfer(w.d, reviewer(), first, "Try once more please")).rejects.toThrow(/already been sent again/);
     const v = await staffDeal(w.db, dealId);
     expect(v!.actions[0].action).toBe("retry_payout");
+  });
+
+  const told = async (userId: string, template: string) =>
+    (await w.db.query("select params->>'text' as t from notifications where user_id = $1 and template = $2 and channel = 'in_app' order by id desc", [userId, template])).rows[0]?.t as string | undefined;
+
+  it("refunds the buyer of a held deal in full, telling the seller why", async () => {
+    const { seller, buyer, dealId, due } = await heldDeal();
+    await expect(staffRefund(w.d, reviewer(), dealId, "no")).rejects.toThrow(/at least 5 characters/);
+    await staffRefund(w.d, reviewer(), dealId, "Seller says the phone was stolen");
+    await settleAll(w);
+    expect(await stateOf(w, dealId)).toBe("refunded");
+    const t = (await w.db.query("select amount_kobo, status from transfers where deal_id = $1 and kind = 'refund'", [dealId])).rows;
+    expect(t.map((r: any) => [Number(r.amount_kobo), r.status])).toEqual([[due, "succeeded"]]);
+    expect(await told(seller, "staff_refund")).toMatch(/phone was stolen/);
+    expect(await told(buyer, "refund_due")).toBeTruthy();
+    await expect(staffRefund(w.d, reviewer(), dealId, "Once more by mistake")).rejects.toThrow(/Only a deal whose money is held/);
+    expect((await auditLog(w.db, { target: dealId, action: "refund_buyer" })).rows).toHaveLength(1);
+  });
+
+  it("lets only an admin release outside a dispute, and never past a review hold", async () => {
+    const admin = { id: (await w.db.query("insert into staff (email, name, role) values ('ada-release@noshen.test', 'Ada', 'admin') returning id")).rows[0].id, role: "admin" as const };
+    const { buyer, dealId } = await heldDeal();
+    await expect(staffRelease(w.d, reviewer(), dealId, "Buyer phoned: has the item")).rejects.toThrow(/Only an admin/);
+    const flagged = await heldDeal(250_000, "meetup", "SOMEBODY ELSE");
+    await expect(staffRelease(w.d, admin, flagged.dealId, "Buyer phoned: has the item")).rejects.toThrow(/Clear the hold first/);
+    await staffRelease(w.d, admin, dealId, "Buyer phoned: has the item, app won't open");
+    await settleAll(w);
+    expect(await stateOf(w, dealId)).toBe("paid_out");
+    expect(await told(buyer, "staff_release")).toMatch(/app won't open/);
+    expect((await auditLog(w.db, { target: dealId, action: "release_to_seller" })).rows).toHaveLength(1);
+  });
+
+  it("gives more time: added to the deadline, or to now once it has passed", async () => {
+    const { buyer, seller, dealId } = await heldDeal();
+    const before = new Date((await w.db.query("select handover_due_at from deals where id = $1", [dealId])).rows[0].handover_due_at).getTime();
+    const due = await giveMoreTime(w.d, reviewer(), dealId, 1, "They agreed to meet on Saturday");
+    expect(due.getTime() - before).toBe(24 * 3_600_000);
+    await w.db.query("update deals set handover_due_at = now() - interval '5 hours' where id = $1", [dealId]);
+    const later = await giveMoreTime(w.d, reviewer(), dealId, 2, "Seller travelling, back Monday");
+    expect(Math.abs(later.getTime() - (Date.now() + 48 * 3_600_000))).toBeLessThan(60_000);
+    expect(await told(buyer, "more_time")).toMatch(/hand-over/);
+    expect(await told(seller, "more_time")).toMatch(/hand-over/);
+    await expect(giveMoreTime(w.d, reviewer(), dealId, 7, "A whole week please")).rejects.toThrow(/1, 2 or 3 days/);
+  });
+
+  it("opens a dispute for the buyer, freezing the money; the refund then waits for the decision", async () => {
+    const { buyer, dealId } = await heldDeal();
+    await openDisputeForBuyer(w.d, reviewer(), dealId, "not_working", "Buyer phoned: screen dead after one day");
+    expect(await stateOf(w, dealId)).toBe("disputed");
+    const x = (await w.db.query("select opened_by, reason, description from disputes where deal_id = $1", [dealId])).rows[0];
+    expect(x).toEqual({ opened_by: buyer, reason: "not_working", description: "Buyer phoned: screen dead after one day" });
+    expect(await told(buyer, "problem_reported")).toMatch(/NosHen opened a dispute for you/);
+    await expect(openDisputeForBuyer(w.d, reviewer(), dealId, "other", "Second report by phone")).rejects.toThrow(/already has a dispute/);
+    await expect(staffRefund(w.d, reviewer(), dealId, "Refund it straight away")).rejects.toThrow(/Decide it from the dispute/);
+  });
+
+  it("cancels a deal before payment, and sends both a note", async () => {
+    const seller = await verifiedSeller(w, "Kemi Lawal");
+    const buyer = await person(w, "Ibrahim Musa");
+    const dealId = await requestDeal(w.d, buyer, { listingId: await liveListing(w, seller, 90_000, "Cancel test fan"), handover: "meetup" });
+    await noteToBoth(w.d, reviewer(), dealId, "Please keep all payments inside NosHen.");
+    expect(await told(buyer, "staff_note")).toBe("Message from NosHen: Please keep all payments inside NosHen.");
+    expect(await told(seller, "staff_note")).toBe("Message from NosHen: Please keep all payments inside NosHen.");
+    await staffCancel(w.d, reviewer(), dealId, "Seller asked us to cancel: item damaged");
+    expect(await stateOf(w, dealId)).toBe("declined");
+    expect(await told(buyer, "staff_cancel")).toMatch(/item damaged/);
+    const held = await heldDeal();
+    await expect(staffCancel(w.d, reviewer(), held.dealId, "Cancel this one too")).rejects.toThrow(/refund the buyer instead/);
   });
 
   it("checks one deal's deadlines on request", async () => {

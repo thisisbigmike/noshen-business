@@ -451,11 +451,11 @@ function refundWords(to: CoinRefundTarget | null, amount: number, fallback: stri
 }
 
 // ---------------------------------------------------------------------------
-// Release: one path for the code, the buyer's confirmation, the delivery timer and a reviewer
+// Release: one path for the code, the buyer's confirmation, the delivery timer, a dispute decision and an admin
 // ---------------------------------------------------------------------------
 
 /** Call with the deal already locked. Moves the money to the seller and starts the payout. */
-export async function release(d: Deps, tx: Tx, deal: DealRow, by: "code" | "confirmed" | "timer" | "reviewer") {
+export async function release(d: Deps, tx: Tx, deal: DealRow, by: "code" | "confirmed" | "timer" | "reviewer" | "staff") {
   const allowed = by === "reviewer" ? deal.state === "disputed" : deal.state === "held";
   if (!allowed) throw new DealError("state", "This deal can't be released now.");
   if (deal.review_hold && by !== "reviewer") throw new DealError("review_hold", "NosHen is checking the payment for this deal. Don't hand over yet.");

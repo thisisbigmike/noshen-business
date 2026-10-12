@@ -1,8 +1,8 @@
-import { inTx, one } from "./db";
+import { inTx, one, type Tx } from "./db";
 import { naira } from "@noshen/shared/money";
 import { firstName, DISPUTE_REASONS, type DisputeReason } from "@noshen/shared/deal";
 import { when, addHours } from "@noshen/shared/time";
-import { type Deps, DealError, N, amountPaid, lockDeal, notify, nowOf, schedule, settingsOf, userName } from "./core";
+import { type DealRow, type Deps, DealError, N, amountPaid, lockDeal, notify, nowOf, schedule, settingsOf, userName } from "./core";
 import { refund, release } from "./deals";
 import { alertStaff } from "./staff-alerts";
 
@@ -11,32 +11,41 @@ import { disputeReasonLabel as reasonLabel } from "@noshen/shared/deal";
 /** The buyer reports a problem before release: the money freezes at once. */
 export async function reportProblem(d: Deps, buyerId: string, dealId: string, input: { reason: DisputeReason; description?: string; photoKeys?: string[] }) {
   return inTx(d.db, { type: "buyer", id: buyerId }, async (tx) => {
-    const s = await settingsOf(d);
-    const now = nowOf(d);
     const deal = await lockDeal(tx.db, dealId);
     if (deal.buyer_id !== buyerId) throw new DealError("forbidden", "Only the buyer can report a problem.", 403);
-    if (deal.state !== "held") throw new DealError("state", "You can report a problem while the money is held.");
-    if (!DISPUTE_REASONS.some(([k]) => k === input.reason)) throw new DealError("reason", "Pick what's wrong.");
-    const evidenceDue = addHours(now, s.evidence_window_hours);
-    const decisionDue = addHours(now, s.dispute_decision_hours);
-    await tx.db.query("update deals set state = 'disputed' where id = $1", [dealId]);
-    const disp = await one<{ id: string }>(tx.db,
-      `insert into disputes (deal_id, opened_by, reason, description, evidence_due_at, decision_due_at) values ($1, $2, $3, $4, $5, $6) returning id`,
-      [dealId, buyerId, input.reason, input.description?.trim().slice(0, 2000) || null, evidenceDue, decisionDue]);
-    for (const key of input.photoKeys ?? []) {
-      await tx.db.query("insert into evidence (dispute_id, uploader_id, file_key) values ($1, $2, $3)", [disp!.id, buyerId, key]);
-    }
-    const buyer = firstName(await userName(tx.db, buyerId));
-    await notify(d, tx, buyerId, dealId, "problem_reported",
-      `Report received. The money stays held. Add photos or notes by ${when(evidenceDue, now)}. A reviewer decides by ${when(decisionDue, now)}.`);
-    await notify(d, tx, deal.seller_id, dealId, "problem_reported",
-      `${buyer} reported a problem: ${reasonLabel(input.reason)}. Add photos or notes by ${when(evidenceDue, now)}. A reviewer decides by ${when(decisionDue, now)}.`);
-    schedule(d, tx, "evidence_close", dealId, evidenceDue);
-    const item = await one<{ title: string }>(tx.db, "select title from listings where id = $1", [deal.listing_id]);
-    await alertStaff(d, tx, "dispute", `New dispute: ${item?.title ?? "a deal"}`,
-      `${reasonLabel(input.reason)}. ${naira(await amountPaid(tx.db, dealId))} frozen. Decide by ${when(decisionDue, now)}.`, `/disputes/${disp!.id}`);
-    return disp!.id;
+    return openDispute(d, tx, deal, input);
   });
+}
+
+/**
+ * Freezes a held deal's money and opens its dispute, for the buyer. Call with the deal locked. `byStaff` when
+ * NosHen opens it because the buyer asked support (for example by phone): the buyer is told NosHen opened it.
+ */
+export async function openDispute(d: Deps, tx: Tx, deal: DealRow, input: { reason: DisputeReason; description?: string; photoKeys?: string[] }, byStaff = false) {
+  const s = await settingsOf(d);
+  const now = nowOf(d);
+  if (deal.state !== "held") throw new DealError("state", "You can report a problem while the money is held.");
+  if (!DISPUTE_REASONS.some(([k]) => k === input.reason)) throw new DealError("reason", "Pick what's wrong.");
+  const evidenceDue = addHours(now, s.evidence_window_hours);
+  const decisionDue = addHours(now, s.dispute_decision_hours);
+  await tx.db.query("update deals set state = 'disputed' where id = $1", [deal.id]);
+  const disp = await one<{ id: string }>(tx.db,
+    `insert into disputes (deal_id, opened_by, reason, description, evidence_due_at, decision_due_at) values ($1, $2, $3, $4, $5, $6) returning id`,
+    [deal.id, deal.buyer_id, input.reason, input.description?.trim().slice(0, 2000) || null, evidenceDue, decisionDue]);
+  for (const key of input.photoKeys ?? []) {
+    await tx.db.query("insert into evidence (dispute_id, uploader_id, file_key) values ($1, $2, $3)", [disp!.id, deal.buyer_id, key]);
+  }
+  const buyer = firstName(await userName(tx.db, deal.buyer_id));
+  await notify(d, tx, deal.buyer_id, deal.id, "problem_reported", byStaff
+    ? `NosHen opened a dispute for you: ${reasonLabel(input.reason)}. The money stays held. Add photos or notes by ${when(evidenceDue, now)}. A reviewer decides by ${when(decisionDue, now)}.`
+    : `Report received. The money stays held. Add photos or notes by ${when(evidenceDue, now)}. A reviewer decides by ${when(decisionDue, now)}.`);
+  await notify(d, tx, deal.seller_id, deal.id, "problem_reported",
+    `${buyer} reported a problem: ${reasonLabel(input.reason)}. Add photos or notes by ${when(evidenceDue, now)}. A reviewer decides by ${when(decisionDue, now)}.`);
+  schedule(d, tx, "evidence_close", deal.id, evidenceDue);
+  const item = await one<{ title: string }>(tx.db, "select title from listings where id = $1", [deal.listing_id]);
+  await alertStaff(d, tx, "dispute", `New dispute: ${item?.title ?? "a deal"}`,
+    `${reasonLabel(input.reason)}. ${naira(await amountPaid(tx.db, deal.id))} frozen. Decide by ${when(decisionDue, now)}.`, `/disputes/${disp!.id}`);
+  return disp!.id;
 }
 
 export async function addEvidence(d: Deps, userId: string, dealId: string, input: { note?: string; fileKey?: string }) {

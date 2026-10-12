@@ -9,8 +9,10 @@ export type ActionResult = { ok: true; intent: string; message: string } | { ok:
  * (intent, any hidden fields, reason), shows a refusal where it happened, and closes once done. The page's data
  * reloads by itself after the post, so what changed shows straight away.
  */
-export function ReasonAction({ intent, label, help, danger, hidden, children, confirmLabel }: {
+export function ReasonAction({ intent, label, help, danger, hidden, children, confirmLabel, reasonLabel, reasonHint }: {
   intent: string; label: string; help: string; danger?: boolean; hidden?: Record<string, string>; children?: ReactNode; confirmLabel?: string;
+  /** For when the text is more than a reason, for example a note both people will read. */
+  reasonLabel?: string; reasonHint?: string;
 }) {
   const fetcher = useFetcher<ActionResult>();
   const [open, setOpen] = useState(false);
@@ -32,7 +34,7 @@ export function ReasonAction({ intent, label, help, danger, hidden, children, co
       <p className="label">{label}</p>
       <p className="caption muted">{help}</p>
       {children}
-      <TextArea label="Reason" name="reason" required minLength={5} hint="Kept in the audit log with your name." autoFocus />
+      <TextArea label={reasonLabel ?? "Reason"} name="reason" required minLength={5} hint={reasonHint ?? "Kept in the audit log with your name."} autoFocus />
       <ErrorText>{mine && !mine.ok ? mine.error : null}</ErrorText>
       <div className="row wrap">
         <Button type="submit" variant={danger ? "danger" : "primary"} disabled={busy}>{busy ? "Saving…" : confirmLabel ?? "Confirm"}</Button>

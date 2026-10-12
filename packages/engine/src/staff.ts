@@ -1,8 +1,11 @@
 import { inTx, one, type Tx } from "./db";
-import { type Deps, DealError, N, lockDeal, notify } from "./core";
-import { retryFailedTransfer } from "./deals";
+import { type Deps, DealError, N, amountPaid, lockDeal, notify, nowOf, schedule } from "./core";
+import { refund, release, retryFailedTransfer } from "./deals";
+import { openDispute } from "./disputes";
 import { sweep } from "./sweep";
 import { naira } from "@noshen/shared/money";
+import { DISPUTE_REASONS, type DisputeReason } from "@noshen/shared/deal";
+import { addHours, when } from "@noshen/shared/time";
 
 /**
  * A reviewer takes a listing down (for example, a prohibited item) or approves one that was held for checks.
@@ -126,5 +129,124 @@ export async function deleteSoldListings(d: Deps, staff: StaffActor, listingIds:
     if (!rows.length) throw new DealError("state", listingIds === "all" ? "There are no sold listings to delete." : "Only a sold listing can be deleted.");
     for (const r of rows as { id: string }[]) await logAction(tx, staff.id, "delete_sold_listing", "listing", r.id, why);
     return rows.length;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Working on one deal, usually because someone asked support: refund, release, more time, a dispute opened for
+// the buyer, cancelling before payment, and a note to both people. Each needs a reason and goes in the audit log.
+// ---------------------------------------------------------------------------
+
+/** What a held deal needs before staff can move its money: no dispute (that's decided on its own page). */
+function heldOnly(state: string) {
+  if (state === "disputed") throw new DealError("state", "This deal has a dispute open. Decide it from the dispute.");
+  if (state !== "held") throw new DealError("state", "Only a deal whose money is held can be refunded or released.");
+}
+
+/**
+ * Refunds the buyer in full and closes the deal (for example, the seller can't deliver, or both agreed to stop).
+ * The money goes back to where it came from, so any reviewer can do it. Both people see the reason.
+ */
+export async function staffRefund(d: Deps, staff: StaffActor, dealId: string, reason: string) {
+  const why = reasonOf(reason);
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    const deal = await lockDeal(tx.db, dealId);
+    heldOnly(deal.state);
+    const paid = await amountPaid(tx.db, dealId);
+    await refund(d, tx, deal, "reviewer");
+    await notify(d, tx, deal.seller_id, dealId, "staff_refund", `NosHen refunded the buyer and closed this deal. Reason: ${why}`);
+    await logAction(tx, staff.id, "refund_buyer", "deal", dealId, why, { amount_kobo: paid });
+  });
+}
+
+/**
+ * Releases the money to the seller without the code or the buyer's confirmation: for example, the buyer told
+ * support they have the item but can't confirm in the app. Money leaving to a seller is the riskiest move staff
+ * can make, so only an admin can, and never past a review hold. Both people see the reason.
+ */
+export async function staffRelease(d: Deps, staff: StaffActor, dealId: string, reason: string) {
+  const why = reasonOf(reason);
+  if (staff.role !== "admin") throw new DealError("forbidden", "Only an admin can release money outside a dispute.", 403);
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    const deal = await lockDeal(tx.db, dealId);
+    heldOnly(deal.state);
+    if (deal.review_hold) throw new DealError("review_hold", "The payment is held for review. Clear the hold first.");
+    await release(d, tx, deal, "staff");
+    await notify(d, tx, deal.buyer_id, dealId, "staff_release", `NosHen released the money to the seller. Reason: ${why}`);
+    await logAction(tx, staff.id, "release_to_seller", "deal", dealId, why, { amount_kobo: N(deal.seller_share_kobo) });
+  });
+}
+
+/** Which deadline a deal is waiting on, and the timer that acts on it. */
+function deadlineOf(deal: { state: string; delivered_at: Date | null }) {
+  if (deal.state === "accepted") return { field: "payment_due_at", timer: "payment_expiry", what: "to pay" } as const;
+  if (deal.state === "held" && deal.delivered_at) return { field: "release_due_at", timer: "delivery_release", what: "for the buyer to check the item" } as const;
+  if (deal.state === "held") return { field: "handover_due_at", timer: "handover_due", what: "for the hand-over" } as const;
+  return null;
+}
+
+/**
+ * Moves the deadline the deal is waiting on (paying, the hand-over, or the buyer checking a delivery) by 1 to 3
+ * days, counted from the deadline or from now if it has passed. Both people are told the new time.
+ */
+export async function giveMoreTime(d: Deps, staff: StaffActor, dealId: string, days: number, reason: string) {
+  const why = reasonOf(reason);
+  if (![1, 2, 3].includes(days)) throw new DealError("days", "Choose 1, 2 or 3 days.");
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    const deal = await lockDeal(tx.db, dealId);
+    const dl = deadlineOf(deal);
+    if (!dl) throw new DealError("state", "This deal isn't waiting on a deadline.");
+    const now = nowOf(d);
+    const from = deal[dl.field];
+    const due = addHours(from && from > now ? from : now, days * 24);
+    await tx.db.query(`update deals set ${dl.field} = $2 where id = $1`, [dealId, due]);
+    schedule(d, tx, dl.timer, dealId, due);
+    const text = `NosHen gave more time ${dl.what}: the new deadline is ${when(due, now)}.`;
+    await notify(d, tx, deal.buyer_id, dealId, "more_time", text);
+    await notify(d, tx, deal.seller_id, dealId, "more_time", text);
+    await logAction(tx, staff.id, "give_more_time", "deal", dealId, why, { field: dl.field, from, to: due });
+    return due;
+  });
+}
+
+/** Opens a dispute for the buyer when they asked support (for example by phone): the money freezes at once. */
+export async function openDisputeForBuyer(d: Deps, staff: StaffActor, dealId: string, problem: string, reason: string) {
+  const why = reasonOf(reason);
+  if (!DISPUTE_REASONS.some(([k]) => k === problem)) throw new DealError("problem", "Pick what's wrong.");
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    const deal = await lockDeal(tx.db, dealId);
+    if (deal.state === "disputed") throw new DealError("state", "This deal already has a dispute open.");
+    if (deal.state !== "held") throw new DealError("state", "A dispute can be opened only while the money is held.");
+    const id = await openDispute(d, tx, deal, { reason: problem as DisputeReason, description: why }, true);
+    await logAction(tx, staff.id, "open_dispute", "deal", dealId, why, { dispute: id, problem });
+    return id;
+  });
+}
+
+/** Cancels a deal before any money is held (a request not yet answered, or one waiting for payment). */
+export async function staffCancel(d: Deps, staff: StaffActor, dealId: string, reason: string) {
+  const why = reasonOf(reason);
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    const deal = await lockDeal(tx.db, dealId);
+    if (deal.state !== "requested" && deal.state !== "accepted") {
+      throw new DealError("state", deal.state === "held" ? "The money is held: refund the buyer instead." : "This deal can't be cancelled now.");
+    }
+    await tx.db.query("update deals set state = 'declined' where id = $1", [dealId]);
+    const text = `NosHen cancelled this deal before any payment. Reason: ${why}`;
+    await notify(d, tx, deal.buyer_id, dealId, "staff_cancel", deal.state === "accepted" ? `${text} If you already sent money, it will be returned.` : text);
+    await notify(d, tx, deal.seller_id, dealId, "staff_cancel", text);
+    await logAction(tx, staff.id, "cancel_deal", "deal", dealId, why, { from: deal.state });
+  });
+}
+
+/** A note from NosHen to both people in a deal (in their alerts and on their phones). The note is the reason logged. */
+export async function noteToBoth(d: Deps, staff: StaffActor, dealId: string, note: string) {
+  const text = note.trim();
+  if (text.length < 5) throw new DealError("note", "Write a note of at least 5 characters.");
+  if (text.length > 500) throw new DealError("note", "Keep the note under 500 characters.");
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    const deal = await lockDeal(tx.db, dealId);
+    for (const u of [deal.buyer_id, deal.seller_id]) await notify(d, tx, u, dealId, "staff_note", `Message from NosHen: ${text}`);
+    await logAction(tx, staff.id, "note_to_both", "deal", dealId, text);
   });
 }

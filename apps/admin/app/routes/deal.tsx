@@ -2,10 +2,10 @@ import { Link, data } from "react-router";
 import type { Route } from "./+types/deal";
 import { messageOf, requireStaff, withApp } from "../../server/web";
 import { staffDeal } from "@noshen/engine/queries";
-import { checkDeadlinesNow, retryTransfer, unlockReleaseCode } from "@noshen/engine/staff";
-import { Icon, Info, Kv } from "@noshen/ui/ui";
+import { checkDeadlinesNow, giveMoreTime, noteToBoth, openDisputeForBuyer, retryTransfer, staffCancel, staffRefund, staffRelease, unlockReleaseCode } from "@noshen/engine/staff";
+import { Icon, Info, Kv, Select } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
-import { disputeReasonLabel, firstName } from "@noshen/shared/deal";
+import { DISPUTE_REASONS, disputeReasonLabel, firstName } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
@@ -16,12 +16,12 @@ import { ReasonAction, type ActionResult } from "../lib/reason-action";
 export const meta: Route.MetaFunction = ({ loaderData: v }) => [{ title: `${v ? v.listing.title : "Deal"} · NosHen staff` }];
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  await requireStaff(request);
+  const staff = await requireStaff(request);
   const v = await withApp((d) => staffDeal(d.db, params.id));
   if (!v) throw data("Not found", { status: 404 });
   const stuck = (v.deal.state === "held" && v.deal.handover_due_at && new Date(v.deal.handover_due_at).getTime() < Date.now() - 3_600_000)
     || (v.deal.state === "released" && new Date(v.deal.state_changed_at).getTime() < Date.now() - 3_600_000);
-  return { ...v, stuck };
+  return { ...v, stuck, isAdmin: staff.role === "admin" };
 }
 
 export async function action({ request, params }: Route.ActionArgs): Promise<ActionResult> {
@@ -37,6 +37,30 @@ export async function action({ request, params }: Route.ActionArgs): Promise<Act
     if (intent === "retry") {
       await withApp((d) => retryTransfer(d, staff, String(f.get("transfer")), reason));
       return { ok: true, intent, message: "Sent again. Its status below updates when the bank answers." };
+    }
+    if (intent === "refund") {
+      await withApp((d) => staffRefund(d, staff, params.id, reason));
+      return { ok: true, intent, message: "Refunded. The money is on its way back to the buyer, and both have been told." };
+    }
+    if (intent === "release") {
+      await withApp((d) => staffRelease(d, staff, params.id, reason));
+      return { ok: true, intent, message: "Released. The seller's payout has started, and both have been told." };
+    }
+    if (intent === "time") {
+      const due = await withApp((d) => giveMoreTime(d, staff, params.id, Number(f.get("days")), reason));
+      return { ok: true, intent, message: `New deadline: ${when(due)}. Both have been told.` };
+    }
+    if (intent === "dispute") {
+      await withApp((d) => openDisputeForBuyer(d, staff, params.id, String(f.get("problem")), reason));
+      return { ok: true, intent, message: "Dispute opened. The money is frozen, and both can add photos and notes." };
+    }
+    if (intent === "cancel") {
+      await withApp((d) => staffCancel(d, staff, params.id, reason));
+      return { ok: true, intent, message: "Cancelled. Both have been told." };
+    }
+    if (intent === "note") {
+      await withApp((d) => noteToBoth(d, staff, params.id, reason));
+      return { ok: true, intent, message: "Sent. It's in both people's alerts." };
     }
     if (intent === "check") {
       const done = await withApp((d) => checkDeadlinesNow(d, staff, params.id));
@@ -60,6 +84,12 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
   const locked = code?.locked_until && new Date(code.locked_until) > new Date();
   const failed = v.transfers.filter((t: any) => t.status === "failed");
   const flagged = v.messages.filter((m: any) => m.flagged).length;
+  const held = v.payments.filter((p: any) => !p.sent_back).reduce((n: number, p: any) => n + Number(p.amount_kobo), 0);
+  const open = ["requested", "accepted", "held", "disputed"].includes(deal.state);
+  const deadline: [string, string | null] | null = deal.state === "requested" ? ["Seller answers by", deal.request_expires_at]
+    : deal.state === "accepted" ? ["Buyer pays by", deal.payment_due_at]
+    : deal.state === "held" && deal.delivered_at ? ["Buyer checks the delivery by", deal.release_due_at]
+    : deal.state === "held" ? ["Hand-over by", deal.handover_due_at] : null;
 
   return (
     <>
@@ -184,6 +214,53 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
                 <ReasonAction intent="check" label="Check its deadlines now"
                   help="This deal is past a deadline. Checking acts on it straight away (for example, telling the buyer they can cancel) instead of waiting for the next 15-minute check." confirmLabel="Check now" />
               ) : null}
+            </section>
+          ) : null}
+
+          {open ? (
+            <section className="panel" aria-labelledby="work-title">
+              <h2 id="work-title" className="title">Work on this deal</h2>
+              {deadline?.[1] ? <Kv k={deadline[0]} v={when(new Date(deadline[1]))} /> : null}
+              {deal.state === "disputed" && dispute ? (
+                <p className="caption muted">The money is frozen by a dispute. <Link to={`/disputes/${dispute.id}`}>Decide it from the dispute</Link>.</p>
+              ) : null}
+              {deal.state === "held" && deal.review_hold ? (
+                <p className="caption muted">The payment is held for review. <Link to={`/holds/${deal.id}`}>Clear the hold or send the money back</Link> before it can be released.</p>
+              ) : null}
+              {deal.state === "accepted" || deal.state === "held" ? (
+                <ReasonAction intent="time" confirmLabel="Give more time"
+                  label={deal.state === "accepted" ? "Give more time to pay" : deal.delivered_at ? "Give the buyer more time to check" : "Give more time for the hand-over"}
+                  help="Added to the current deadline, or to now if it has passed. Both people are told the new time.">
+                  <Select name="days" label="How much more" defaultValue="1" options={[{ value: "1", label: "1 day" }, { value: "2", label: "2 days" }, { value: "3", label: "3 days" }]} />
+                </ReasonAction>
+              ) : null}
+              {deal.state === "held" ? (
+                <ReasonAction intent="dispute" confirmLabel="Open the dispute" label="Open a dispute for the buyer"
+                  help="When the buyer reports a problem to support, for example by phone. The money freezes at once, both people can add photos and notes, then a reviewer decides."
+                  reasonLabel="What the buyer told you" reasonHint="Saved as the buyer's description of the problem, and in the audit log.">
+                  <Select name="problem" label="What's wrong" options={DISPUTE_REASONS.map(([value, label]) => ({ value, label }))} />
+                </ReasonAction>
+              ) : null}
+              {deal.state === "held" ? (
+                <ReasonAction intent="refund" danger confirmLabel={`Refund ${naira(held)}`} label="Refund the buyer"
+                  help={`Sends ${naira(held)} back to where it came from and closes the deal. For when the seller can't hand over, or both agree to stop.`}
+                  reasonHint="Both people see this. It's kept in the audit log with your name." />
+              ) : null}
+              {deal.state === "held" && !deal.review_hold ? (v.isAdmin ? (
+                <ReasonAction intent="release" danger confirmLabel={`Release ${naira(deal.seller_share_kobo)}`} label="Release to the seller"
+                  help="For when the buyer has told NosHen they have the item but can't confirm in the app. The payout starts at once and can't be undone."
+                  reasonHint="Both people see this. It's kept in the audit log with your name." />
+              ) : (
+                <p className="caption muted">Releasing to the seller outside a dispute needs an admin.</p>
+              )) : null}
+              {deal.state === "requested" || deal.state === "accepted" ? (
+                <ReasonAction intent="cancel" danger confirmLabel="Cancel the deal" label="Cancel the deal"
+                  help="Nothing is held yet. The deal ends and both people are told. Money that arrives later goes back to whoever sent it."
+                  reasonHint="Both people see this. It's kept in the audit log with your name." />
+              ) : null}
+              <ReasonAction intent="note" confirmLabel="Send" label="Send both a note"
+                help="Goes to the buyer and seller as a message from NosHen, in their alerts and on their phones."
+                reasonLabel="Note" reasonHint="Both people see this exactly as written." />
             </section>
           ) : null}
 
