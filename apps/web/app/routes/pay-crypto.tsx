@@ -131,7 +131,10 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
           </section>
         ) : (
           <>
+            {/* Read before sending: these come first, above the address. */}
             {x.test ? <Info icon="alert-triangle" tone="warn"><strong>Test mode: don't send real {c}.</strong> This address is pretend, so wallets won't accept it. Use the test buttons below instead.</Info> : null}
+            <Info icon="alert-triangle" tone="warn"><strong>Send only {c} on {n.name}.</strong> Another coin, or {c} on another network, can't be recovered.</Info>
+            <Info icon="coin">Make sure exactly {coinAmount(p!.micro, x.coin)} arrives. If your exchange takes its fee out of what you send, add the fee on top.</Info>
             <section className="card stack-4" aria-label="Where to send">
               <div className="stack">
                 <span className="label muted">Send to this address</span>
@@ -148,8 +151,6 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
                 <Kv k="This amount holds for" v={<span className="tabular" aria-live="off">{mmss(left)}</span>} />
               </div>
             </section>
-            <Info icon="alert-triangle" tone="warn"><strong>Send only {c} on {n.name}.</strong> Another coin, or {c} on another network, can't be recovered.</Info>
-            <Info icon="coin">Make sure exactly {coinAmount(p!.micro, x.coin)} arrives. If your exchange takes its fee out of what you send, add the fee on top.</Info>
             <section className="card stack" aria-labelledby="refunds">
               <h2 id="refunds" className="title">Refunds</h2>
               {addingRefund ? (

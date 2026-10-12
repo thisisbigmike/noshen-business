@@ -1,7 +1,10 @@
 # Coin and network logos
 
-`usdt.svg`, `usdc.svg`, `solana.svg`, `bsc.svg` and `ethereum.svg` come unchanged (apart from removing a class
-name) from [web3icons](https://web3icons.io) (`@web3icons/core` 4.0.58, "background" style). `base.svg` is its
+`usdt.svg`, `usdc.svg`, `bsc.svg` and `ethereum.svg` come unchanged (apart from removing a class name) from
+[web3icons](https://web3icons.io) (`@web3icons/core` 4.0.58, "background" style).
+
+`solana.svg` is Solana's logomark as traced by [Simple Icons](https://simpleicons.org) (`simple-icons` 16.35.0,
+CC0), in the gradient from Solana's own logo files (purple #9945FF to green #19FB9B), on black, as Solana shows it. `base.svg` is its
 "branded" style, Base's blue square, with the view box cropped so the square fills the tile. MIT licence,
 Copyright (c) 0xa3k5.
 
