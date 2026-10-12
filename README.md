@@ -45,7 +45,7 @@ deployed and secured separately:
 - Delivery deals: mark delivered → buyer confirms, or the money releases 24 hours later.
 - Problems: report with photos → money frozen → evidence → a staff reviewer decides → refund or release, with the reason sent to both.
 - Selling: photos (stored in R2) → details → the ID and bank checks if not done yet → live listing → share screen with a WhatsApp preview.
-- Staff site: dashboard (money held, sales, fees, 14-day chart, queues), listings (remove or approve with a reason the seller is told), people, dispute review and decision, review holds, money check, audit log.
+- Staff site: dashboard (money held, sales, fees, 14-day chart; every tile opens its queue), disputes and review holds (lists and decisions), deals (every deal with filters for what needs attention; one deal's people, money in and out, history, chat and staff actions, with unlock release code, send a failed payout or refund again, and check deadlines now), listings (remove or approve with a reason the seller is told), people (one person's checks, deals and listings; freeze, ban, unfreeze and deal limits), money check, and an audit log you can filter. Counts and pages refresh every 15 seconds.
 - Every deal deadline is a Cloudflare Workflow; a 15-minute sweep catches any that didn't fire.
 - Checks: `pnpm test` (engine and Access tests), `pnpm db:test` (schema checks), `pnpm db:roles` (checks each site's database login), `pnpm typecheck`.
 
@@ -53,7 +53,7 @@ deployed and secured separately:
 
 - Real providers: the payment partner, the crypto partner for USDT and USDC, NIN/BVN checks and email sending are development stand-ins until they're chosen (see `packages/engine/src/partner/`, `idcheck.ts`, `email.ts`). The pretend crypto partner's addresses are deliberately invalid (`0xTEST…`, `TEST0…`) so no wallet can send real USDT to the demo, and its rates are fixed (₦1,500 per USDT, ₦1,498 per USDC). A site with a real bank partner offers bank transfer only until a crypto partner is added in `cryptoFor()` (`packages/engine/src/context.ts`), and the lawyer has confirmed stablecoin payments are allowed. Phone numbers and SMS updates are planned for later.
 - Cloudflare Queues for webhooks and SMS retries (they're processed straight away for now), PostHog analytics, image resizing, and a generated 1200×630 link-preview image (the first photo is used).
-- The staff site's page for one person (freeze, limits, blocklist), and seller tools like editing a live listing.
+- The blocklist (phone, bank account, device, IMEI) and seller tools like editing a live listing.
 - Deployment: see below.
 
 ## Run it locally

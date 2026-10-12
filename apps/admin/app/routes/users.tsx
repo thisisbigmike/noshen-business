@@ -1,4 +1,4 @@
-import { Form } from "react-router";
+import { Form, Link } from "react-router";
 import type { Route } from "./+types/users";
 import { requireStaff, withApp } from "../../server/web";
 import { staffUsers } from "@noshen/engine/queries";
@@ -42,12 +42,12 @@ export default function Users({ loaderData: { q, rows } }: Route.ComponentProps)
         ) : (
           <div className="table-scroll" tabIndex={0} role="region" aria-label="People (scrolls sideways)">
             <table className="table">
-              <thead><tr><th>Person</th><th>Joined</th><th>Checks</th><th>Deal limit</th><th>Listings</th><th>Bought</th><th>Sold</th><th>Status</th></tr></thead>
+              <thead><tr><th>Person</th><th>Joined</th><th>Checks</th><th>Deal limit</th><th>Listings</th><th>Bought</th><th>Sold</th><th>Status</th><th className="cell-action"><span className="sr-only">Open</span></th></tr></thead>
               <tbody>{rows.map((u: any) => {
                 const st = STATUS[u.status] ?? { label: u.status, tone: "muted" };
                 return (
                   <tr key={u.id}>
-                    <td><div className="cell-listing"><Avatar name={u.full_name ?? u.email ?? "?"} /><div style={{ minWidth: 0 }}><p className="body">{u.full_name ?? "No name yet"}</p><p className="caption muted">{u.email ?? "No email"}</p></div></div></td>
+                    <td><div className="cell-listing"><Avatar name={u.full_name ?? u.email ?? "?"} /><div style={{ minWidth: 0 }}><Link to={`/users/${u.id}`} className="body ink-link" prefetch="intent">{u.full_name ?? "No name yet"}</Link><p className="caption muted">{u.email ?? "No email"}</p></div></div></td>
                     <td className="caption" style={{ whiteSpace: "nowrap" }}>{ago(u.created_at)}</td>
                     <td>
                       <div className="checks">
@@ -60,6 +60,7 @@ export default function Users({ loaderData: { q, rows } }: Route.ComponentProps)
                     <td className="tabular">{u.bought}</td>
                     <td className="tabular">{u.sold}</td>
                     <td><span className={`st-pill ${st.tone}`}>{st.label}</span></td>
+                    <td className="cell-action"><Link to={`/users/${u.id}`} className="nh-btn nh-btn-secondary nh-btn-sm">Open</Link></td>
                   </tr>
                 );
               })}</tbody>

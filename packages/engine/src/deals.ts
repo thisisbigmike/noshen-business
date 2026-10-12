@@ -37,8 +37,9 @@ export async function requestDeal(d: Deps, buyerId: string, input: { listingId: 
   return inTx(d.db, { type: "buyer", id: buyerId }, async (tx) => {
     const s = await settingsOf(d);
     const now = nowOf(d);
-    const listing = await one(tx.db, "select * from listings where id = $1", [input.listingId]);
+    const listing = await one(tx.db, "select l.*, u.status as seller_status from listings l join users u on u.id = l.seller_id where l.id = $1", [input.listingId]);
     if (!listing || listing.status !== "live") throw new DealError("not_available", "This listing isn't available any more.");
+    if (listing.seller_status !== "active") throw new DealError("not_available", "This listing isn't available right now.");
     if (listing.seller_id === buyerId) throw new DealError("own_listing", "This is your own listing.");
     const price = N(listing.price_kobo);
     if (price < s.deal_min_kobo || (s.deal_max_kobo !== null && price > s.deal_max_kobo))
@@ -318,11 +319,11 @@ async function onTransferResult(d: Deps, event: Extract<PartnerEvent, { type: "t
 
 /** Records a transfer with its idempotency key, and asks the partner to send it after commit. */
 async function createTransfer(d: Deps, tx: Tx, dealId: string, kind: "payout" | "refund", amount: number,
-  to: { bankAccountId?: string; refundPaymentId?: string; sendBack?: boolean }) {
+  to: { bankAccountId?: string | null; refundPaymentId?: string | null; sendBack?: boolean }, key?: string) {
   const t = await one<{ id: string; idempotency_key: string }>(tx.db,
     `insert into transfers (deal_id, kind, amount_kobo, bank_account_id, refund_payment_id, idempotency_key)
      values ($1, $2, $3, $4, $5, $6) returning id, idempotency_key`,
-    [dealId, kind, amount, to.bankAccountId ?? null, to.refundPaymentId ?? null, to.sendBack ? `${to.refundPaymentId}:send-back` : `${dealId}:${kind}`]);
+    [dealId, kind, amount, to.bankAccountId ?? null, to.refundPaymentId ?? null, key ?? (to.sendBack ? `${to.refundPaymentId}:send-back` : `${dealId}:${kind}`)]);
   let destination: { bankCode: string; accountNumber: string; accountName: string };
   const coinTo = await refundTarget(tx, to.refundPaymentId);
   if (coinTo) {
@@ -342,6 +343,32 @@ async function createTransfer(d: Deps, tx: Tx, dealId: string, kind: "payout" | 
     const r = await d.partner.sendTransfer({ transferId: t!.id, kind, amountKobo: amount, idempotencyKey: t!.idempotency_key, destination });
     await d.db.query("update transfers set status = case when status = 'pending' then 'sent'::transfer_status else status end, partner_ref = coalesce(partner_ref, $2) where id = $1", [t!.id, r.partnerRef]);
   });
+}
+
+/**
+ * Sends a failed payout or refund again, as a new transfer; the failed one stays on record. The ledger only moves
+ * when a transfer succeeds, so a retry can't count money twice. A payout goes to the seller's bank account as it
+ * is now: after a failure they may have fixed it. Call inside a transaction.
+ */
+export async function retryFailedTransfer(d: Deps, tx: Tx, transferId: string) {
+  const t = await one(tx.db, "select * from transfers where id = $1 for update", [transferId]);
+  if (!t) throw new DealError("not_found", "We can't find that transfer.", 404);
+  if (t.status !== "failed") throw new DealError("state", "Only a failed payout or refund can be sent again.");
+  if ((t.kind !== "payout" && t.kind !== "refund") || !t.deal_id) throw new DealError("state", "Only a deal's payout or refund can be sent again here.");
+  const again = await one(tx.db,
+    `select 1 from transfers where deal_id = $1 and kind = $2 and status <> 'failed' and ($2 = 'payout' or refund_payment_id is not distinct from $3)`,
+    [t.deal_id, t.kind, t.refund_payment_id]);
+  if (again) throw new DealError("state", `This ${t.kind} has already been sent again. Check its status on the deal.`);
+  let bankAccountId: string | null = t.bank_account_id;
+  if (t.kind === "payout") {
+    const deal = await one<{ seller_id: string }>(tx.db, "select seller_id from deals where id = $1", [t.deal_id]);
+    const bank = await one<{ id: string }>(tx.db, "select id from bank_accounts where user_id = $1 and is_default and removed_at is null", [deal!.seller_id]);
+    if (!bank) throw new DealError("no_bank", "The seller has no bank account to pay. Ask them to add one, then try again.");
+    bankAccountId = bank.id;
+  }
+  const tries = await one<{ n: string }>(tx.db, "select count(*) as n from transfers where deal_id = $1 and kind = $2", [t.deal_id, t.kind]);
+  await createTransfer(d, tx, t.deal_id, t.kind, N(t.amount_kobo), { bankAccountId, refundPaymentId: t.refund_payment_id },
+    `${t.idempotency_key}:retry${N(tries?.n)}`);
 }
 
 type CoinRefundTarget = { coin: Coin; network: Network; address_enc: unknown | null; last4: string | null };

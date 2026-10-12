@@ -8,8 +8,8 @@ import { sweep } from "@noshen/engine/sweep";
 import { DealError, settingsOf } from "@noshen/engine/core";
 import { feeFor, naira } from "@noshen/shared/money";
 import { saveDraft, publish } from "@noshen/engine/sellers";
-import { moderateListing } from "@noshen/engine/staff";
-import { adminOverview, browse, staffListings, staffUsers, statesWithListings } from "@noshen/engine/queries";
+import { moderateListing, setAccountStatus, setDealLimit, unlockReleaseCode, retryTransfer, checkDeadlinesNow } from "@noshen/engine/staff";
+import { adminOverview, browse, staffListings, staffUsers, statesWithListings, staffDeals, staffDeal, staffPerson, staffCounts, auditLog, listingView } from "@noshen/engine/queries";
 import { cryptoQuotes, prepareCryptoPayment, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
 import { FAKE_RATE_KOBO } from "@noshen/engine/partner/fake-crypto";
 import { addressProblem, coinAmount, coinMicroFor, koboForCoin, payPlanFor } from "@noshen/shared/payments";
@@ -503,5 +503,74 @@ describe("paying with USDT or USDC", () => {
       data: { deposit_ref: dep.provider_ref, coin: "usdt", network: "solana", amount_micro: Number(dep.amount_micro), amount_kobo: Number(dep.amount_kobo), tx_hash: "x", received_at: new Date().toISOString() } };
     await expect(handlePartnerEvent(w.d, event)).rejects.toThrow(/can't come from the bank partner/);
     expect(await stateOf(w, dealId)).toBe("accepted");
+  });
+});
+
+describe("staff site actions", () => {
+  const reviewer = () => ({ id: staffId, role: "reviewer" as const });
+
+  it("freezes a seller: their listings leave Browse and can't be bought; unfreezing brings them back", async () => {
+    const seller = await verifiedSeller(w, "Femi Ade");
+    const buyer = await person(w, "Ngozi Eze");
+    const listing = await liveListing(w, seller, 120_000, "Freeze test phone");
+    await expect(setAccountStatus(w.d, reviewer(), seller, "frozen", "no")).rejects.toThrow(/at least 5 characters/);
+    await setAccountStatus(w.d, reviewer(), seller, "frozen", "Reports of fake listings");
+    expect((await browse(w.db, { q: "Freeze test phone" })).length).toBe(0);
+    expect((await listingView(w.db, listing))!.listing.status).toBe("paused");
+    await expect(requestDeal(w.d, buyer, { listingId: listing, handover: "meetup" })).rejects.toThrow(/isn't available right now/);
+    await expect(setAccountStatus(w.d, reviewer(), seller, "banned", "Confirmed fraud ring")).rejects.toThrow(/Only an admin/);
+    await setAccountStatus(w.d, reviewer(), seller, "active", "Checked: listings are real");
+    expect((await browse(w.db, { q: "Freeze test phone" })).length).toBe(1);
+    const p = await staffPerson(w.db, seller);
+    expect(p!.actions.map((a: any) => a.action)).toEqual(["reactivate_user", "freeze_user"]);
+    const told = (await w.db.query("select params->>'text' as t from notifications where user_id = $1 and template = 'account_paused' and channel = 'in_app'", [seller])).rows[0];
+    expect(told.t).not.toMatch(/fake listings/); // the reason stays with staff
+  });
+
+  it("sets and clears a seller's deal limit", async () => {
+    const seller = await verifiedSeller(w, "Limit Test");
+    await expect(setDealLimit(w.d, reviewer(), seller, 50, "Too small a limit")).rejects.toThrow(/at least ₦1,000/);
+    await setDealLimit(w.d, reviewer(), seller, 50_000_000, "New seller with big items");
+    expect((await sellerLimit(w.db, seller, await settingsOf(w.d))).capKobo).toBe(50_000_000);
+    await setDealLimit(w.d, reviewer(), seller, null, "Back to normal after checks");
+    expect((await sellerLimit(w.db, seller, await settingsOf(w.d))).capKobo).toBeNull(); // verified: no limit
+  });
+
+  it("unlocks a locked release code", async () => {
+    const { seller, dealId } = await heldDeal();
+    for (let i = 0; i < 5; i++) await releaseByCode(w.d, seller, dealId, "000000");
+    expect((await staffCounts(w.db)).locked).toBeGreaterThan(0);
+    expect((await staffDeals(w.db, { flag: "locked" })).rows.some((r: any) => r.id === dealId)).toBe(true);
+    await unlockReleaseCode(w.d, reviewer(), dealId, "Buyer was reading an old code");
+    const rc = (await w.db.query("select locked_until, failed_attempts from release_codes where deal_id = $1", [dealId])).rows[0];
+    expect(rc).toEqual({ locked_until: null, failed_attempts: 0 });
+    await expect(unlockReleaseCode(w.d, reviewer(), dealId, "Again for no reason")).rejects.toThrow(/isn't locked/);
+    expect((await auditLog(w.db, { target: dealId })).rows[0].action).toBe("unlock_release_code");
+  });
+
+  it("sends a failed payout again, to the seller's bank account as it is now", async () => {
+    const { seller, buyer, dealId } = await heldDeal();
+    await releaseByCode(w.d, seller, dealId, await releaseCodeForBuyer(w.d, buyer, dealId));
+    const first = (await w.db.query("select id from transfers where deal_id = $1 and kind = 'payout'", [dealId])).rows[0].id;
+    w.settled.length = 0; // the bank rejects it instead
+    await handlePartnerEvent(w.d, { id: "evt_fail_" + first, type: "transfer.failed", data: { transfer_id: first, partner_ref: "x", reason: "Account closed" } });
+    expect((await staffDeals(w.db, { flag: "failed" })).rows.some((r: any) => r.id === dealId)).toBe(true);
+    await retryTransfer(w.d, reviewer(), first, "Seller added a new account");
+    await settleAll(w);
+    const ts = (await w.db.query("select status from transfers where deal_id = $1 and kind = 'payout' order by created_at", [dealId])).rows.map((r: any) => r.status);
+    expect(ts).toEqual(["failed", "succeeded"]);
+    expect(await stateOf(w, dealId)).toBe("paid_out");
+    const b = await balances(w, dealId);
+    expect(b.seller_payable ?? 0).toBe(0); // paid once, not twice
+    await expect(retryTransfer(w.d, reviewer(), first, "Try once more please")).rejects.toThrow(/already been sent again/);
+    const v = await staffDeal(w.db, dealId);
+    expect(v!.actions[0].action).toBe("retry_payout");
+  });
+
+  it("checks one deal's deadlines on request", async () => {
+    const { dealId } = await heldDeal();
+    const done = await checkDeadlinesNow(w.d, reviewer(), dealId);
+    expect(done).toEqual([]);
+    expect((await auditLog(w.db, { target: dealId, action: "check_deadlines" })).rows).toHaveLength(1);
   });
 });

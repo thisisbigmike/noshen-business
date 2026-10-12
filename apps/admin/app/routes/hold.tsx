@@ -38,10 +38,10 @@ export default function Hold({ loaderData: v, actionData }: Route.ComponentProps
   const pay = v.payments[0];
   const buyer = firstName(v.buyer.name), seller = firstName(v.seller.name);
   const flagged = v.messages.filter((m: any) => m.sender_id === v.deal.buyer_id).slice(-1)[0];
-  if (!v.deal.review_hold) return <><nav className="caption muted" aria-label="Breadcrumb"><Link to="/">Dashboard</Link> / Review holds</nav><Info icon="circle-check">This hold has been resolved.</Info></>;
+  if (!v.deal.review_hold) return <><nav className="caption muted" aria-label="Breadcrumb"><Link to="/">Dashboard</Link> / <Link to="/holds">Review holds</Link> / <Link to={`/deals/${v.deal.id}`}>Deal {v.deal.id.slice(0, 8).toUpperCase()}</Link></nav><Info icon="circle-check">This hold has been resolved.</Info></>;
   return (
     <>
-      <nav className="caption muted" aria-label="Breadcrumb"><Link to="/">Dashboard</Link> / Review holds</nav>
+      <nav className="caption muted" aria-label="Breadcrumb"><Link to="/">Dashboard</Link> / <Link to="/holds">Review holds</Link> / <Link to={`/deals/${v.deal.id}`}>Deal {v.deal.id.slice(0, 8).toUpperCase()}</Link></nav>
       <header className="stack">
         <div className="row"><MoneyStatus state="held">Held · review hold</MoneyStatus></div>
         <p className="caption muted">Deal {v.deal.id.slice(0, 8).toUpperCase()} · {v.listing.title} · {buyer} buying from {seller}</p>
@@ -63,7 +63,7 @@ export default function Hold({ loaderData: v, actionData }: Route.ComponentProps
             </tbody>
           </table>
           <div className="card stack">
-            <p className="label">{v.buyer.name}, buyer</p>
+            <p className="label"><Link to={`/users/${v.deal.buyer_id}`} className="ink-link">{v.buyer.name}</Link>, buyer</p>
             <p className="caption muted">Joined {v.buyerSince ? ago(v.buyerSince) : "recently"} · {v.buyerCompleted} completed purchases · {v.buyer.idVerified ? "ID verified" : "ID not verified"}</p>
           </div>
           {flagged ? <div className="card stack"><p className="label">Latest message from {buyer} in the deal chat</p><p className="body">“{flagged.body}”</p><p className="caption muted">{when(new Date(flagged.at))}</p></div> : null}

@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import type { Route } from "./+types/money";
 import { requireStaff, withApp } from "../../server/web";
 import { moneySummary } from "@noshen/engine/queries";
@@ -36,7 +37,7 @@ export default function Money({ loaderData: m }: Route.ComponentProps) {
         <h2 className="title">Transfers out</h2>
         <div className="table-scroll" tabIndex={0} role="region" aria-label="Transfers out (scrolls sideways)"><table className="table"><thead><tr><th>Time</th><th>Type</th><th>Deal</th><th>Amount</th><th>Status</th></tr></thead>
           <tbody>{m.transfers.length === 0 ? <tr><td colSpan={5} className="muted">No transfers yet.</td></tr> : m.transfers.map((t: any, i: number) => (
-            <tr key={i}><td>{when(new Date(t.created_at))}</td><td>{t.kind}</td><td>{String(t.deal_id ?? "").slice(0, 8).toUpperCase()}</td><td className="tabular">{naira(t.amount_kobo)}</td><td className={t.status === "failed" ? "error-text" : ""}>{t.status}</td></tr>))}</tbody></table></div>
+            <tr key={i}><td>{when(new Date(t.created_at))}</td><td>{t.kind}</td><td>{t.deal_id ? <Link to={`/deals/${t.deal_id}`} className="ink-link">{String(t.deal_id).slice(0, 8).toUpperCase()}</Link> : "Fee sweep"}</td><td className="tabular">{naira(t.amount_kobo)}</td><td className={t.status === "failed" ? "error-text" : ""}>{t.status}</td></tr>))}</tbody></table></div>
       </section>
       {m.unmatched.length ? (
         <section className="panel">

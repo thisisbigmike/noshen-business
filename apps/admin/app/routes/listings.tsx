@@ -41,7 +41,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 };
 const FILTERS = ["", "live", "blocked", "paused", "sold", "removed"];
 
-type Row = { id: string; title: string; category: string; price_kobo: string; status: string; area: string | null; state: string | null; photo_keys: string[] | null; published_at: string | null; created_at: string; seller: string; seller_email: string; open_deals: string };
+type Row = { id: string; title: string; category: string; price_kobo: string; status: string; area: string | null; state: string | null; photo_keys: string[] | null; published_at: string | null; created_at: string; seller_id: string; seller: string; seller_email: string; open_deals: string };
 
 export default function Listings({ loaderData: { rows, counts, f, appUrl } }: Route.ComponentProps) {
   const [params] = useSearchParams();
@@ -122,7 +122,7 @@ export default function Listings({ loaderData: { rows, counts, f, appUrl } }: Ro
                         </div>
                       </div>
                     </td>
-                    <td><p className="body">{l.seller}</p><p className="caption muted">{l.seller_email}</p></td>
+                    <td><Link to={`/users/${l.seller_id}`} className="body ink-link">{l.seller}</Link><p className="caption muted">{l.seller_email}</p></td>
                     <td className="tabular">{naira(l.price_kobo)}</td>
                     <td><span className={`st-pill ${st.tone}`}>{st.label}</span></td>
                     <td className="caption" style={{ whiteSpace: "nowrap" }}>{ago(l.published_at ?? l.created_at)}</td>

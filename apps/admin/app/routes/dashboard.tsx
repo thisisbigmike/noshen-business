@@ -30,17 +30,18 @@ export default function Dashboard({ loaderData: { q, o, greeting, today } }: Rou
   const total = q.disputes.length + q.holds.length + q.locked.length + q.stuck.length + q.failed.length;
   const kpis: { icon: IconName; label: string; value: string; sub: string; to?: string }[] = [
     { icon: "shield-lock", label: "Money held", value: naira(o.heldKobo), sub: `${o.openDeals} open deal${o.openDeals === 1 ? "" : "s"}`, to: "/money" },
-    { icon: "trending-up", label: "Sold in 7 days", value: naira(o.soldKobo7d), sub: `${o.completed7d} deal${o.completed7d === 1 ? "" : "s"} completed` },
-    { icon: "receipt", label: "Fees in 7 days", value: naira(o.fees7d), sub: "NosHen's fee on completed deals" },
+    { icon: "trending-up", label: "Sold in 7 days", value: naira(o.soldKobo7d), sub: `${o.completed7d} deal${o.completed7d === 1 ? "" : "s"} completed`, to: "/deals?state=paid_out" },
+    { icon: "receipt", label: "Fees in 7 days", value: naira(o.fees7d), sub: "NosHen's fee on completed deals", to: "/money" },
     { icon: "tag", label: "Live listings", value: o.liveListings.toLocaleString("en-NG"), sub: `${o.listings7d} posted this week`, to: "/listings?status=live" },
     { icon: "users", label: "People", value: o.usersTotal.toLocaleString("en-NG"), sub: `${o.users7d} joined this week`, to: "/users" },
   ];
-  const queues: { label: string; n: number; sub: string; href?: string }[] = [
-    { label: "Disputes", n: q.disputes.length, sub: "Decide within 72 hours", href: "#disputes" },
-    { label: "Review holds", n: q.holds.length, sub: "Payment name or amount", href: "#holds" },
-    { label: "Locked codes", n: q.locked.length, sub: "5 wrong release codes", href: "#alerts" },
-    { label: "Stuck deals", n: q.stuck.length, sub: "Past a deadline", href: "#alerts" },
-    { label: "Failed payouts", n: q.failed.length, sub: "Rejected by the bank", href: "#alerts" },
+  // Each tile opens its queue; with exactly one case waiting, it opens that case straight away.
+  const queues: { label: string; n: number; sub: string; href: string }[] = [
+    { label: "Disputes", n: q.disputes.length, sub: "Decide within 72 hours", href: q.disputes.length === 1 ? `/disputes/${q.disputes[0].id}` : "/disputes" },
+    { label: "Review holds", n: q.holds.length, sub: "Payment name or amount", href: q.holds.length === 1 ? `/holds/${q.holds[0].id}` : "/holds" },
+    { label: "Locked codes", n: q.locked.length, sub: "5 wrong release codes", href: q.locked.length === 1 ? `/deals/${q.locked[0].id}` : "/deals?flag=locked" },
+    { label: "Stuck deals", n: q.stuck.length, sub: "Past a deadline", href: q.stuck.length === 1 ? `/deals/${q.stuck[0].id}` : "/deals?flag=stuck" },
+    { label: "Failed payouts", n: q.failed.length, sub: "Rejected by the bank", href: q.failed.length === 1 ? `/deals/${q.failed[0].deal_id}` : "/deals?flag=failed" },
   ];
   const peak = Math.max(1, ...o.days.map((d) => Math.max(d.started, d.completed)));
   const started = o.days.reduce((a, d) => a + d.started, 0);
@@ -120,7 +121,7 @@ export default function Dashboard({ loaderData: { q, o, greeting, today } }: Rou
         <div className="queue-tiles">
           {queues.map((x) => {
             const body = (<><p className="kpi-value tabular">{x.n}</p><p className="label">{x.label}</p><p className="caption muted">{x.sub}</p></>);
-            return x.n && x.href ? <a key={x.label} href={x.href} className="queue-tile hot">{body}</a> : <div key={x.label} className="queue-tile">{body}</div>;
+            return <Link key={x.label} to={x.href} prefetch="intent" className={x.n ? "queue-tile hot" : "queue-tile"} aria-label={`${x.label}: ${x.n} waiting`}>{body}</Link>;
           })}
         </div>
       </section>
@@ -134,7 +135,7 @@ export default function Dashboard({ loaderData: { q, o, greeting, today } }: Rou
               <tbody>{q.disputes.map((x: any) => (
                 <tr key={x.id}>
                   <td><p className="label">{left(x.decision_due_at)}</p><p className="caption muted">Decide by {when(new Date(x.decision_due_at))}</p></td>
-                  <td><p className="body">{x.title}: {firstName(x.buyer)} vs {firstName(x.seller)}</p><p className="caption muted">{disputeReasonLabel(x.reason)} · {x.state === "collecting_evidence" ? "collecting evidence" : "ready to decide"}</p></td>
+                  <td><Link to={`/disputes/${x.id}`} className="body ink-link">{x.title}: {firstName(x.buyer)} vs {firstName(x.seller)}</Link><p className="caption muted">{disputeReasonLabel(x.reason)} · {x.state === "collecting_evidence" ? "collecting evidence" : "ready to decide"}</p></td>
                   <td className="tabular">{naira(x.held_kobo)}</td>
                   <td><MoneyStatus state="dispute" /></td>
                   <td className="cell-action"><Link to={`/disputes/${x.id}`} className="nh-btn nh-btn-secondary nh-btn-sm">Open</Link></td>
@@ -154,7 +155,7 @@ export default function Dashboard({ loaderData: { q, o, greeting, today } }: Rou
               <tbody>{q.holds.map((x: any) => (
                 <tr key={x.id}>
                   <td>{when(new Date(x.state_changed_at))}</td>
-                  <td><p className="body">{x.title}: {firstName(x.buyer)} buying from {firstName(x.seller)}</p><p className="caption muted">{x.review_hold_reason}</p></td>
+                  <td><Link to={`/holds/${x.id}`} className="body ink-link">{x.title}: {firstName(x.buyer)} buying from {firstName(x.seller)}</Link><p className="caption muted">{x.review_hold_reason}</p></td>
                   <td className="tabular">{naira(x.amount_due_kobo)}</td>
                   <td className="cell-action"><Link to={`/holds/${x.id}`} className="nh-btn nh-btn-secondary nh-btn-sm">Open</Link></td>
                 </tr>))}
@@ -169,11 +170,11 @@ export default function Dashboard({ loaderData: { q, o, greeting, today } }: Rou
           <div className="panel-head"><h2 id="alerts-title" className="title">Other alerts</h2></div>
           <div className="table-scroll" tabIndex={0} role="region" aria-label="Other alerts (scrolls sideways)">
             <table className="table">
-              <thead><tr><th>Alert</th><th>Deal</th><th>Detail</th></tr></thead>
+              <thead><tr><th>Alert</th><th>Deal</th><th>Detail</th><th className="cell-action"><span className="sr-only">Open</span></th></tr></thead>
               <tbody>
-                {q.locked.map((x: any) => <tr key={"l" + x.id}><td>Locked release code</td><td>{x.title}</td><td>Locked until {when(new Date(x.locked_until))}</td></tr>)}
-                {q.stuck.map((x: any) => <tr key={"s" + x.id}><td>Stuck deal</td><td>{x.title}</td><td>{x.state === "held" ? `Held past the hand-over deadline (${when(new Date(x.handover_due_at))})` : "Released, payout not confirmed"}</td></tr>)}
-                {q.failed.map((x: any) => <tr key={"f" + x.id}><td>Failed {x.kind}</td><td className="tabular">{naira(x.amount_kobo)}</td><td>{x.failure_reason}</td></tr>)}
+                {q.locked.map((x: any) => <tr key={"l" + x.id}><td>Locked release code</td><td><Link to={`/deals/${x.id}`} className="ink-link">{x.title}</Link></td><td>Locked until {when(new Date(x.locked_until))}</td><td className="cell-action"><Link to={`/deals/${x.id}`} className="nh-btn nh-btn-secondary nh-btn-sm">Open</Link></td></tr>)}
+                {q.stuck.map((x: any) => <tr key={"s" + x.id}><td>Stuck deal</td><td><Link to={`/deals/${x.id}`} className="ink-link">{x.title}</Link></td><td>{x.state === "held" ? `Held past the hand-over deadline (${when(new Date(x.handover_due_at))})` : "Released, payout not confirmed"}</td><td className="cell-action"><Link to={`/deals/${x.id}`} className="nh-btn nh-btn-secondary nh-btn-sm">Open</Link></td></tr>)}
+                {q.failed.map((x: any) => <tr key={"f" + x.id}><td>Failed {x.kind}</td><td className="tabular"><Link to={`/deals/${x.deal_id}`} className="ink-link">{naira(x.amount_kobo)}</Link></td><td>{x.failure_reason}</td><td className="cell-action"><Link to={`/deals/${x.deal_id}`} className="nh-btn nh-btn-secondary nh-btn-sm">Open</Link></td></tr>)}
               </tbody>
             </table>
           </div>
