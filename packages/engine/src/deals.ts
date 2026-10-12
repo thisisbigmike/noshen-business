@@ -11,7 +11,7 @@ import { coinAmount, coinName, cryptoLabel, networkOf, type Coin, type Network }
 
 export { overLimit, sellerLimitText, type SellerLimit };
 import {
-  type Deps, type DealRow, DealError, N, amountPaid, lockDeal, notify, nowOf, post, schedule, settingsOf, userName,
+  type Deps, type DealRow, DealError, N, amountPaid, lockDeal, notify, nowOf, post, pushToUser, schedule, settingsOf, userName,
 } from "./core";
 
 // ---------------------------------------------------------------------------
@@ -542,8 +542,16 @@ export async function sendMessage(d: Deps, userId: string, dealId: string, body:
   const deal = await one(d.db, "select buyer_id, seller_id from deals where id = $1", [dealId]);
   if (!deal || (deal.buyer_id !== userId && deal.seller_id !== userId)) throw new DealError("forbidden", "This deal isn't yours.", 403);
   const flagged = OFF_PLATFORM.test(text);
-  await d.db.query("insert into messages (deal_id, sender_id, body, flagged, flag_reason) values ($1, $2, $3, $4, $5)",
+  const saved = await one<{ id: string }>(d.db, "insert into messages (deal_id, sender_id, body, flagged, flag_reason) values ($1, $2, $3, $4, $5) returning id",
     [dealId, userId, text.slice(0, 2000), flagged, flagged ? "looks like payment outside NosHen" : null]);
+  // The other person sees it now if the deal is open on their screen; if not, their phone tells them.
+  const other = deal.buyer_id === userId ? deal.seller_id : deal.buyer_id;
+  await d.live?.changed(dealId, "message").catch(() => {});
+  if (d.push && !(await d.live?.watching(dealId, other).catch(() => false))) {
+    const from = firstName(await userName(d.db, userId));
+    await pushToUser(d, d.push, other, { title: `${from} · NosHen`, body: text.length > 140 ? `${text.slice(0, 137)}…` : text, url: `/d/${dealId}#chat`, tag: `chat-${dealId}` });
+  }
+  return saved!.id;
 }
 
 export async function rate(d: Deps, userId: string, dealId: string, stars: number, comment?: string) {

@@ -15,6 +15,13 @@ export interface Timers {
   schedule(t: { kind: TimerKind; at: Date; dealId?: string; event?: PartnerEvent; source?: "crypto" }): Promise<void>;
 }
 
+/** Tells the buyer's and seller's open deal pages that something changed, so they update straight away. */
+export interface LiveRooms {
+  changed(dealId: string, kind: "deal" | "message"): Promise<void>;
+  /** Whether this person has the deal open right now. */
+  watching(dealId: string, userId: string): Promise<boolean>;
+}
+
 /** Everything the engine needs from the outside world, so the same code runs in the Worker and in tests. */
 export interface Deps {
   db: Db;
@@ -24,6 +31,8 @@ export interface Deps {
   mail: EmailSender;
   /** Phone and computer notifications. Missing when no keys are set up: then updates are in the app (and email). */
   push?: PushConfig;
+  /** Live deal rooms: open deal pages update the moment something happens. Missing where there are none (tests). */
+  live?: LiveRooms;
   ids: IdProvider;
   timers: Timers;
   secrets: { releaseCode: string; fieldKey: string };
@@ -104,11 +113,21 @@ export async function userName(db: Db, userId: string): Promise<string> {
  * after the transaction commits, so nobody is ever told about something that didn't happen.
  * (SMS comes later, once phone numbers are collected.)
  */
+const liveQueued = new WeakMap<Tx, Set<string>>();
+
 export async function notify(d: Deps, tx: Tx, userId: string, dealId: string | null, template: string, text: string) {
   await tx.db.query(
     "insert into notifications (user_id, deal_id, channel, template, params, status, sent_at) values ($1, $2, 'in_app', $3, $4, 'sent', now())",
     [userId, dealId, template, JSON.stringify({ text })],
   );
+  // Open deal pages update now (once per transaction, however many people are told).
+  if (d.live && dealId && !liveQueued.get(tx)?.has(dealId)) {
+    const queued = liveQueued.get(tx) ?? new Set<string>();
+    queued.add(dealId);
+    liveQueued.set(tx, queued);
+    const live = d.live;
+    tx.after(() => live.changed(dealId, "deal").catch(() => {}));
+  }
   // On their phone or computer straight away, on every device they turned notifications on for.
   if (d.push) {
     const push = d.push;

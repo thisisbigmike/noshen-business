@@ -68,16 +68,17 @@ describe("phone notifications (Web Push)", () => {
     // The device decrypts it with its own keys (RFC 8291) and finds the message.
     const body = got.body;
     const salt = body.slice(0, 16), idlen = body[20], asPublic = body.slice(21, 21 + idlen), cipher = body.slice(21 + idlen);
-    const asKey = await crypto.subtle.importKey("raw", asPublic, { name: "ECDH", namedCurve: "P-256" }, false, []);
+    const asKey = await crypto.subtle.importKey("raw", asPublic as Uint8Array<ArrayBuffer>, { name: "ECDH", namedCurve: "P-256" }, false, []);
     const ecdh = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: asKey }, ua.privateKey, 256));
+    const B = (u: Uint8Array) => u as Uint8Array<ArrayBuffer>;
     const hk = async (s: Uint8Array, k: Uint8Array, info: Uint8Array, n: number) => new Uint8Array(await crypto.subtle.deriveBits(
-      { name: "HKDF", hash: "SHA-256", salt: s, info }, await crypto.subtle.importKey("raw", k, "HKDF", false, ["deriveBits"]), n * 8));
+      { name: "HKDF", hash: "SHA-256", salt: B(s), info: B(info) }, await crypto.subtle.importKey("raw", B(k), "HKDF", false, ["deriveBits"]), n * 8));
     const te = new TextEncoder();
     const join = (...a: Uint8Array[]) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
     const ikm = await hk(auth, ecdh, join(te.encode("WebPush: info\0"), uaPublic, asPublic), 32);
     const cek = await hk(salt, ikm, te.encode("Content-Encoding: aes128gcm\0"), 16);
     const nonce = await hk(salt, ikm, te.encode("Content-Encoding: nonce\0"), 12);
-    const plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["decrypt"]), cipher));
+    const plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: B(nonce) }, await crypto.subtle.importKey("raw", B(cek), "AES-GCM", false, ["decrypt"]), B(cipher)));
     expect(plain[plain.length - 1]).toBe(2);
     expect(JSON.parse(new TextDecoder().decode(plain.slice(0, -1)))).toEqual(msg);
   });

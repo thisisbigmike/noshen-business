@@ -533,3 +533,18 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 .push-card.compact { padding: 12px 14px; }
 .push-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--primary); color: var(--on-primary); }
 .ok-note { color: var(--primary-ink); font-weight: 600; }
+
+/* Deal chat, live: scrolls inside itself, shows your message while it's sending, and when the other person types. */
+.chat-scroll { max-height: min(60vh, 520px); overflow-y: auto; overscroll-behavior: contain; padding: 2px 2px 4px; }
+.bubble { animation: nh-bubble 220ms var(--ease-out) both; }
+.bubble.sending { opacity: 0.6; }
+.bubble.typing { display: inline-flex; gap: 4px; align-self: flex-start; padding: 12px 14px; }
+.bubble.typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-muted); animation: nh-typing 1.2s infinite ease-in-out; }
+.bubble.typing span:nth-child(2) { animation-delay: 0.15s; }
+.bubble.typing span:nth-child(3) { animation-delay: 0.3s; }
+.typing-text { color: var(--primary); font-weight: 600; }
+.avatar { position: relative; }
+.online-dot { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; background: var(--released); box-shadow: 0 0 0 2px var(--surface); }
+@keyframes nh-bubble { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+@keyframes nh-typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bubble, .bubble.typing span { animation: none; } }

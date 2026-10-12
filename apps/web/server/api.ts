@@ -95,6 +95,25 @@ api.post("/api/push/test", async (c) => {
   return c.json({ ok: true });
 });
 
+/**
+ * A deal page's live connection: a WebSocket into the deal's room (workers/deal-room.ts). Only the deal's buyer
+ * and seller, and only from NosHen's own pages.
+ */
+api.get("/api/deals/:id/live", async (c) => {
+  if (c.req.header("upgrade") !== "websocket") return c.text("Expected a WebSocket", 426);
+  if (c.req.header("origin") !== new URL(env.APP_URL).origin) return c.text("Not allowed", 403);
+  const me = await optionalUser(c.req.raw);
+  if (!me) return c.text("Sign in first", 401);
+  const dealId = c.req.param("id");
+  if (!/^[0-9a-f-]{36}$/.test(dealId)) return c.text("Not found", 404);
+  const deal = await withApp((d) => one<{ buyer_id: string; seller_id: string }>(d.db, "select buyer_id, seller_id from deals where id = $1", [dealId]));
+  if (!deal || (deal.buyer_id !== me.id && deal.seller_id !== me.id)) return c.text("Not found", 404);
+  const ns = (env as unknown as { DEAL_ROOMS: DurableObjectNamespace }).DEAL_ROOMS;
+  return ns.get(ns.idFromName(dealId)).fetch("https://room/connect", {
+    headers: { Upgrade: "websocket", "x-user": me.id, "x-role": deal.seller_id === me.id ? "seller" : "buyer" },
+  });
+});
+
 api.get("/photos/*", (c) => servePhoto(decodeURIComponent(c.req.path.slice("/photos/".length))));
 
 api.get("/api/me", async (c) => {

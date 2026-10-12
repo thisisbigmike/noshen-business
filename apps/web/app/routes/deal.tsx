@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
-import { Form, Link, data, redirect, useNavigation, useRevalidator } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { Form, Link, data, redirect, useFetcher, useNavigation, useRevalidator } from "react-router";
 import type { Route } from "./+types/deal";
 import { countryOf, requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "@noshen/engine/queries";
 import { acceptDeal, cancelDeal, confirmReceived, declineDeal, markDelivered, rate, sendMessage } from "@noshen/engine/deals";
-import { BottomAction, Button, CheckedForm, ErrorText, FieldError, Icon, Info, Kv, MoneyStatus, TextArea, Timeline, TopBar, useEscape } from "@noshen/ui/ui";
+import { BottomAction, Button, CheckedForm, ErrorText, Icon, Info, Kv, MoneyStatus, TextArea, Timeline, TopBar, useEscape } from "@noshen/ui/ui";
 import { dealSteps, dealText } from "../lib/deal-text";
 import { naira } from "@noshen/shared/money";
 import { disputeReasonLabel, firstName, isOpen } from "@noshen/shared/deal";
@@ -16,6 +16,7 @@ import { cryptoQuotes, refundsWaitingForAddress, saveRefundAddress } from "@nosh
 import { RefundAddressForm } from "../lib/refund-address";
 import { PushCard } from "../lib/push";
 import { PayOptions } from "../lib/pay-options";
+import { useDealLive } from "../lib/live-deal";
 
 export const handle = { tabs: false };
 export const meta: Route.MetaFunction = ({ loaderData: d }) => [{ title: d ? `Deal with ${firstName(d.otherName)} · NosHen` : "Deal · NosHen" }];
@@ -86,13 +87,15 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
   const t = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4, endedBy, paidCrypto: x.paidCrypto, refundWaiting: !!x.refundWaiting });
   const steps = dealSteps(deal, role, names, x.events, x.dispute);
 
-  // Keep the page current while waiting on the other person or the bank.
+  // Live: messages and changes from the other person (or the bank, or a reviewer) show the moment they happen.
+  const live = useDealLive(deal.id, role);
+  // If the live connection is down, keep checking every 10 seconds while the deal is open.
   const revalidator = useRevalidator();
   useEffect(() => {
-    if (!isOpen(deal.state)) return;
+    if (!isOpen(deal.state) || live.connected) return;
     const id = setInterval(() => { if (document.visibilityState === "visible") revalidator.revalidate(); }, 10_000);
     return () => clearInterval(id);
-  }, [deal.state]);
+  }, [deal.state, live.connected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const canCancel = (deal.state === "requested" || deal.state === "accepted" || (deal.state === "held" && !deal.delivered_at));
   const actions = actionsFor(x, other, () => setCancelOpen(true), canCancel, () => setPayOpen(true));
@@ -154,7 +157,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
             </section>
           </div>
           <aside className="side">
-            <Chat x={x} other={other} busy={busy} error={actionData?.intent === "message" ? (actionData as any).error : undefined} />
+            <Chat x={x} other={other} live={live} />
           </aside>
         </div>
       </main>
@@ -281,30 +284,56 @@ function RateBox({ x, other, busy, error }: { x: View; other: string; busy: bool
   );
 }
 
-function Chat({ x, other, busy, error }: { x: View; other: string; busy: boolean; error?: string }) {
+/** The deal's chat: messages arrive live, yours shows the moment you send it, and you see when the other person is typing. */
+function Chat({ x, other, live }: { x: View; other: string; live: ReturnType<typeof useDealLive> }) {
   const open = isOpen(x.deal.state);
   const flagged = x.messages.some((m: any) => m.flagged);
+  const fetcher = useFetcher<{ ok?: boolean; error?: string; intent?: string }>({ key: `chat-${x.deal.id}` });
+  const form = useRef<HTMLFormElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const [empty, setEmpty] = useState(false);
+  // While it's on its way, the message shows already (faded), so sending feels instant.
+  const sending = fetcher.state !== "idle" ? String(fetcher.formData?.get("body") ?? "").trim() : "";
+  const error = fetcher.state === "idle" && fetcher.data?.intent === "message" ? fetcher.data.error : undefined;
+  const count = x.messages.length;
+  // Keep the newest message in view as messages arrive.
+  useEffect(() => { const el = list.current; if (el) el.scrollTo({ top: el.scrollHeight, behavior: count > 0 ? "smooth" : "auto" }); }, [count, !!sending, live.otherTyping]);
   return (
     <section className="card stack-4" id="chat" aria-labelledby="chat-title">
-      <div className="row"><span className="avatar" aria-hidden="true">{other[0]}</span><div><h2 id="chat-title" className="title">{other}</h2><p className="caption muted">Keep everything about this deal in this chat.</p></div></div>
-      <div className="chat" aria-live="polite">
-        {x.messages.length === 0 ? <p className="caption muted">No messages yet.</p> : null}
+      <div className="row">
+        <span className="avatar" aria-hidden="true">{other[0]}{live.otherOnline ? <span className="online-dot" /> : null}</span>
+        <div>
+          <h2 id="chat-title" className="title">{other}</h2>
+          <p className="caption muted">{live.otherTyping ? <span className="typing-text">typing…</span> : live.otherOnline ? `On this deal now` : "Keep everything about this deal in this chat."}</p>
+        </div>
+      </div>
+      <div className="chat chat-scroll" ref={list} aria-live="polite">
+        {count === 0 && !sending ? <p className="caption muted">No messages yet.</p> : null}
         {x.messages.map((m: any) => (
           <div key={m.id} className={`bubble ${m.sender_id === x.me ? "mine" : ""} ${m.flagged ? "flagged" : ""}`}>
             <p className="body">{m.body}</p>
             <p className="caption muted">{when(new Date(m.at))}</p>
           </div>
         ))}
+        {sending ? <div className="bubble mine sending"><p className="body">{sending}</p><p className="caption muted">Sending…</p></div> : null}
+        {live.otherTyping ? <div className="bubble typing" aria-label={`${other} is typing`}><span /><span /><span /></div> : null}
       </div>
       {flagged ? <Info icon="alert-triangle" tone="warn"><strong>Only pay through NosHen.</strong> Money sent straight to someone's account isn't protected. If something goes wrong, we can't get it back for you.</Info> : null}
       {open ? (
-        <CheckedForm method="post" className="chat-form" key={x.messages.length}>
+        <fetcher.Form method="post" className="chat-form" ref={form} onSubmit={(e) => {
+          const body = (e.currentTarget.elements.namedItem("body") as HTMLInputElement).value.trim();
+          if (!body) { e.preventDefault(); setEmpty(true); return; }
+          setEmpty(false);
+          // Clear the box straight away; the message is already showing above.
+          requestAnimationFrame(() => form.current?.reset());
+        }}>
           <input type="hidden" name="intent" value="message" />
           <label className="sr-only" htmlFor="body">Message {other}</label>
-          <input id="body" name="body" className="nh-input grow" placeholder={`Message ${other}`} maxLength={2000} autoComplete="off" required data-missing="Type a message before you send it." />
-          <Button type="submit" icon="send" disabled={busy}>Send</Button>
-          <FieldError name="body" />
-        </CheckedForm>
+          <input id="body" name="body" className="nh-input grow" placeholder={`Message ${other}`} maxLength={2000} autoComplete="off" enterKeyHint="send"
+            onInput={() => { live.typing(); if (empty) setEmpty(false); }} aria-invalid={empty || undefined} />
+          <Button type="submit" icon="send" aria-label="Send">Send</Button>
+          {empty ? <p className="nh-field-msg nh-field-msg-error caption" role="alert"><Icon name="alert-triangle" size={16} />Type a message before you send it.</p> : null}
+        </fetcher.Form>
       ) : null}
       <ErrorText>{error}</ErrorText>
     </section>

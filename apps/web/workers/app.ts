@@ -5,6 +5,8 @@ import { sweep } from "@noshen/engine/sweep";
 
 // Deal deadlines run as Cloudflare Workflows (see wrangler.jsonc).
 export { DealTimers } from "@noshen/engine/timers";
+// Live deal rooms: a deal's open pages update the moment something happens (see deal-room.ts).
+export { DealRoom } from "./deal-room";
 
 const pages = createRequestHandler(() => import("virtual:react-router/server-build"), import.meta.env.MODE);
 

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { withDb, type Db } from "./db";
-import type { Deps } from "./core";
+import type { Deps, LiveRooms } from "./core";
 import { FakePartner } from "./partner/fake";
 import { FakeCryptoPartner } from "./partner/fake-crypto";
 import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
@@ -64,6 +64,20 @@ export function pushFor(): PushConfig | undefined {
   return { publicKey: e.VAPID_PUBLIC_KEY, privateJwk: e.VAPID_PRIVATE_JWK, subject: e.APP_URL.startsWith("https:") ? e.APP_URL : "https://noshen-web.usenoshen.workers.dev" };
 }
 
+/**
+ * The live deal rooms (a Durable Object per deal, see apps/web/workers/deal-room.ts). The customer site has them;
+ * the staff site reaches the same rooms in production. Without the binding, pages fall back to checking regularly.
+ */
+export function liveFor(): LiveRooms | undefined {
+  const ns = (env as unknown as { DEAL_ROOMS?: DurableObjectNamespace }).DEAL_ROOMS;
+  if (!ns) return undefined;
+  const room = (dealId: string) => ns.get(ns.idFromName(dealId)) as unknown as { changed(e: { type: string }): Promise<void>; watching(u: string): Promise<boolean> };
+  return {
+    changed: (dealId, kind) => room(dealId).changed({ type: kind }),
+    watching: (dealId, userId) => room(dealId).watching(userId),
+  };
+}
+
 export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
   return {
     db,
@@ -71,6 +85,7 @@ export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
     crypto: cryptoFor(),
     mail,
     push: pushFor(),
+    live: liveFor(),
     ids: new FakeIdProvider(),
     timers: workflowTimers,
     secrets: { releaseCode: env.RELEASE_CODE_SECRET, fieldKey: env.FIELD_KEY },

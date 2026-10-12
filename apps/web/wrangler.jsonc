@@ -35,6 +35,9 @@
   ],
   "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],
   "workflows": [{ "name": "noshen-deal-timers", "binding": "DEAL_TIMERS", "class_name": "DealTimers" }],
+  // One live room per deal (workers/deal-room.ts): the buyer's and seller's open pages, connected by WebSocket.
+  "durable_objects": { "bindings": [{ "name": "DEAL_ROOMS", "class_name": "DealRoom" }] },
+  "migrations": [{ "tag": "deal-rooms-v1", "new_sqlite_classes": ["DealRoom"] }],
   // The stuck-deal sweep: the safety net behind every timer.
   "triggers": { "crons": ["*/15 * * * *"] },
   // The public demo: `pnpm deploy:web` builds with CLOUDFLARE_ENV=production and deploys this.
@@ -56,6 +59,7 @@
       "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "6e865a502a8e457bb56922a1a5d7f806" }],
       "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "noshen-photos" }],
       "workflows": [{ "name": "noshen-deal-timers", "binding": "DEAL_TIMERS", "class_name": "DealTimers" }],
+      "durable_objects": { "bindings": [{ "name": "DEAL_ROOMS", "class_name": "DealRoom" }] },
       "triggers": { "crons": ["*/15 * * * *"] }
     }
   }
