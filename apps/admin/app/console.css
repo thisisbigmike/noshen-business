@@ -184,3 +184,4 @@
 @media (max-width: 479px) {
   .people-pair { grid-template-columns: minmax(0, 1fr); }
 }
+.sold-bar { padding: 10px 14px; border: 1px dashed var(--border); border-radius: 14px; background: var(--surface); }

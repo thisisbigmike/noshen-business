@@ -224,13 +224,20 @@ export function ProtectionBadge({ variant = "tint", children }: { variant?: "tin
   return <span className={`nh-badge nh-badge-${variant} label`}><Icon name="shield-check" size={16} />{children ?? "Protected by NosHen"}</span>;
 }
 
-export function ListingCard({ title, priceKobo, area, posted, imageUrl, href }: { title: string; priceKobo: number | string; area?: string; posted?: string; imageUrl?: string; href: string }) {
+export function ListingCard({ title, priceKobo, area, posted, imageUrl, href, sold, left }: {
+  title: string; priceKobo: number | string; area?: string; posted?: string; imageUrl?: string; href: string;
+  /** Every unit has sold: the card says so and dims. */
+  sold?: boolean;
+  /** Units still for sale, shown when there's more than one to start with. */
+  left?: number | null;
+}) {
   const meta = [area, posted].filter(Boolean).join(" · ");
   return (
-    <Link className="nh-listing" to={href} prefetch="intent">
+    <Link className={cx("nh-listing", sold && "nh-listing-sold")} to={href} prefetch="intent" aria-label={sold ? `${title}, sold` : undefined}>
       <div className="nh-listing-photo">
         {imageUrl ? <img src={imageUrl} alt="" loading="lazy" decoding="async" /> : <Icon name="camera" size={32} label="No photo yet" />}
-        <ProtectionBadge variant="glass">Protected</ProtectionBadge>
+        {sold ? <span className="nh-sold-badge">Sold</span> : <ProtectionBadge variant="glass">Protected</ProtectionBadge>}
+        {!sold && left ? <span className="nh-left-badge">{left === 1 ? "Last one" : `${left} available`}</span> : null}
       </div>
       <div className="nh-listing-body">
         <p className="nh-listing-title title">{title}</p>

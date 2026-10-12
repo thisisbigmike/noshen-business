@@ -89,12 +89,17 @@ update deals set state = 'accepted', payment_due_at = now() + interval '24 hours
 select pg_temp.expect_error($$ update deals set price_kobo = 40000000 where id = '00000000-0000-0000-0000-0000000000d1' $$,
                             'changing the price after acceptance');
 
--- A second buyer's request is fine, but it cannot also be accepted.
+-- A second buyer's request is fine. (How many deals a listing can take at once is its units, checked by the app
+-- under a lock when the seller accepts.) A listing can't sell more units than it has, or have none or 1,000.
 insert into deals (id, listing_id, buyer_id, seller_id, price_kobo, fee_kobo, handover, request_expires_at) values
   ('00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000000c',
    '00000000-0000-0000-0000-00000000000a', 45000000, 675000, 'delivery', now() + interval '12 hours');
-select pg_temp.expect_error($$ update deals set state = 'accepted' where id = '00000000-0000-0000-0000-0000000000d2' $$,
-                            'two accepted deals on one listing');
+select pg_temp.expect_error($$ update listings set sold_count = 2 where id = '00000000-0000-0000-0000-0000000000a1' $$,
+                            'more sold than the listing has');
+select pg_temp.expect_error($$ update listings set quantity = 0 where id = '00000000-0000-0000-0000-0000000000a1' $$,
+                            'a listing with no units');
+select pg_temp.expect_error($$ update listings set quantity = 1000 where id = '00000000-0000-0000-0000-0000000000a1' $$,
+                            'a listing with 1,000 units');
 
 -- 4. Payment arrives: webhook stored once, ledger posts balanced.
 select set_config('noshen.actor', 'partner', true), set_config('noshen.actor_id', '', true);

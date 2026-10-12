@@ -104,6 +104,7 @@ export default function SellReview({ loaderData: { listing: l, fee, limitText, r
           <Kv k="Title" v={l.title} />
           <Kv k="Condition" v={condition ? `${condition[1]}: ${condition[2]}` : l.condition} />
           {sizeRuleFor(l.category) ? <Kv k={sizeRuleFor(l.category)!.label} v={sizeLabel(l.category, l.size_system, l.size) ?? <span className="muted">Not given</span>} /> : null}
+          <Kv k="How many" v={Number(l.quantity) > 1 ? `${l.quantity} for sale, one per buyer` : "1"} />
           {c.id && l.imei_or_serial ? <Kv k={c.id.label.replace(" (optional)", "")} v={<span>{l.imei_or_serial}<br /><span className="caption muted">Buyers see it only after they pay.</span></span>} /> : null}
         </section>
 

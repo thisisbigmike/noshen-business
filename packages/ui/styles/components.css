@@ -180,3 +180,10 @@
   .nh-listing, .nh-listing-photo img, .nh-deal, .nh-btn { transition: none; }
   .nh-listing:hover, a.nh-deal:hover, .nh-listing:hover .nh-listing-photo img { transform: none; }
 }
+
+/* Listing card: sold (dimmed, labelled) and how many are left. */
+.nh-sold-badge { position: absolute; left: 10px; top: 10px; padding: 4px 12px; border-radius: var(--radius-full); background: var(--ink); color: var(--canvas); font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; box-shadow: var(--shadow-sm); }
+.nh-listing-sold .nh-listing-photo img { filter: grayscale(0.85) brightness(0.92); }
+.nh-listing-sold .nh-listing-price { color: var(--ink-muted); text-decoration: line-through; text-decoration-thickness: 2px; }
+.nh-left-badge { position: absolute; right: 10px; bottom: 10px; padding: 2px 10px; border-radius: var(--radius-full); background: var(--glass); color: var(--ink); border: 1px solid var(--glass-border); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-size: 12px; font-weight: 600; }
+.nh-status-sold { background: var(--ink); color: var(--canvas); padding: 4px 10px; text-transform: uppercase; letter-spacing: 0.04em; font-size: 12px; }

@@ -40,7 +40,9 @@ export interface BrowseFilters {
 }
 
 export async function browse(db: Db, f: BrowseFilters) {
-  const where = ["status = 'live'", "exists (select 1 from users u where u.id = listings.seller_id and u.status = 'active')"];
+  // What's for sale, then what sold in the last two weeks (shown as sold, so people see things selling).
+  const where = ["(status = 'live' or (status = 'sold' and sold_at > now() - interval '14 days'))",
+    "exists (select 1 from users u where u.id = listings.seller_id and u.status = 'active')"];
   const p: unknown[] = [];
   if (isCategory(f.cat)) { p.push(f.cat); where.push(`category = $${p.length}`); }
   if (isState(f.state)) { p.push(f.state); where.push(`state = $${p.length}`); }
@@ -53,7 +55,8 @@ export async function browse(db: Db, f: BrowseFilters) {
   if (f.verifiedOnly) where.push(`exists (select 1 from kyc_checks k where k.user_id = listings.seller_id and k.result = 'verified')
     and exists (select 1 from bank_accounts b where b.user_id = listings.seller_id and b.is_default and b.removed_at is null)`);
   const order = f.sort === "price_asc" ? "price_kobo asc" : f.sort === "price_desc" ? "price_kobo desc" : "published_at desc";
-  return many(db, `select id, title, price_kobo, area, state, category, condition, size_system, size, photo_keys, published_at from listings where ${where.join(" and ")} order by ${order} limit 60`, p);
+  return many(db, `select id, title, price_kobo, area, state, category, condition, size_system, size, photo_keys, published_at, status, quantity, sold_count
+    from listings where ${where.join(" and ")} order by (status = 'sold'), ${order} limit 60`, p);
 }
 
 /** States with something for sale, busiest first, for the location chips on Browse. */
@@ -350,7 +353,7 @@ export async function staffListings(db: Db, f: { q?: string; status?: string; ca
   if (f.q?.trim()) { p.push(`%${f.q.trim()}%`); where.push(`(l.title ilike $${p.length} or u.full_name ilike $${p.length})`); }
   const rows = await many(db,
     `select l.id, l.title, l.category, l.price_kobo, l.status, l.area, l.state, l.photo_keys, l.published_at, l.created_at,
-            u.id as seller_id, u.full_name as seller, u.email as seller_email,
+            u.id as seller_id, u.full_name as seller, u.email as seller_email, l.quantity, l.sold_count,
             (select count(*) from deals d where d.listing_id = l.id and d.state in ('requested', 'accepted', 'held', 'disputed')) as open_deals
      from listings l join users u on u.id = l.seller_id
      where ${where.join(" and ")} order by coalesce(l.published_at, l.created_at) desc limit 200`, p);

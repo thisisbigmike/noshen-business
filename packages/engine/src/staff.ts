@@ -112,3 +112,19 @@ export async function checkDeadlinesNow(d: Deps, staff: StaffActor, dealId: stri
     logAction(tx, staff.id, "check_deadlines", "deal", dealId, "Checked this deal's deadlines from the staff site", { done }));
   return done;
 }
+
+/**
+ * Deletes sold listings from NosHen: they leave Browse and the seller's page. Their deals and photos stay on
+ * record (a listing that's been bought can't vanish from its deal's history). Only listings that are sold.
+ */
+export async function deleteSoldListings(d: Deps, staff: StaffActor, listingIds: string[] | "all", reason = "Sold. Taken off NosHen by staff.") {
+  const why = reasonOf(reason);
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    const rows = listingIds === "all"
+      ? (await tx.db.query("update listings set status = 'removed' where status = 'sold' returning id")).rows
+      : (await tx.db.query("update listings set status = 'removed' where status = 'sold' and id = any($1::uuid[]) returning id", [listingIds])).rows;
+    if (!rows.length) throw new DealError("state", listingIds === "all" ? "There are no sold listings to delete." : "Only a sold listing can be deleted.");
+    for (const r of rows as { id: string }[]) await logAction(tx, staff.id, "delete_sold_listing", "listing", r.id, why);
+    return rows.length;
+  });
+}

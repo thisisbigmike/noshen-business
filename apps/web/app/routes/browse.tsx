@@ -109,7 +109,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
             <div className="browse-head">
               <div className="stack">
                 <h1 className="heading">{f.q ? `Results for “${f.q}”` : isCategory(f.cat) ? `${categoryOf(f.cat).label} in ${where}` : f.state ? `For sale in ${where}` : "For sale across Nigeria"}</h1>
-                <p className="caption muted">{listings.length} listing{listings.length === 1 ? "" : "s"}. Every deal is protected: your money is held until you have the item.</p>
+                <p className="caption muted">{(() => { const live = listings.filter((l: any) => l.status !== "sold").length; const sold = listings.length - live; return `${live} for sale${sold ? `, ${sold} sold recently` : ""}.`; })()} Every deal is protected: your money is held until you have the item.</p>
               </div>
               <div className="row browse-tools">
                 {search}
@@ -148,7 +148,8 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
               <div className="grid-cards">
                 {listings.map((l: any) => (
                   <ListingCard key={l.id} href={`/l/${l.id}`} title={l.title} priceKobo={l.price_kobo} area={[sizeLabel(l.category, l.size_system, l.size), placeLabel(l.area, l.state)].filter(Boolean).join(" · ")}
-                    posted={ago(l.published_at)} imageUrl={l.photo_keys?.[0] ? photoUrl(l.photo_keys[0]) : undefined} />
+                    posted={ago(l.published_at)} imageUrl={l.photo_keys?.[0] ? photoUrl(l.photo_keys[0]) : undefined}
+                    sold={l.status === "sold"} left={l.quantity > 1 ? l.quantity - l.sold_count : null} />
                 ))}
               </div>
             )}

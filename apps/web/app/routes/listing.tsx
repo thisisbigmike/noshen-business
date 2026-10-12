@@ -67,6 +67,10 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   const price = Number(l.price_kobo);
   const cat = categoryOf(l.category);
   const size = sizeLabel(l.category, l.size_system, l.size);
+  const left = Math.max(0, Number(l.quantity ?? 1) - Number(l.sold_count ?? 0));
+  // How many are left, when there was more than one; "Sold" once they've all gone.
+  const stock = l.status === "sold" ? <span className="nh-status nh-status-sold label">Sold</span>
+    : Number(l.quantity) > 1 && l.status === "live" ? <span className="nh-status nh-status-awaiting label">{left === 1 ? "Last one" : `${left} available`}</span> : null;
   const status = l.status !== "live" ? (l.status === "sold" ? "This item has been sold." : "This listing is paused.") : null;
 
   const buy = mine ? (
@@ -98,7 +102,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             <div className="stack mobile-only">
               <h1 className="title">{l.title}</h1>
               <p className="big-amount">{naira(price)}</p>
-              <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}<span className="caption muted row"><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
+              <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted row"><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
               <div className="row"><ProtectionBadge /></div>
             </div>
             {status ? <p className="info warn">{status}</p> : null}
@@ -117,6 +121,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
               <Kv k="Category" v={cat.label} />
               <Kv k="Condition" v={`${condition?.[1]}: ${condition?.[2]}`} />
               {size ? <Kv k={sizeRuleFor(l.category)?.label ?? "Size"} v={size} /> : null}
+              {Number(l.quantity) > 1 ? <Kv k="Available" v={l.status === "sold" ? `All ${l.quantity} sold` : `${left} of ${l.quantity}`} /> : null}
               <Kv k="Location" v={placeLabel(l.area, l.state)} />
               {cat.id && l.imei_or_serial ? <Kv k={cat.id.label.replace(" (optional)", "")} v="Shown to you after you pay, so you can check it at the hand-over" /> : null}
               {l.description ? <><p className="label" style={{ marginTop: 8 }}>From {sellerName}</p><p className="body">{l.description}</p></> : null}
@@ -125,7 +130,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
           <aside className="side desktop-only card stack-4">
             <h1 className="heading">{l.title}</h1>
             <p className="big-amount">{naira(price)}</p>
-            <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}<span className="caption muted">{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
+            <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted">{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
             <ProtectionBadge />
             {!status && limitText ? <Info icon="info-circle">{limitText}</Info> : null}
             {buy}

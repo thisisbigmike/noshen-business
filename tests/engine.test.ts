@@ -9,7 +9,7 @@ import { DealError, settingsOf } from "@noshen/engine/core";
 import { feeFor, naira } from "@noshen/shared/money";
 import { saveDraft, publish } from "@noshen/engine/sellers";
 import { sizeLabel } from "@noshen/shared/sizes";
-import { moderateListing, setAccountStatus, setDealLimit, unlockReleaseCode, retryTransfer, checkDeadlinesNow } from "@noshen/engine/staff";
+import { moderateListing, setAccountStatus, setDealLimit, unlockReleaseCode, retryTransfer, checkDeadlinesNow, deleteSoldListings } from "@noshen/engine/staff";
 import { adminOverview, browse, staffListings, staffUsers, statesWithListings, staffDeals, staffDeal, staffPerson, staffCounts, auditLog, listingView } from "@noshen/engine/queries";
 import { cryptoQuotes, prepareCryptoPayment, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
 import { FAKE_RATE_KOBO } from "@noshen/engine/partner/fake-crypto";
@@ -608,5 +608,40 @@ describe("staff site actions", () => {
     const done = await checkDeadlinesNow(w.d, reviewer(), dealId);
     expect(done).toEqual([]);
     expect((await auditLog(w.db, { target: dealId, action: "check_deadlines" })).rows).toHaveLength(1);
+  });
+});
+
+describe("units: selling more than one of the same thing", () => {
+  it("sells one per deal, says how many are left, and is sold when the last one goes", async () => {
+    const seller = await verifiedSeller(w, "Units Seller");
+    const id = await saveDraft(w.d, seller, null, ["a", "b", "c"], { category: "beauty", title: "Units test perfume", priceNaira: 25_000, condition: "new", state: "Lagos", area: "Ikeja", quantity: 2 });
+    await publish(w.d, seller, id);
+    await expect(saveDraft(w.d, seller, null, ["a", "b", "c"], { category: "beauty", title: "Too many", priceNaira: 25_000, condition: "new", state: "Lagos", area: "Ikeja", quantity: 1000 })).rejects.toThrow(/between 1 and 999/);
+
+    const [b1, b2, b3] = [await person(w, "Ada One"), await person(w, "Bola Two"), await person(w, "Chidi Three")];
+    const d1 = await requestDeal(w.d, b1, { listingId: id, handover: "meetup" });
+    const d2 = await requestDeal(w.d, b2, { listingId: id, handover: "meetup" });
+    const d3 = await requestDeal(w.d, b3, { listingId: id, handover: "meetup" });
+    await acceptDeal(w.d, seller, d1);
+    expect(await stateOf(w, d2)).toBe("requested"); // one unit still free: the others keep waiting
+    await acceptDeal(w.d, seller, d2);
+    expect(await stateOf(w, d3)).toBe("declined"); // the last unit is taken: the rest are told
+    const due = async (dealId: string) => Number((await w.db.query("select amount_due_kobo from deals where id = $1", [dealId])).rows[0].amount_due_kobo);
+
+    for (const [deal, buyer, name] of [[d1, b1, "ADA ONE"], [d2, b2, "BOLA TWO"]] as const) {
+      await pay(w, deal, await due(deal), name);
+      await releaseByCode(w.d, seller, deal, await releaseCodeForBuyer(w.d, buyer, deal));
+      const l = (await w.db.query("select status, sold_count from listings where id = $1", [id])).rows[0];
+      expect(l).toEqual(deal === d1 ? { status: "live", sold_count: 1 } : { status: "sold", sold_count: 2 });
+    }
+    const shown = (await browse(w.db, { q: "Units test perfume" }))[0];
+    expect(shown).toMatchObject({ status: "sold", quantity: 2, sold_count: 2 }); // still in Browse, marked sold
+    const b4 = await person(w, "Dayo Four");
+    await expect(requestDeal(w.d, b4, { listingId: id, handover: "meetup" })).rejects.toThrow(/isn't available/);
+
+    await expect(deleteSoldListings(w.d, { id: staffId, role: "reviewer" }, [id])).resolves.toBe(1);
+    expect((await w.db.query("select status from listings where id = $1", [id])).rows[0].status).toBe("removed");
+    expect(await browse(w.db, { q: "Units test perfume" })).toEqual([]);
+    await expect(deleteSoldListings(w.d, { id: staffId, role: "reviewer" }, [id])).rejects.toThrow(/Only a sold listing/);
   });
 });

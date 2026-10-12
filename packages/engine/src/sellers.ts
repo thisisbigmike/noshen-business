@@ -77,6 +77,8 @@ export interface ListingInput {
   /** For clothes, shoes, hair and baby items: the kind of size (see @noshen/shared/sizes) and the size. */
   sizeSystem?: string;
   size?: string;
+  /** How many the seller has (1 to 999). Each deal is for one. */
+  quantity?: number;
 }
 
 /**
@@ -125,14 +127,16 @@ export async function saveDraft(d: Deps, userId: string, listingId: string | nul
     const area = input.area.trim().replace(/\s+/g, " ");
     const areaWrong = areaProblem(area);
     if (areaWrong) throw new DealError("area", areaWrong);
+    const quantity = input.quantity ?? 1;
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) throw new DealError("quantity", "How many you have must be between 1 and 999.");
     const hasSize = !!sizeRuleFor(input.category) && !!input.size;
     const sizeWrong = sizeProblem(input.category, input.sizeSystem, input.size);
     if (sizeWrong) throw new DealError("size", sizeWrong);
     await d.db.query(
       `update listings set category = $2, title = $3, description = $4, price_kobo = $5, condition = $6, area = $7, imei_or_serial = $8, state = $9,
-              size_system = $10, size = $11 where id = $1`,
+              size_system = $10, size = $11, quantity = $12 where id = $1`,
       [listingId, input.category, input.title.trim().slice(0, 80), input.description?.trim().slice(0, 2000) || null, price, input.condition, area, imei || null, input.state,
-       hasSize ? input.sizeSystem : null, hasSize ? input.size : null]);
+       hasSize ? input.sizeSystem : null, hasSize ? input.size : null, quantity]);
   }
   return listingId!;
 }

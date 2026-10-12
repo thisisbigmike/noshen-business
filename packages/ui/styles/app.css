@@ -566,3 +566,10 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 @media (min-width: 768px) { .filter-actions { margin: 0 calc(-1 * var(--space-6)) calc(-1 * var(--space-6)); padding: 12px var(--space-6); } }
 .active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .active-chip { gap: 6px; border-color: var(--ink); }
+
+/* Selling: how many you have, with − and + either side. */
+.qty-stepper { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 4px; border: 1px solid var(--ink-muted); border-radius: var(--radius-full); background: var(--surface); }
+.qty-stepper input { width: 64px; height: 40px; border: 0; outline: 0; background: transparent; text-align: center; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); -moz-appearance: textfield; }
+.qty-stepper input::-webkit-outer-spin-button, .qty-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.qty-stepper .icon-btn { font-size: 22px; font-weight: 600; background: var(--tint); }
+.qty-stepper .icon-btn:disabled { opacity: 0.4; cursor: default; }

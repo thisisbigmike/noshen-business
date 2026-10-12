@@ -43,6 +43,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     priceNaira: Number(String(f.get("price") ?? "").replace(/[^\d]/g, "")), condition: String(f.get("condition")) as Condition,
     state: String(f.get("state") ?? ""), area: String(f.get("area") ?? ""), imeiOrSerial: String(f.get("imei") ?? ""),
     sizeSystem: String(f.get("size_system") ?? ""), size: String(f.get("size") ?? ""),
+    quantity: Number(f.get("quantity") ?? 1),
   };
   // Saved, not published: the seller checks everything on the next step first.
   try {
@@ -61,6 +62,7 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
   const busy = useNavigation().state !== "idle";
   const untouched = l.title === "Untitled listing";
   const [cond, setCond] = useState<string>(l.condition);
+  const [qty, setQty] = useState<number>(Number(l.quantity ?? 1));
   // Size, for clothes, shoes, hair and baby items: first the kind (EU, UK, US, S/M/L…), then the size from its list.
   const sizeRule = sizeRuleFor(l.category);
   const [sizeKind, setSizeKind] = useState<string>(l.size_system ?? sizeRule?.systems[0]?.id ?? "");
@@ -114,6 +116,16 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
             {sizeError ? <p className="nh-field-msg nh-field-msg-error caption" role="alert"><Icon name="alert-triangle" size={16} />{sizeError}</p> : <p className="caption muted">{sizeRule.hint}</p>}
           </fieldset>
         ) : null}
+        <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend className="label" style={{ marginBottom: 8 }}>How many do you have?</legend>
+          <div className="qty-stepper">
+            <button type="button" className="icon-btn" aria-label="One fewer" disabled={qty <= 1} onClick={() => setQty((q) => Math.max(1, q - 1))}><span aria-hidden="true">−</span></button>
+            <input name="quantity" type="number" inputMode="numeric" min={1} max={999} value={qty} aria-label="How many you have"
+              onChange={(e) => setQty(Math.min(999, Math.max(1, Math.floor(Number(e.target.value) || 1))))} />
+            <button type="button" className="icon-btn" aria-label="One more" disabled={qty >= 999} onClick={() => setQty((q) => Math.min(999, q + 1))}><Icon name="plus" size={18} /></button>
+          </div>
+          <p className="caption muted">{qty > 1 ? `Each buyer gets one. Buyers see how many are left, and it shows as sold when all ${qty} have gone.` : "Selling more than one of the same thing? Set how many, and buyers can each buy one."}</p>
+        </fieldset>
         <TextField label="Price (₦)" name="price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d,]/g, ""))} placeholder="45,000" required missing="Enter a price in naira, like 45,000."
           validate={(v) => { const k = Number(v.replace(/[^\d]/g, "")) * 100; return k < min ? `The lowest price on NosHen is ${naira(min)}. You've entered ${naira(k)}.` : max !== null && k > max ? `The highest price on NosHen is ${naira(max)}. You've entered ${naira(k)}.` : !Number.isSafeInteger(k) ? "That price is too large. Check the number of zeros." : null; }}
           hint={p >= min && (max === null || p <= max) && Number.isSafeInteger(p) ? `The buyer pays ${naira(p + feeFor(p, fee))} with NosHen's fee. You get ${naira(p)}.` : max === null ? `From ${naira(min)}. There's no top price.` : `From ${naira(min)} to ${naira(max)}.`} />

@@ -38,7 +38,7 @@ export async function requestDeal(d: Deps, buyerId: string, input: { listingId: 
     const s = await settingsOf(d);
     const now = nowOf(d);
     const listing = await one(tx.db, "select l.*, u.status as seller_status from listings l join users u on u.id = l.seller_id where l.id = $1", [input.listingId]);
-    if (!listing || listing.status !== "live") throw new DealError("not_available", "This listing isn't available any more.");
+    if (!listing || listing.status !== "live" || listing.sold_count >= listing.quantity) throw new DealError("not_available", "This listing isn't available any more.");
     if (listing.seller_status !== "active") throw new DealError("not_available", "This listing isn't available right now.");
     if (listing.seller_id === buyerId) throw new DealError("own_listing", "This is your own listing.");
     const price = N(listing.price_kobo);
@@ -88,13 +88,21 @@ export async function acceptDeal(d: Deps, sellerId: string, dealId: string) {
     if (deal.state !== "requested") throw new DealError("state", "This request has already been answered.");
     if (deal.request_expires_at <= now) throw new DealError("expired", "This request has expired.");
 
-    // Accepting one request declines the others on the same listing.
-    const others = await many<{ id: string; buyer_id: string }>(
-      tx.db, "select id, buyer_id from deals where listing_id = $1 and state = 'requested' and id <> $2 for update", [deal.listing_id, dealId]);
-    const listing = await one(tx.db, "select title from listings where id = $1", [deal.listing_id]);
-    for (const o of others) {
-      await tx.db.query("update deals set state = 'declined' where id = $1", [o.id]);
-      await notify(d, tx, o.buyer_id, o.id, "request_declined", `The seller accepted another buyer for the ${listing.title}. You paid nothing.`);
+    // Each deal takes one unit. A unit is taken from acceptance until the deal ends: sold, or freed again if it's
+    // cancelled or refunded. Accepting the last free unit declines the other requests waiting on this listing.
+    const listing = await one<{ title: string; quantity: number; sold_count: number }>(tx.db,
+      "select title, quantity, sold_count from listings where id = $1 for update", [deal.listing_id]);
+    const taken = await one<{ n: string }>(tx.db,
+      "select count(*) as n from deals where listing_id = $1 and state in ('accepted', 'held', 'disputed') and id <> $2", [deal.listing_id, dealId]);
+    const free = listing!.quantity - listing!.sold_count - N(taken?.n);
+    if (free <= 0) throw new DealError("sold_out", "Every unit is already taken by another deal. Decline this request, or wait in case one falls through.");
+    if (free === 1) {
+      const others = await many<{ id: string; buyer_id: string }>(
+        tx.db, "select id, buyer_id from deals where listing_id = $1 and state = 'requested' and id <> $2 for update", [deal.listing_id, dealId]);
+      for (const o of others) {
+        await tx.db.query("update deals set state = 'declined' where id = $1", [o.id]);
+        await notify(d, tx, o.buyer_id, o.id, "request_declined", `The seller accepted another buyer for the ${listing!.title}${listing!.quantity > 1 ? ", the last one they had" : ""}. You paid nothing.`);
+      }
     }
 
     const buyer = await userName(tx.db, deal.buyer_id);
@@ -451,7 +459,12 @@ export async function release(d: Deps, tx: Tx, deal: DealRow, by: "code" | "conf
     "select id, account_last4 from bank_accounts where user_id = $1 and is_default and removed_at is null", [deal.seller_id]);
   if (bank) await createTransfer(d, tx, deal.id, "payout", share, { bankAccountId: bank.id });
   const listing = await one(tx.db, "select title from listings where id = $1", [deal.listing_id]);
-  await tx.db.query("update listings set status = 'sold' where id = $1 and status = 'live'", [deal.listing_id]);
+  // One more sold; the last one marks the listing sold.
+  await tx.db.query(
+    `update listings set sold_count = least(sold_count + 1, quantity),
+            status = case when sold_count + 1 >= quantity and status = 'live' then 'sold'::listing_status else status end,
+            sold_at = case when sold_count + 1 >= quantity then now() else sold_at end
+      where id = $1`, [deal.listing_id]);
   const seller = firstName(await userName(tx.db, deal.seller_id));
   await notify(d, tx, deal.seller_id, deal.id, "released", `${naira(share)} released. Your payout${bank ? ` to ••${bank.account_last4}` : ""} is on its way.`);
   await notify(d, tx, deal.buyer_id, deal.id, "released", `Deal closed: ${naira(share)} released to ${seller}. The ${listing.title} is yours. Please rate ${seller}.`);
