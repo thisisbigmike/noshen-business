@@ -13,7 +13,8 @@ const STAFF_SIGN_IN_PATHS = new Set(["/sign-in/email", "/two-factor/verify-totp"
  * One instance per request: Workers can't share database connections between requests.
  */
 function makeAuth() {
-  const pool = new pg.Pool({ connectionString: env.HYPERDRIVE.connectionString, max: 1 });
+  // Two connections, so the staff check below never waits on one that Better Auth holds in a transaction.
+  const pool = new pg.Pool({ connectionString: env.HYPERDRIVE.connectionString, max: 2 });
   return betterAuth({
     appName: "NosHen staff",
     baseURL: env.ADMIN_URL,

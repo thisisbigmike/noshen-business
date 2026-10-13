@@ -16,7 +16,9 @@ export const emailSignInEnabled = () => env.EMAIL !== "none";
  * One instance per request: Workers can't share database connections between requests.
  */
 function makeAuth(mail: EmailSender) {
-  const pool = new pg.Pool({ connectionString: env.HYPERDRIVE.connectionString, max: 1 });
+  // Two connections, not one: a new Google sign-up creates the user and their account in one transaction,
+  // which holds a connection while the staff check below runs. With one, that check waited forever.
+  const pool = new pg.Pool({ connectionString: env.HYPERDRIVE.connectionString, max: 2 });
   return betterAuth({
     appName: "NosHen",
     baseURL: env.APP_URL,
