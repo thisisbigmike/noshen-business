@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" role="img" aria-label="NosHen">
+  <style>@import url("https://fonts.googleapis.com/css2?family=Sora:wght@700&amp;display=block"); text { font-family: Sora, Figtree, system-ui, sans-serif; font-weight: 700; }</style>
+  <rect x="20" y="20" width="280" height="280" rx="64" fill="#0f6e56"/>
+  <g transform="translate(71.3 71.3) scale(7.39)" fill="none" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06"/>
+    <path d="M15 19l2 2l4 -4"/>
+  </g>
+  <text x="352" y="224" font-size="196" letter-spacing="-4" fill="#0f6e56">NosHen</text>
+</svg>
