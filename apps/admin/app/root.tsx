@@ -5,6 +5,8 @@ import "@noshen/ui/styles/components.css";
 import "@noshen/ui/styles/app.css";
 import "./console.css";
 import { themeFromCookie, type Theme } from "@noshen/ui/theme";
+import { failureOf, useRecover } from "@noshen/ui/recover";
+import { Button } from "@noshen/ui/ui";
 import { pushFor } from "@noshen/engine/context";
 
 export const links: Route.LinksFunction = () => [
@@ -45,22 +47,33 @@ export default function App() {
   return <Outlet />;
 }
 
+const FAILURE_TEXT = {
+  offline: ["Can't reach NosHen", "Check your connection. This page comes back by itself as soon as you're online."],
+  update: ["The staff site has been updated", "Loading the new version…"],
+  missing: ["We can't find that page", "The link may be old, or the case may have been closed. Go back to the dashboard."],
+  broken: ["Something went wrong", "Please try again. If it keeps happening, tell the NosHen engineering team."],
+} as const;
+
+/** The error page. When the cause was the connection or an update, it puts itself right (see useRecover). */
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let title = "Something went wrong";
-  let details = "Please try again. If it keeps happening, tell the NosHen engineering team.";
-  if (isRouteErrorResponse(error)) {
-    title = error.status === 404 ? "We can't find that page" : "Something went wrong";
-    details = error.status === 404 ? "The link may be old, or the case may have been closed. Go back to the dashboard." : error.statusText || details;
-  } else if (import.meta.env.DEV && error instanceof Error) {
-    details = error.message;
-  }
+  const failure = failureOf(error);
+  const { retry, retrying } = useRecover(failure);
+  const [title, fallback] = FAILURE_TEXT[failure];
+  let details: string = fallback;
+  if (failure === "broken" && isRouteErrorResponse(error) && error.statusText) details = error.statusText;
+  else if (failure === "broken" && import.meta.env.DEV && error instanceof Error) details = error.message;
   return (
     <main className="auth-page">
       <div className="auth-card">
         <title>{`${title} · NosHen staff`}</title>
         <h1 className="heading">{title}</h1>
         <p className="body muted">{details}</p>
-        <p><a href="/">Go to the dashboard</a></p>
+        <div className="row wrap" style={{ gap: 16, alignItems: "center" }}>
+          {failure !== "missing" ? (
+            <Button variant="primary" onClick={failure === "update" ? () => location.reload() : retry} disabled={retrying}>{retrying ? "Trying again…" : "Try again"}</Button>
+          ) : null}
+          <a href="/">Go to the dashboard</a>
+        </div>
       </div>
     </main>
   );

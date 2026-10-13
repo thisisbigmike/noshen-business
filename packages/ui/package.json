@@ -7,7 +7,8 @@
     "./ui": "./src/ui.tsx",
     "./theme": "./src/theme.tsx",
     "./icons": "./src/icons.ts",
-    "./styles/*": "./styles/*"
+    "./styles/*": "./styles/*",
+    "./recover": "./src/recover.tsx"
   },
   "dependencies": {
     "@noshen/shared": "workspace:*"

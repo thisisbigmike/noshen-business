@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRevalidator, useRouteLoaderData } from "react-router";
 import type { Route } from "./+types/root";
 import "@noshen/ui/styles/tokens.css";
 import "@noshen/ui/styles/components.css";
 import "@noshen/ui/styles/app.css";
 import { themeFromCookie, type Theme } from "@noshen/ui/theme";
+import { canRefresh, failureOf, useRecover } from "@noshen/ui/recover";
+import { Button } from "@noshen/ui/ui";
 import { pushFor } from "@noshen/engine/context";
 
 export const links: Route.LinksFunction = () => [
@@ -56,8 +58,14 @@ export default function App() {
  */
 function useLiveUpdates() {
   const revalidator = useRevalidator();
+  const r = useRef(revalidator);
+  r.current = revalidator;
   useEffect(() => {
-    const refresh = () => { if (document.visibilityState === "visible" && revalidator.state === "idle") revalidator.revalidate(); };
+    // Only while the tab is in front and online: a refresh that can't reach NosHen would show an error page.
+    const refresh = () => { if (canRefresh() && r.current.state === "idle") r.current.revalidate(); };
+    // Back to the tab: wait a moment, so a computer or phone that has just woken up has its connection back first.
+    let wake: ReturnType<typeof setTimeout> | undefined;
+    const onShow = () => { clearTimeout(wake); if (document.visibilityState === "visible") wake = setTimeout(refresh, 1500); };
     let sw: ServiceWorkerContainer | null = null;
     const onMessage = (e: MessageEvent) => { if (e.data?.type === "noshen:update") refresh(); };
     if ("serviceWorker" in navigator) {
@@ -73,8 +81,13 @@ function useLiveUpdates() {
     };
     window.addEventListener("beforeinstallprompt", onInstallable);
     const id = setInterval(refresh, 30_000);
-    document.addEventListener("visibilitychange", refresh);
-    return () => { clearInterval(id); document.removeEventListener("visibilitychange", refresh); sw?.removeEventListener("message", onMessage); window.removeEventListener("beforeinstallprompt", onInstallable); };
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("online", onShow);
+    return () => {
+      clearInterval(id); clearTimeout(wake);
+      document.removeEventListener("visibilitychange", onShow); window.removeEventListener("online", onShow);
+      sw?.removeEventListener("message", onMessage); window.removeEventListener("beforeinstallprompt", onInstallable);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
@@ -100,21 +113,32 @@ function NavProgress() {
   return <div className={phase === "idle" ? "nav-progress" : `nav-progress ${phase}`} aria-hidden="true" />;
 }
 
+const FAILURE_TEXT = {
+  offline: ["Can't reach NosHen", "Check your connection. This page comes back by itself as soon as you're online."],
+  update: ["NosHen has been updated", "Loading the new version…"],
+  missing: ["We can't find that page", "The link may be old, or the page may have moved. Try Browse, or go back to the NosHen home page."],
+  broken: ["Something went wrong", "Please try again. If it keeps happening, contact NosHen support."],
+} as const;
+
+/** The error page. When the cause was the connection or an update, it puts itself right (see useRecover). */
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let title = "Something went wrong";
-  let details = "Please try again. If it keeps happening, contact NosHen support.";
-  if (isRouteErrorResponse(error)) {
-    title = error.status === 404 ? "We can't find that page" : "Something went wrong";
-    details = error.status === 404 ? "The link may be old, or the page may have moved. Try Browse, or go back to the NosHen home page." : error.statusText || details;
-  } else if (import.meta.env.DEV && error instanceof Error) {
-    details = error.message;
-  }
+  const failure = failureOf(error);
+  const { retry, retrying } = useRecover(failure);
+  const [title, fallback] = FAILURE_TEXT[failure];
+  let details: string = fallback;
+  if (failure === "broken" && isRouteErrorResponse(error) && error.statusText) details = error.statusText;
+  else if (failure === "broken" && import.meta.env.DEV && error instanceof Error) details = error.message;
   return (
     <main className="page narrow" style={{ paddingTop: 48 }}>
       <title>{`${title} · NosHen`}</title>
       <h1 className="heading">{title}</h1>
       <p className="body muted">{details}</p>
-      <p><a href="/">Go to NosHen</a></p>
+      <div className="row wrap" style={{ gap: 16, alignItems: "center", marginTop: 8 }}>
+        {failure !== "missing" ? (
+          <Button variant="primary" onClick={failure === "update" ? () => location.reload() : retry} disabled={retrying}>{retrying ? "Trying again…" : "Try again"}</Button>
+        ) : null}
+        <a href="/">Go to NosHen</a>
+      </div>
     </main>
   );
 }
