@@ -33,8 +33,6 @@ img { max-width: 100%; display: block; }
   ::-webkit-scrollbar-thumb:hover { border-width: 2px; background-color: var(--scroll-thumb-hover); }
   ::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: var(--primary); }
 }
-/* Public demo notice, above everything (the navigation bars are sticky, so it scrolls away). */
-.demo-bar { margin: 0; padding: 8px 16px; background: var(--held-soft); color: var(--held); border-bottom: 1px solid color-mix(in srgb, var(--held) 25%, transparent); font-size: 13px; line-height: 18px; text-align: center; text-wrap: balance; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .muted { color: var(--ink-muted); }
 .ink { color: var(--ink); }
