@@ -1,4 +1,7 @@
-<p align="center"><img src="brand/noshen-logo.png" width="420" alt="NosHen"></p>
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/noshen-logo-white.png">
+  <img src="brand/noshen-logo.png" width="420" alt="NosHen">
+</picture></p>
 
 <p align="center"><strong>Buy and sell anything in Nigeria. Your money is held until you have the item.</strong><br>
 <em>If you don't trust the person you're dealing with, use NosHen.</em></p>
