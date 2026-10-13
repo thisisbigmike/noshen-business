@@ -13,6 +13,7 @@ import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
 import { sizeLabel, sizeRuleFor } from "@noshen/shared/sizes";
 import { overLimit, sellerLimit, sellerLimitText } from "@noshen/engine/deals";
+import { ShareButton } from "../lib/share";
 
 export const handle = { tabs: false };
 
@@ -81,9 +82,13 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
     <Button variant="primary" size="lg" block icon="shield-check" to={`/l/${l.id}/buy`}>Buy with protection</Button>
   );
 
+  // The same words as the share screen after publishing.
+  const shareText = `${l.title} · ${naira(price)}. ${placeLabel(l.area, l.state)}. Your money is held until you have it.`;
+  const share = (kind: "button" | "icon") => <ShareButton kind={kind} path={`/l/${l.id}`} title={`${l.title} · ${naira(price)}`} text={shareText} />;
+
   return (
     <div className="listing-screen">
-      <TopBar title={<Wordmark size="sm" />} back="/browse" right={<Link className="caption tap" style={{ padding: "0 12px" }} to="/browse">See more listings</Link>} />
+      <TopBar title={<Wordmark size="sm" />} back="/browse" right={share("icon")} />
       <main className="page flush no-tabs">
         <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/browse">Browse</Link> / <Link to={`/browse?cat=${cat.key}`}>{cat.label}</Link> / {placeLabel(l.area, l.state)}</nav>
         <div className="two-col">
@@ -134,6 +139,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             <ProtectionBadge />
             {!status && limitText ? <Info icon="info-circle">{limitText}</Info> : null}
             {buy}
+            {share("button")}
             <div><Kv k="Price" v={naira(price)} /><Kv k="NosHen fee" v={naira(fee)} /><Kv k="Total" v={naira(price + fee)} total /></div>
             {limitText ? null : <p className="caption muted">You pay nothing until {sellerName} accepts.</p>}
           </aside>

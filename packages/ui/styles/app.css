@@ -587,3 +587,15 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 .qty-stepper .icon-btn { font-size: 22px; font-weight: 600; background: var(--tint); }
 .qty-stepper .icon-btn:disabled { opacity: 0.4; cursor: default; }
 .hold-card { border-color: color-mix(in srgb, var(--held) 40%, var(--border)); background: linear-gradient(180deg, var(--held-soft), var(--surface) 55%); }
+
+/* Share a listing: the device's share sheet where there is one, otherwise this small menu under the button. */
+/* Above the blocks after it (their entrance animation gives each its own layer), but under the sticky nav bars. */
+.share { position: relative; z-index: 5; display: inline-flex; }
+.share.block { display: flex; flex-direction: column; }
+.share-menu { position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; min-width: 220px; padding: 6px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); animation: share-in var(--dur-fast) var(--ease-out); }
+.share.block .share-menu { left: 0; right: 0; }
+.share-menu a, .share-menu button { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.share-menu a:active, .share-menu button:active { background: var(--tint); }
+@media (hover: hover) { .share-menu a:hover, .share-menu button:hover { background: var(--tint); color: var(--ink); } }
+@keyframes share-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .share-menu { animation: none; } }
