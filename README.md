@@ -1,96 +1,188 @@
-# NosHen app (first working version, in progress)
+<p align="center"><img src="brand/noshen-logo.png" width="420" alt="NosHen"></p>
 
-Buy and sell safely in Nigeria: the buyer's money is held by a licensed partner until they have the item.
-Built from the Claude Design screens and the docs in the `noshen` repo (PRD, TRD, app flow, backend schema).
+<p align="center"><strong>Buy and sell anything in Nigeria. Your money is held until you have the item.</strong><br>
+<em>If you don't trust the person you're dealing with, use NosHen.</em></p>
 
-**Stack:** React Router 8 + Hono on Cloudflare Workers, Workflows for deal timers, R2 for photos,
-PostgreSQL (Neon in production, via Hyperdrive with query caching off), Better Auth (customers: email code or Google; staff: email, password and two-factor).
+<p align="center"><a href="https://noshen-web.usenoshen.workers.dev">Live demo</a> · <a href="#try-the-demo">Try it</a> · <a href="#how-its-built">How it's built</a> · <a href="#run-it-locally">Run it locally</a></p>
 
-## One repo, two sites
+> **The demo runs in test mode.** No real money moves: the bank, the crypto partner and the ID checks are stand-ins, and every screen where you'd type a payment, NIN, BVN or account number says so.
+
+## The problem
+
+Online deals between strangers in Nigeria fall apart at the payment, because someone has to go first:
+
+- **Pay first:** the seller disappears, or sends something fake.
+- **Hand over first:** the "payment" turns out to be a fake transfer alert.
+- **Meet with cash:** you carry the full price across town to meet a stranger.
+
+NosHen takes the risk out of the first step. The buyer pays NosHen, the money is held, and the seller is paid only once the buyer has checked the item.
+
+## How a deal works
+
+1. **Request.** The buyer finds a listing and sends a request. The seller accepts.
+2. **Pay.** The buyer pays into that deal's own account, by naira bank transfer or with a dollar stablecoin. The money is **held**: the seller can see it, but can't touch it.
+3. **Check the item.** They meet in a public place, or the seller delivers it. Before handing over anything, the app takes the buyer through checks for that kind of item (a phone's IMEI and account lock, a car's papers, and so on).
+4. **Release.** The buyer gives the seller a 6-digit **release code**, which exists only in the buyer's app. The seller types it in, and the payout starts. For a delivery, the buyer confirms instead; if they do nothing, the money is released 24 hours after delivery.
+
+If something is wrong, the buyer **reports a problem** before release. The money freezes, both sides add photos and notes for 24 hours, and a NosHen reviewer decides within 72 hours: refund the buyer or release to the seller, with the reason sent to both.
+
+**Fee:** 1.5% of the price, at least ₦500 and at most ₦7,500. The buyer or the seller can pay it.
+
+## Paying with stablecoins
+
+Buyers outside Nigeria, including Nigerians abroad, can pay in **USDT or USDC on Solana, BNB Smart Chain, Base or Ethereum**:
+
+- Each deal gets its own deposit address, so NosHen always knows exactly who paid for what. No memo or reference is needed.
+- The exact coin amount is fixed for 30 minutes.
+- A refund goes back in the same coin to the buyer's own address. They can add it while paying, or later; a refund waits until they do.
+- The pay sheet is ordered by where the buyer's device is (from Cloudflare): bank transfer first in Nigeria, stablecoins first elsewhere.
+- A second payment for a deal that's already paid is sent back on its own.
+
+In the demo, the crypto partner is pretend. Its addresses are deliberately invalid (`0xTEST…`, `TEST0…`) so no wallet can send real coins to it.
+
+## Try the demo
+
+The live demo is at **https://noshen-web.usenoshen.workers.dev**. Sign in there with Google.
+
+1. **Sell something.** Tap Sell, pick a category, add photos and details, then review and publish. The ID and bank checks are pretend: type any 11 digits for the NIN or BVN, and a made-up 10-digit account number.
+2. **Buy it from a second account.** In another browser (or a private window), sign in with a different Google account, find the listing in Browse and send a request. Accept it as the seller.
+3. **Pay.** Tap Pay as the buyer:
+   - For a bank transfer: under "Pretend to be your bank", press **Send ₦… from my account**.
+   - For crypto: pick a coin and network (e.g. USDC on Solana), then under "Pretend to be your wallet", press **Send …**.
+
+   Both sides now see the money as held. The other test buttons (paying from someone else's account, or sending too little) show the review holds.
+4. **Chat** on the deal page. Messages, "typing…" and who's online update live, and phones get a notification if you turn notifications on.
+5. **Release.** The buyer opens the release code and the seller types it in. The deal closes and the payout is confirmed. To see the other path, report a problem instead.
+
+## What's built
+
+**Customer site**
+- Listings in 13 categories across all 36 states and the FCT, with sizes for clothes and shoes, and more than one unit per listing.
+- Search and filters, a share link for every listing (with a WhatsApp preview), and photos.
+- Deals for meet-ups and deliveries, release codes, disputes with evidence, and ratings.
+- Real-time chat, and notifications on the phone or computer (Web Push, with no third-party push service).
+- Naira and stablecoin payments.
+- Light and dark themes, and a layout that works from small phones to wide screens.
+
+**Safety rules in the engine**
+- **Payments from someone else's account** (a different name) are held for review. The buyer is asked who paid and can cancel to get the money back.
+- **Wrong amounts** are held too.
+- **Unverified sellers** are capped at ₦300,000 per deal. Verified sellers (ID plus a bank account in the same name) have no cap.
+- **Release codes** lock after 5 wrong tries.
+- **Refunds** always go back to where the money came from.
+
+**Staff site**
+- It sits behind Cloudflare Access, plus a password and an authenticator code.
+- A dashboard, plus queues for disputes and payments held for review.
+- Every deal in full, with staff actions: refund the buyer, release to the seller (admins only), give more time, open a dispute for the buyer, unlock a release code, and send a failed payout again.
+- Listing moderation, freezing and banning accounts, and deal limits.
+- A money check, and alerts on staff devices.
+- Every action needs a reason and is kept in an append-only audit log.
+
+## How it's built
+
+**Stack:**
+- **Hosting:** Cloudflare Workers. React Router 8 renders the pages and Hono serves the API.
+- **Deadlines:** Cloudflare Workflows, one per deal deadline, plus a 15-minute sweep that catches any that didn't fire.
+- **Live updates:** Durable Objects, one live room per deal, using WebSocket hibernation.
+- **Photos:** R2.
+- **Database:** PostgreSQL on Neon, reached through Hyperdrive with query caching off.
+- **Sign-in:** Better Auth.
 
 ```
-apps/web         the customer site (noshen.com): browse, buy, sell, deals        → Worker "noshen-web"
-apps/admin       the staff site (admin.noshen.com): disputes, holds, listings,    → Worker "noshen-admin"
-                 people, money, audit log
-packages/engine  the money engine both sites share: deals, ledger, disputes, sellers, staff actions, database
-packages/shared  rules and words used in the browser and on the server: money, categories, deal states, field checks
-packages/ui      components, icons, theme switch and styles
-db/              migrations, schema checks, and roles.sql (what each site's database login may do)
-scripts/         migrate, roles, seed, create staff, dev launcher
-tests/           engine tests and the staff site's Cloudflare Access check
+apps/web         the customer site: browse, sell, buy, deals, chat          → Worker "noshen-web"
+apps/admin       the staff site: disputes, holds, deals, listings, people,  → Worker "noshen-admin"
+                 money, audit log
+packages/engine  the engine both sites share: the deal state machine, ledger, payments and refunds,
+                 stablecoins, disputes, deadlines, notifications (Web Push), staff actions
+packages/shared  rules used in the browser and on the server: money, fees, categories, sizes, places, payments
+packages/ui      components, icons and styles
+db/              migrations, schema checks (tests.sql), and roles.sql (what each site's database login may do)
+scripts/         migrate, roles, seed, staff accounts, dev launcher
+tests/           engine, Web Push and Cloudflare Access tests
+brand/           the logo
 ```
 
-Both sites use the same engine and database, so a change to the money rules reaches both at once. They are
-deployed and secured separately:
+**How the money is kept right**
 
-| | Customer site (`apps/web`) | Staff site (`apps/admin`) |
+- **Ledger.** Every naira and coin amount is recorded in kobo in a double-entry ledger. It's append-only, and the database refuses an unbalanced entry.
+- **Deal states.** A deal moves between states (requested → accepted → held → released → paid out, or refunded, declined, disputed) only along allowed paths, which the database also enforces.
+- **Locking.** Each action locks its deal row, so two actions on one deal can never interleave. Deadlines re-check under that lock, so a late or repeated timer does nothing.
+- **Partner webhooks** are idempotent: the same event twice is processed once.
+
+**Two sites, kept apart.** They share the engine and the database, but are deployed and secured separately.
+
+| | Customer site | Staff site |
 |---|---|---|
-| Address | `noshen.com` | `admin.noshen.com`, behind Cloudflare Access |
-| Sign-in | Email code or Google. Staff accounts are refused. | Email, password and authenticator code. Staff only; no sign-up. |
-| Sign-in secret and cookies | Its own `BETTER_AUTH_SECRET`; `better-auth.*` cookies, 30-day sessions | A different `BETTER_AUTH_SECRET`; `noshen-staff.*` cookies, 12-hour sessions |
-| Database login | `noshen_web`: no access to staff accounts, staff passwords, staff sessions, two-factor keys or the audit log; settings read-only | `noshen_admin` |
-| Photos | Served to anyone with the link | Staff only, never cached by shared caches |
-| Other | Partner webhooks, 15-minute deadline sweep | Refuses to be framed by other sites, never indexed; locked on https until Access is set up |
-
-## Status
-
-**Works, and tested end to end in the browser** (phone and desktop sizes):
-
-- Landing page at `/` (what NosHen is, how it works, fees, questions), with the marketplace at `/browse`.
-- Sign-in: **email code or Google only**. Type an email and get a 6-digit code (no password), or continue with Google.
-- Updates go **to the phone or computer** (Web Push: turn on in Alerts or Account; on iPhone, add NosHen to the Home Screen first), **in the app** (the bell and open pages refresh as soon as a notification arrives, and every 30 seconds otherwise), and by email where it's set up. Phone numbers and SMS come later. Keys: `VAPID_PUBLIC_KEY` (a var) and the secret `VAPID_PRIVATE_JWK`, the same pair on both sites; the push code is `packages/engine/src/push.ts`, tested against RFC 8291's worked example.
-- Buyer: browse → listing → sign in → buy request → pay into the deal account → money held → release-code checklist → code.
-- Two ways to pay: naira by bank transfer, or a dollar stablecoin (USDT or USDC) on Solana, BNB Smart Chain, Base or Ethereum, shown with their real logos (`apps/web/app/assets/logos`, see its NOTICE). "Pay" opens a sheet with both, ordered by the country the buyer's device is in (from Cloudflare): bank transfer first in Nigeria, stablecoins first elsewhere, with local methods for Ghana, Kenya and South Africa shown as coming soon. The sheet quotes the deal in the chosen coin. Picking a network shows the deal's address straight away, with an exact amount fixed for 30 minutes; the buyer's own address is only needed for a refund (they can add it while paying, and a refund waits on the deal page until they do); the crypto partner turns it into naira for the deal, and refunds go back in the same coin. A second payment for a deal already paid is sent back on its own.
-- Seller: accept → see what's held for them → enter the code (wrong codes count down and lock after 5) → released → payout confirmed by the partner.
-- Delivery deals: mark delivered → buyer confirms, or the money releases 24 hours later.
-- Problems: report with photos → money frozen → evidence → a staff reviewer decides → refund or release, with the reason sent to both.
-- Selling: photos (stored in R2) → details → the ID and bank checks if not done yet → live listing → share screen with a WhatsApp preview.
-- Staff site: dashboard (money held, sales, fees, 14-day chart; every tile opens its queue), disputes and review holds (lists and decisions), deals (every deal with filters for what needs attention; one deal's people, money in and out, history, chat and staff actions, with unlock release code, send a failed payout or refund again, and check deadlines now), listings (remove or approve with a reason the seller is told), people (one person's checks, deals and listings; freeze, ban, unfreeze and deal limits), money check, and an audit log you can filter. Counts and pages refresh every 15 seconds.
-- Every deal deadline is a Cloudflare Workflow; a 15-minute sweep catches any that didn't fire.
-- Checks: `pnpm test` (engine and Access tests), `pnpm db:test` (schema checks), `pnpm db:roles` (checks each site's database login), `pnpm typecheck`.
-
-**Not done yet:**
-
-- Real providers: the payment partner, the crypto partner for USDT and USDC, NIN/BVN checks and email sending are development stand-ins until they're chosen (see `packages/engine/src/partner/`, `idcheck.ts`, `email.ts`). The pretend crypto partner's addresses are deliberately invalid (`0xTEST…`, `TEST0…`) so no wallet can send real USDT to the demo, and its rates are fixed (₦1,500 per USDT, ₦1,498 per USDC). A site with a real bank partner offers bank transfer only until a crypto partner is added in `cryptoFor()` (`packages/engine/src/context.ts`), and the lawyer has confirmed stablecoin payments are allowed. Phone numbers and SMS updates are planned for later.
-- Cloudflare Queues for webhooks and SMS retries (they're processed straight away for now), PostHog analytics, image resizing, and a generated 1200×630 link-preview image (the first photo is used).
-- The blocklist (phone, bank account, device, IMEI) and seller tools like editing a live listing.
-- Deployment: see below.
+| Who can reach it | Anyone | Only staff emails allowed by Cloudflare Access |
+| Sign-in | Google, or an emailed 6-digit code (no passwords). Staff accounts are refused. | Email, password and an authenticator code. No sign-up. |
+| Sessions | 30 days, its own secret and cookies | 12 hours, a different secret and cookies |
+| Database login | `noshen_web`: can't read staff accounts, staff sessions, two-factor keys or the audit log; can only add staff alerts | `noshen_admin` |
 
 ## Run it locally
 
+You need Node 24, pnpm and PostgreSQL.
+
 ```bash
 pnpm install
-cp .dev.vars.example .dev.vars                       # scripts: database owner, site logins' passwords
+cp .dev.vars.example .dev.vars                       # scripts: database owner, the two site logins' passwords
 cp apps/web/.dev.vars.example apps/web/.dev.vars     # customer site secrets (openssl rand -base64 32)
 cp apps/admin/.dev.vars.example apps/admin/.dev.vars # staff site secrets
-pnpm db:migrate && pnpm db:roles && pnpm db:seed     # needs PostgreSQL; set DATABASE_URL in .dev.vars
-pnpm test                                            # engine tests (creates a noshen_test database)
+pnpm db:migrate && pnpm db:roles && pnpm db:seed     # set DATABASE_URL in .dev.vars first
 pnpm dev                                             # customer site: http://localhost:5173
 pnpm dev:admin                                       # staff site:    http://localhost:5174
 ```
 
-`pnpm dev` and `pnpm dev:admin` connect each site with its own database login (`scripts/dev.mjs`).
-In development, no email is sent: sign-in codes appear on screen (and every email is printed in the server log), and the pay screen can pretend to be the buyer's bank.
-`FIELD_KEY` and `RELEASE_CODE_SECRET` must be the same in all three `.dev.vars` files.
-Seed sellers: tunde@example.com, kunle@example.com. Staff: tobi@noshen.test / noshen-dev-staff (on the staff site).
+- `FIELD_KEY` and `RELEASE_CODE_SECRET` must be the same in all three `.dev.vars` files.
+- Locally, no email is sent: sign-in codes appear on screen, and the pay screens can pretend to be the bank or the wallet.
+- `pnpm db:seed` adds sample listings and two sample sellers. On a local database it also creates a staff admin and prints its sign-in details in the terminal.
+- Google sign-in is optional. Create an OAuth client (Web application) with the redirect URI `http://localhost:5173/api/auth/callback/google`, and put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `apps/web/.dev.vars`.
 
-### Turning on Google sign-in
+## Tests
 
-1. In Google Cloud Console, create an OAuth client (type: Web application).
-2. Add the redirect URI `<APP_URL>/api/auth/callback/google` (for local development: `http://localhost:5173/api/auth/callback/google`).
-3. Put the client ID and secret in `apps/web/.dev.vars` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`), or as secrets of the `noshen-web` Worker in production. The "Continue with Google" button appears once both are set.
+```bash
+pnpm test        # engine, Web Push and Cloudflare Access tests (uses a separate noshen_test database)
+pnpm db:test     # schema checks: the ledger, deal states and money rules enforced by the database
+pnpm db:roles    # creates the two site logins and checks what each can and can't do
+pnpm typecheck
+```
 
-## Deploying (when the providers and region are decided)
+The engine tests cover:
+- Deals, fees, disputes, deadlines and refunds.
+- Bank and stablecoin payments, including second and wrong-name payments.
+- Units and sizes.
+- Staff actions and staff alerts.
 
-1. **Database.** Create the Neon project (region per the lawyer's answer on data transfer). As the owner: `DATABASE_URL=... pnpm db:migrate`, then
-   `DATABASE_URL=... WEB_DB_PASSWORD=... ADMIN_DB_PASSWORD=... pnpm db:roles` with two long random passwords. It creates `noshen_web` and `noshen_admin` and checks their limits.
-2. **Hyperdrive, one per site** (caching off, each with its own login):
-   `wrangler hyperdrive create noshen-web-db --connection-string=postgres://noshen_web:...@.../noshen --caching-disabled` → id into `apps/web/wrangler.jsonc`;
-   `wrangler hyperdrive create noshen-admin-db --connection-string=postgres://noshen_admin:...@.../noshen --caching-disabled` → id into `apps/admin/wrangler.jsonc`.
-3. **Photos.** `wrangler r2 bucket create noshen-photos` (both sites use it).
-4. **Customer site secrets** (in `apps/web`): `wrangler secret put BETTER_AUTH_SECRET`, `RELEASE_CODE_SECRET`, `FIELD_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and the partner's and email provider's keys. Set `APP_URL`, `PARTNER`, `EMAIL`, `ID_PROVIDER`.
-5. **Staff site secrets** (in `apps/admin`): a **different** `BETTER_AUTH_SECRET`; the **same** `RELEASE_CODE_SECRET` and `FIELD_KEY`; the partner's and email provider's keys. Set `APP_URL` (the customer site) and `ADMIN_URL` (this site).
-6. **Cloudflare Access for the staff site.** In Cloudflare Zero Trust → Access → Applications, add a self-hosted application for `admin.noshen.com` with a policy allowing only your staff's emails (and require a second factor in your identity provider). Copy its **Application Audience (AUD) tag** into `ACCESS_AUD` and your team domain (`<team>.cloudflareaccess.com`) into `ACCESS_TEAM_DOMAIN` in `apps/admin/wrangler.jsonc`. Until both are set, the staff site refuses every request on https. It also checks that the staff account signing in matches the email Access let in.
-7. **Addresses.** Add the custom domains to each `wrangler.jsonc` (`routes`), and set `"workers_dev": false` on the staff site so its `workers.dev` address can't be used to go around Access.
-8. **Staff accounts.** `NOSHEN_VARS=.prod.vars pnpm staff:create "Name" email admin` (or `reviewer`); the email must be one Cloudflare Access allows. They set up two-factor at their first sign-in. To choose your own password: `NOSHEN_VARS=.prod.vars pnpm staff:password email` (typed hidden in the terminal; signs that account out everywhere and is recorded in the audit log).
-9. `pnpm deploy:web` and `pnpm deploy:admin`.
+The Web Push encryption is checked against the worked example in RFC 8291.
+
+## Deploying
+
+The demo is deployed like this:
+
+1. **Database.** Create a Neon database. As its owner, run `pnpm db:migrate`, then `pnpm db:roles` with `WEB_DB_PASSWORD` and `ADMIN_DB_PASSWORD` set to two long random passwords.
+   - The scripts read `.dev.vars`, or another file named in `NOSHEN_VARS` (e.g. `NOSHEN_VARS=.prod.vars`).
+2. **Hyperdrive.** Create one Hyperdrive config per site, with caching off, each connecting with its own login. Put their ids in each `wrangler.jsonc`.
+3. **Photos.** Create the R2 bucket `noshen-photos`.
+4. **Secrets.**
+   - **Customer site:** `BETTER_AUTH_SECRET`, `RELEASE_CODE_SECRET`, `FIELD_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `VAPID_PRIVATE_JWK`.
+   - **Staff site:** a different `BETTER_AUTH_SECRET`, the same `RELEASE_CODE_SECRET` and `FIELD_KEY`, and `VAPID_PRIVATE_JWK`.
+5. **Cloudflare Access for the staff site.** Add a self-hosted Access application allowing only staff emails. Put its AUD tag and team domain in `apps/admin/wrangler.jsonc` (`ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`). Until both are set, the staff site refuses every request on https.
+6. **Staff accounts.** Create one with `pnpm staff:create "Name" email admin` (or `reviewer`). The person sets up two-factor at their first sign-in.
+7. **Deploy:** `pnpm deploy:web` and `pnpm deploy:admin`.
+
+## Not built yet
+
+- **Real providers.** The payment partner (a licensed bank to hold naira), the stablecoin custody and conversion partner, NIN/BVN checks and email sending are all stand-ins. They plug in behind the interfaces in `packages/engine/src/partner/`, `idcheck.ts` and `email.ts`.
+- **Phone sign-in and SMS updates.**
+- **Smaller pieces:**
+  - Cloudflare Queues for webhook retries.
+  - Analytics.
+  - Image resizing.
+  - A blocklist for phones, bank accounts and devices.
+  - Editing a live listing.
+- **Other countries.** Ghana, Kenya and South Africa show as coming soon.
+- **Legal pages.** The pages at `/terms`, `/privacy` and the others are drafts waiting for review by a Nigerian lawyer.
+
+## Team
+
+Built by **Big Mike** and **Nonso**.
