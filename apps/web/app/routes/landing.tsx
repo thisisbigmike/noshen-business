@@ -247,7 +247,6 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
 function Hero({ live }: { live: number }) {
   return (
     <section className="lp-hero" aria-labelledby="hero-title">
-      <div className="hero-grid" aria-hidden="true" />
       <div className="lp-inner hero-layout">
         <div className="hero-copy">
           <p className="live-pill"><span className="live-dot" aria-hidden="true" />{live ? `${live} items for sale across Nigeria now` : "Buy and sell anything in Nigeria"}</p>
@@ -339,7 +338,6 @@ function LiveStrip({ items }: { items: { id: string; title: string; area: string
 function FollowTheMoney() {
   return (
     <section className="lp-dark" aria-labelledby="how-title">
-      <div className="dark-grid" aria-hidden="true" />
       <div className="lp-inner stack-6">
         <div className="lp-head reveal">
           <p className="lp-eyebrow on-dark">How it works</p>

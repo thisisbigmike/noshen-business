@@ -20,7 +20,10 @@
     "PARTNER_BANK_NAME": "Test Bank (fake partner)",
     // "console" prints emails to the log and shows sign-in codes on screen in development.
     "EMAIL": "console",
-    "ID_PROVIDER": "fake"
+    "ID_PROVIDER": "fake",
+    // NosHen's own Solana wallet on devnet (pnpm solana:setup). Secrets: SOLANA_RPC_URL (a keyed RPC: Solana's public one refuses Workers), SOLANA_WALLET, SOLANA_DEMO_WALLET, SOLANA_DEPOSIT_SECRET.
+    "SOLANA_USDC_MINT": "J7sNd4p3yWKQwsYChizSTJtMTZbWPY9rKNfKHUTbTm5",
+    "SOLANA_USDT_MINT": "BnWKpnFbmAcSsrtnSL3djPHbKSe9aHUJLqBysYu329Ht"
   },
   // Production: `wrangler hyperdrive create noshen-web-db --connection-string=<noshen_web login> --caching-disabled`.
   // It connects as the customer site's own database login (noshen_web, see db/roles.sql), never the owner.
@@ -53,6 +56,9 @@
         // No email provider until there's a domain: sign-in is by Google, and updates are in the app.
         "EMAIL": "none",
         "ID_PROVIDER": "fake",
+        // NosHen's own Solana wallet on devnet (pnpm solana:setup). Secrets: SOLANA_RPC_URL (a keyed RPC: Solana's public one refuses Workers), SOLANA_WALLET, SOLANA_DEMO_WALLET, SOLANA_DEPOSIT_SECRET.
+        "SOLANA_USDC_MINT": "J7sNd4p3yWKQwsYChizSTJtMTZbWPY9rKNfKHUTbTm5",
+        "SOLANA_USDT_MINT": "BnWKpnFbmAcSsrtnSL3djPHbKSe9aHUJLqBysYu329Ht",
         // Phone notifications (Web Push): the public key browsers subscribe with. Its private half is the secret VAPID_PRIVATE_JWK.
         "VAPID_PUBLIC_KEY": "BN2iM4wO9eZDlmuNBOiTOgbyGsIyeSnQjYLBQCKHs8UBm0i0_jjcjJ-1Gwsm0P39c6L9eDVxoCgzVrnDtM-Mucg"
       },

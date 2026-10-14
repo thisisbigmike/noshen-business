@@ -30,9 +30,6 @@
 
 /* ---------------------------------------------------------------- Hero */
 .lp-hero { position: relative; padding: 32px 0 56px; isolation: isolate; }
-.hero-grid { position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background-image: linear-gradient(color-mix(in srgb, var(--ink) 7%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ink) 7%, transparent) 1px, transparent 1px);
-  background-size: 56px 56px; -webkit-mask-image: radial-gradient(ellipse 70% 60% at 70% 35%, #000 20%, transparent 75%); mask-image: radial-gradient(ellipse 70% 60% at 70% 35%, #000 20%, transparent 75%); }
 .hero-layout { display: grid; gap: 48px; align-items: center; }
 .hero-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 20px; }
 .live-pill { display: inline-flex; align-items: center; gap: 10px; padding: 6px 14px 6px 12px; border-radius: var(--radius-full); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); font-size: 13px; font-weight: 600; color: var(--ink); animation: lp-in 600ms var(--ease-out) both; }
@@ -119,7 +116,6 @@
 
 /* ---------------------------------------------------------------- Follow the money (dark) */
 .lp-dark { position: relative; isolation: isolate; overflow: hidden; padding: 80px 0; background: radial-gradient(90% 70% at 50% 0%, var(--deep-2), var(--deep) 70%); color: var(--on-deep); }
-.dark-grid { position: absolute; inset: 0; z-index: -1; background-image: radial-gradient(rgb(124 227 201 / 0.16) 1px, transparent 1.4px); background-size: 22px 22px; -webkit-mask-image: radial-gradient(ellipse 60% 70% at 50% 30%, #000, transparent 80%); mask-image: radial-gradient(ellipse 60% 70% at 50% 30%, #000, transparent 80%); }
 .lp-dark .lp-h2 { color: #fff; }
 .on-dark { color: var(--on-deep-muted); }
 .lp-eyebrow.on-dark { color: #7ce3c9; }

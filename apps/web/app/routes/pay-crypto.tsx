@@ -184,7 +184,7 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
               )}
             </section>
             {onChain ? (
-              <p className="caption muted">The {c} stays at this deal's own address, and {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}. Then it moves to NosHen, which pays {x.seller} {naira(x.deal.due)} less the fee.</p>
+              <p className="caption muted">The {c} stays at this deal's own address, and {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}. Then it moves to NosHen, which pays {x.seller}.</p>
             ) : (
               <p className="caption muted">Our crypto partner turns the {c} into {naira(x.deal.due)} for this deal, and our licensed partner holds it. {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}.</p>
             )}

@@ -320,7 +320,6 @@ textarea.nh-input { min-height: 96px; padding: 10px 12px; resize: vertical; line
   .auth-wrap { grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 64px; padding: 72px var(--space-6) var(--space-10); align-items: center; }
   .auth-box { margin: 0; padding: 32px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-lg); }
   .auth-aside { position: relative; overflow: hidden; isolation: isolate; display: flex; flex-direction: column; gap: 24px; min-height: 460px; justify-content: flex-end; padding: 40px; border-radius: 32px; background: radial-gradient(120% 100% at 100% 0%, var(--deep-2), var(--deep) 70%); color: var(--on-deep); }
-  .auth-aside::before { content: ""; position: absolute; inset: 0; z-index: -1; background-image: radial-gradient(rgb(124 227 201 / 0.18) 1px, transparent 1.4px); background-size: 20px 20px; -webkit-mask-image: radial-gradient(ellipse at 80% 10%, #000, transparent 70%); mask-image: radial-gradient(ellipse at 80% 10%, #000, transparent 70%); }
   .auth-aside .nh-wordmark { position: absolute; top: 36px; left: 40px; color: #fff; }
   .auth-aside-title { font-family: var(--font-display); font-weight: 600; font-size: 34px; line-height: 40px; letter-spacing: -0.03em; color: #fff; text-wrap: balance; }
   .auth-aside ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; color: var(--on-deep-muted); }

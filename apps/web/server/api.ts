@@ -185,8 +185,13 @@ api.post("/api/dev/crypto/send", async (c) => {
   // On a network NosHen reads itself (Solana devnet), the demo wallet really pays: a transaction anyone can look up.
   const coins = cryptoFor();
   if (coins?.watches?.includes(network as Network) && coins.demoPay) {
-    const tx = await coins.demoPay(network as Network, dep.provider_ref, sent);
-    return c.json({ ok: true, tx, explorer: coins.explorer?.(network as Network, "tx", tx) ?? null });
+    try {
+      const tx = await coins.demoPay(network as Network, dep.provider_ref, sent);
+      return c.json({ ok: true, tx, explorer: coins.explorer?.(network as Network, "tx", tx) ?? null });
+    } catch (e) {
+      console.error("demo wallet", e);
+      return c.json({ error: "The Solana network didn't take the payment just now. Try again in a moment." }, 503);
+    }
   }
   // The partner credits the deal its amount due if the right USDT came while the amount held; otherwise it converts at its rate.
   const inTime = new Date(dep.quote_expires_at) > new Date();
