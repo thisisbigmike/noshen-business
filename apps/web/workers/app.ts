@@ -41,9 +41,13 @@ export default {
   },
 
   // Every 15 minutes: act on any deadline whose timer didn't fire (TRD: stuck-deal watch).
-  async scheduled(event, _env, ctx) {
-    // Every 15 minutes: act on passed deadlines. Every minute: read the chain for payments to deals' Solana addresses.
-    if (event.cron === "*/15 * * * *") ctx.waitUntil(withApp((d) => sweep(d)).then((done) => { if (done.length) console.log("sweep", done); }));
-    else ctx.waitUntil(withApp((d) => watchCrypto(d)).then((r) => { if (r.payments || r.settled) console.log("chain", r); }));
+  // Once an hour, a backstop: act on any passed deadline a timer missed, and read the chain for any payment the
+  // booked checks missed. Not more often, so the database (which sleeps when idle) isn't kept awake all the time.
+  async scheduled(_event, _env, ctx) {
+    ctx.waitUntil(withApp(async (d) => {
+      const done = await sweep(d);
+      const chain = await watchCrypto(d);
+      if (done.length || chain.payments || chain.settled) console.log("hourly", { done, chain });
+    }));
   },
 } satisfies ExportedHandler<Env>;

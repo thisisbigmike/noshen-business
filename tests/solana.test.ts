@@ -190,6 +190,8 @@ describe("paying on Solana, read from the chain", () => {
   it("holds the deal when the payment shows on-chain, takes it once, and collects the coin at release", async () => {
     const { seller, buyer, dealId, dep } = await solanaDeal();
     expect(dep.provider).toBe("solana-devnet");
+    // Checks of this deal's address are booked over the next 45 minutes (no every-minute polling of the database).
+    expect(w.timers.filter((t) => t.kind === "crypto_watch" && t.dealId === dealId).length).toBe(8);
     expect(await watchCrypto(w.d, dealId)).toEqual({ payments: 0, settled: 0 });
     chain.pay(dep.provider_ref, Number(dep.amount_micro), Number(dep.amount_kobo));
     expect((await watchCrypto(w.d, dealId)).payments).toBe(1);

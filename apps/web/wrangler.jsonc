@@ -42,7 +42,7 @@
   "durable_objects": { "bindings": [{ "name": "DEAL_ROOMS", "class_name": "DealRoom" }] },
   "migrations": [{ "tag": "deal-rooms-v1", "new_sqlite_classes": ["DealRoom"] }],
   // The stuck-deal sweep: the safety net behind every timer.
-  "triggers": { "crons": ["*/15 * * * *", "* * * * *"] },
+  "triggers": { "crons": ["0 * * * *"] },
   // The public demo: `pnpm deploy:web` builds with CLOUDFLARE_ENV=production and deploys this.
   // Bindings aren't inherited by environments, so they're all listed again here.
   "env": {
@@ -68,7 +68,7 @@
       "durable_objects": { "bindings": [{ "name": "DEAL_ROOMS", "class_name": "DealRoom" }] },
       // The staff site, to send staff alerts at once (it alone may read staff devices). See engine/staff-alerts.ts.
       "services": [{ "binding": "STAFF_SITE", "service": "noshen-admin" }],
-      "triggers": { "crons": ["*/15 * * * *", "* * * * *"] }
+      "triggers": { "crons": ["0 * * * *"] }
     }
   }
 }

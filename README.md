@@ -44,7 +44,7 @@ Buyers outside Nigeria, including Nigerians abroad, can pay in **USDT or USDC on
 **On Solana, NosHen runs its own wallet (devnet in the demo).** No crypto partner sits in between:
 
 - **Addresses:** each deal's address comes from a server secret and the deal, so no keys are stored.
-- **Seeing payments:** the site reads the chain while the pay screen is open, every minute, and right after anything NosHen sends.
+- **Seeing payments:** the site reads the chain every few seconds while the pay screen is open, at set times over the 45 minutes after an address is opened, right after anything NosHen sends, and hourly as a backstop. It never polls every minute, so the database can sleep when nobody's paying.
 - **Fees:** NosHen's wallet pays every network fee, so a deal's address never needs SOL.
 - **Refunds:** these go back on-chain from the deal's address.
 - **Release:** the coin moves into NosHen's wallet, which funds the seller's naira payout.
@@ -100,7 +100,7 @@ The live demo is at **https://noshen-web.usenoshen.workers.dev**. Sign in there 
 
 **Stack:**
 - **Hosting:** Cloudflare Workers. React Router 8 renders the pages and Hono serves the API.
-- **Deadlines:** Cloudflare Workflows, one per deal deadline, plus a 15-minute sweep that catches any that didn't fire.
+- **Deadlines:** Cloudflare Workflows, one per deal deadline, plus an hourly sweep that catches any that didn't fire.
 - **Live updates:** Durable Objects, one live room per deal, using WebSocket hibernation.
 - **Photos:** R2.
 - **Database:** PostgreSQL on Neon, reached through Hyperdrive with query caching off.

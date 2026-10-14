@@ -25,7 +25,7 @@ export class DealTimers extends WorkflowEntrypoint<Env, TimerParams> {
     await step.sleepUntil("wait until the deadline", new Date(p.at));
     return step.do("act on the deadline", { retries: { limit: 5, delay: "30 seconds", backoff: "exponential" } }, async () => {
       if (p.kind === "partner_event" && p.event) return withApp((d) => handlePartnerEvent(d, p.event!, p.source));
-      if (p.kind === "crypto_watch") return JSON.stringify(await withApp((d) => watchCrypto(d)));
+      if (p.kind === "crypto_watch") return JSON.stringify(await withApp((d) => watchCrypto(d, p.dealId)));
       return (await withApp((d) => sweep(d, p.dealId))).join("; ");
     });
   }

@@ -1,6 +1,7 @@
 import { inTx, many, one } from "./db";
 import { handlePartnerEvent, sendWaitingCryptoRefunds } from "./deals";
-import { DealError, N, lockDeal, nowOf, type Deps } from "./core";
+import { DealError, N, lockDeal, nowOf, schedule, type Deps } from "./core";
+import type { Tx } from "./db";
 import { asBytes, decryptField, encryptField } from "./crypto";
 import { addressProblem, isCoin, isNetwork, last4, type Coin, type Network } from "@noshen/shared/payments";
 
@@ -69,6 +70,7 @@ export async function prepareCryptoPayment(d: Deps, buyerId: string, dealId: str
         `update crypto_deposits set provider = $2, provider_ref = $3, address = $4, amount_kobo = $5, amount_micro = $6, rate_kobo = $7,
                 quote_expires_at = $8, watched_until = $9 where id = $1`,
         [dep.id, opened.provider ?? provider, opened.ref, opened.address, due, q.micro, q.rateKobo, q.expiresAt, opened.cursor ?? null]);
+      bookChainChecks(d, tx, dealId, network);
       return;
     }
     if (!dep) {
@@ -78,6 +80,7 @@ export async function prepareCryptoPayment(d: Deps, buyerId: string, dealId: str
         `insert into crypto_deposits (deal_id, coin, network, provider, provider_ref, address, amount_kobo, amount_micro, rate_kobo, quote_expires_at, watched_until)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [dealId, coin, network, opened.provider ?? partner.name, opened.ref, opened.address, due, q.micro, q.rateKobo, q.expiresAt, opened.cursor ?? null]);
+      bookChainChecks(d, tx, dealId, network);
       return;
     }
     const stale = new Date(dep.quote_expires_at) <= now || N(dep.amount_kobo) !== due;
@@ -85,6 +88,7 @@ export async function prepareCryptoPayment(d: Deps, buyerId: string, dealId: str
     const q = await partner.quote(due, coin, now);
     await tx.db.query("update crypto_deposits set amount_kobo = $2, amount_micro = $3, rate_kobo = $4, quote_expires_at = $5 where id = $1",
       [dep.id, due, q.micro, q.rateKobo, q.expiresAt]);
+    bookChainChecks(d, tx, dealId, network);
   });
 }
 
@@ -182,4 +186,17 @@ export async function watchCrypto(d: Deps, dealId?: string) {
 /** Links to a deal's address and payments on the network's explorer, where the partner has one. */
 export function explorerLink(d: Deps, network: Network, kind: "address" | "tx", id: string | null | undefined) {
   return id ? d.crypto?.explorer?.(network, kind, id) ?? null : null;
+}
+
+/** Minutes after a buyer opens an on-chain address when NosHen looks for their payment (besides while the pay screen is open). */
+export const CHAIN_CHECK_MINUTES = [1, 3, 6, 10, 15, 20, 30, 45];
+
+/**
+ * Books checks of one deal's address over the next 45 minutes, for a network NosHen reads itself. Checking only when
+ * a payment can be on its way (rather than every minute) lets the database sleep when nobody's paying.
+ */
+function bookChainChecks(d: Deps, tx: Tx, dealId: string, network: Network) {
+  if (!d.crypto?.watches?.includes(network)) return;
+  const now = nowOf(d).getTime();
+  for (const m of CHAIN_CHECK_MINUTES) schedule(d, tx, "crypto_watch", dealId, new Date(now + m * 60_000));
 }

@@ -36,7 +36,7 @@ export default {
     return harden(await pages(gate));
   },
 
-  // Every minute: send any staff alert still waiting (say, raised where the staff site couldn't be asked at once).
+  // Once an hour: send any staff alert still waiting (alerts normally go at once; this catches any that couldn't).
   async scheduled(_event, _env, ctx) {
     ctx.waitUntil(withApp((d) => flushStaffAlerts(d)).then((n) => { if (n) console.log("staff alerts sent", n); }));
   },
