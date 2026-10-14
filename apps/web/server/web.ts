@@ -10,8 +10,21 @@ export interface AppUser {
   id: string; email: string | null; phone: string | null; full_name: string | null; status: string; auth_user_id: string;
 }
 
+// One look-up per request, however many loaders ask.
+const sessions = new WeakMap<Request, ReturnType<Awaited<ReturnType<typeof createAuth>>["api"]["getSession"]>>();
+
+/**
+ * The visitor's sign-in session. Without a session cookie there can't be one, so the sign-in system isn't even
+ * set up: most visitors are browsing signed out, and setting it up is most of a page's CPU time.
+ */
 async function sessionOf(request: Request) {
-  return createAuth(mailFor()).api.getSession({ headers: request.headers });
+  if (!/(^|;\s*)(__Secure-)?better-auth\.session_token=/.test(request.headers.get("Cookie") ?? "")) return null;
+  let s = sessions.get(request);
+  if (!s) {
+    s = createAuth(mailFor()).then((auth) => auth.api.getSession({ headers: request.headers }));
+    sessions.set(request, s);
+  }
+  return s;
 }
 
 /** A real name from the sign-in provider (Google gives one; an email code doesn't). */

@@ -1,6 +1,4 @@
 import { env } from "cloudflare:workers";
-import { betterAuth } from "better-auth";
-import { emailOTP } from "better-auth/plugins";
 import pg from "pg";
 import type { EmailSender } from "@noshen/engine/email";
 
@@ -15,7 +13,9 @@ export const emailSignInEnabled = () => env.EMAIL !== "none";
  * its own sign-in setup, cookies and secret, and staff accounts can't get a session on this site at all.
  * One instance per request: Workers can't share database connections between requests.
  */
-function makeAuth(mail: EmailSender) {
+async function makeAuth(mail: EmailSender) {
+  // Loaded on first use: most requests (anyone browsing signed out) never need it, and loading it is costly.
+  const [{ betterAuth }, { emailOTP }] = await Promise.all([import("better-auth"), import("better-auth/plugins")]);
   // Two connections, not one: a new Google sign-up creates the user and their account in one transaction,
   // which holds a connection while the staff check below runs. With one, that check waited forever.
   const pool = new pg.Pool({ connectionString: env.HYPERDRIVE.connectionString, max: 2 });
@@ -32,6 +32,9 @@ function makeAuth(mail: EmailSender) {
     // Google checks the email, so a person who first used an email code and later uses Google
     // (or the other way round) lands in the same account.
     account: { accountLinking: { enabled: true, trustedProviders: ["google"] } },
+    // NosHen's migrations own the schema. Without this, every request (each builds its own instance) re-reads the
+    // database's tables to compare them: extra queries and most of the page's CPU time.
+    advanced: { database: { validateSchema: false } },
     plugins: mail.enabled === false ? [] : [
       emailOTP({
         otpLength: 6,
@@ -85,6 +88,6 @@ export interface Auth {
   };
 }
 
-export function createAuth(mail: EmailSender): Auth {
-  return makeAuth(mail) as unknown as Auth;
+export async function createAuth(mail: EmailSender): Promise<Auth> {
+  return (await makeAuth(mail)) as unknown as Auth;
 }

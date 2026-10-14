@@ -3,7 +3,7 @@ import {
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { baseSepolia, bscTestnet, sepolia } from "viem/chains";
-import { QUOTE_MINUTES, coinMicroFor, koboForCoin, type Coin, type Network } from "@noshen/shared/payments";
+import { QUOTE_MINUTES, coinMicroFor, koboForCoin, testExplorerLink, type Coin, type Network } from "@noshen/shared/payments";
 import { addMinutes } from "@noshen/shared/time";
 import { hmac } from "../crypto";
 import { FAKE_RATE_KOBO } from "./fake-crypto";
@@ -12,9 +12,6 @@ import type { CryptoMode, CryptoPartner, CryptoRefund, PartnerEvent, WatchedDepo
 /** The Ethereum-style networks NosHen pays on, and the test network each one runs on for now. */
 export type EvmNetwork = "bsc" | "base" | "ethereum";
 const CHAINS: Record<EvmNetwork, Chain> = { bsc: bscTestnet, base: baseSepolia, ethereum: sepolia };
-const EXPLORERS: Record<EvmNetwork, string> = {
-  bsc: "https://testnet.bscscan.com", base: "https://sepolia.basescan.org", ethereum: "https://sepolia.etherscan.io",
-};
 export const isEvmNetwork = (n: string): n is EvmNetwork => n in CHAINS;
 
 const ERC20 = parseAbi([
@@ -238,7 +235,7 @@ export class EvmPartner implements CryptoPartner {
   }
 
   explorer(network: Network, kind: "address" | "tx", id: string) {
-    return isEvmNetwork(network) ? `${EXPLORERS[network]}/${kind}/${id}` : null;
+    return isEvmNetwork(network) ? testExplorerLink(network, kind, id) : null;
   }
 
   async verifyWebhook(): Promise<PartnerEvent> {

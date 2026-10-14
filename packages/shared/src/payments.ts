@@ -22,6 +22,15 @@ export const NETWORKS = [
 export type Network = (typeof NETWORKS)[number]["id"];
 export type NetworkInfo = (typeof NETWORKS)[number];
 
+/** Where a test-network address or transaction can be looked up. */
+const TEST_EXPLORERS: Record<Network, (kind: "address" | "tx", id: string) => string> = {
+  solana: (kind, id) => `https://explorer.solana.com/${kind}/${id}?cluster=devnet`,
+  bsc: (kind, id) => `https://testnet.bscscan.com/${kind}/${id}`,
+  base: (kind, id) => `https://sepolia.basescan.org/${kind}/${id}`,
+  ethereum: (kind, id) => `https://sepolia.etherscan.io/${kind}/${id}`,
+};
+export const testExplorerLink = (network: Network, kind: "address" | "tx", id: string) => TEST_EXPLORERS[network](kind, id);
+
 export const isNetwork = (s: unknown): s is Network => typeof s === "string" && NETWORKS.some((n) => n.id === s);
 export const networkOf = (id: Network): NetworkInfo => NETWORKS.find((n) => n.id === id)!;
 /** "BNB Smart Chain (BEP-20)", "Base": as exchanges and wallets name them, so buyers can match the choice there. */

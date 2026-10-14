@@ -36,7 +36,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (step === "google") {
     if (!googleEnabled()) return { step: "email" as const, error: "Google sign-in isn't set up yet." };
-    const res = await createAuth(mailFor()).api.signInSocial({
+    const res = await (await createAuth(mailFor())).api.signInSocial({
       body: { provider: "google", callbackURL: back, errorCallbackURL: `${back}&error=google` }, headers: request.headers, asResponse: true,
     });
     const body = (await res.clone().json().catch(() => ({}))) as { url?: string };
@@ -51,7 +51,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (problem) return { step: "email" as const, error: problem };
     const mail = mailFor();
     try {
-      await createAuth(mail).api.sendVerificationOTP({ body: { email, type: "sign-in" } });
+      await (await createAuth(mail)).api.sendVerificationOTP({ body: { email, type: "sign-in" } });
     } catch {
       return { step: "email" as const, error: "We couldn't send a code just now. Wait a minute and try again." };
     }
@@ -65,7 +65,7 @@ export async function action({ request }: Route.ActionArgs) {
     const email = String(form.get("email"));
     const otp = String(form.get("code") ?? "").replace(/\D/g, "");
     if (otp.length !== 6) return { step: "code" as const, email, error: "Enter all 6 digits." };
-    const res = await createAuth(mailFor()).api.signInEmailOTP({ body: { email, otp }, headers: request.headers, asResponse: true }).catch(() => null);
+    const res = await (await createAuth(mailFor())).api.signInEmailOTP({ body: { email, otp }, headers: request.headers, asResponse: true }).catch(() => null);
     if (!res?.ok) return { step: "code" as const, email, error: "That code doesn’t match or has expired. Check it, or ask for a new one." };
     return redirect(back, { headers: forwardCookies(res) });
   }

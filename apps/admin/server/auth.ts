@@ -25,7 +25,8 @@ function makeAuth() {
     // A working day: staff sign in again each morning.
     session: { expiresIn: 60 * 60 * 12, updateAge: 60 * 60 },
     // Different cookie names from the customer site, so the two never mix (in development they share localhost).
-    advanced: { cookiePrefix: "noshen-staff" },
+    // validateSchema: NosHen's migrations own the schema; checking it on every request costs queries and CPU.
+    advanced: { cookiePrefix: "noshen-staff", database: { validateSchema: false } },
     plugins: [twoFactor({ issuer: "NosHen staff" })],
     databaseHooks: {
       session: {

@@ -19,7 +19,11 @@ export async function sellerSummary(db: Db, userId: string): Promise<SellerSumma
   return { id: r.id, name: r.full_name ?? "Seller", idVerified: r.verified, rating: r.rating === null ? null : Number(r.rating), ratingCount: Number(r.rating_count), completedDeals: Number(r.completed) };
 }
 
+/** A link's id that isn't even shaped like one finds nothing (rather than a database error). */
+export const isId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
 export async function listingView(db: Db, id: string) {
+  if (!isId(id)) return null;
   const l = await one(db, "select l.*, u.status as seller_status from listings l join users u on u.id = l.seller_id where l.id = $1", [id]);
   if (!l) return null;
   // A frozen or banned seller's listings stay up for staff, but buyers can't see or buy them.
@@ -103,6 +107,7 @@ export function needsAction(x: { state: DealState; role: "buyer" | "seller"; del
 }
 
 export async function dealView(db: Db, dealId: string) {
+  if (!isId(dealId)) return null;
   const deal = await one(db, "select * from deals where id = $1", [dealId]);
   if (!deal) return null;
   const [listing, buyer, seller, payments, events, messages, dispute, ratings, sellerBank, transfers] = await Promise.all([

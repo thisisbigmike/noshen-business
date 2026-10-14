@@ -3,10 +3,9 @@ import { withDb, type Db } from "./db";
 import type { Deps, LiveRooms } from "./core";
 import { FakePartner } from "./partner/fake";
 import { FakeCryptoPartner } from "./partner/fake-crypto";
-import { CryptoRouter } from "./partner/crypto-router";
-import { SolanaPartner } from "./partner/solana";
-import { EvmPartner, type EvmConfig } from "./partner/evm";
-import type { Network } from "@noshen/shared/payments";
+import { LazyChainPartner } from "./partner/lazy-chain";
+import type { SolanaConfig } from "./partner/solana";
+import type { EvmConfig } from "./partner/evm";
 import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
 import { ConsoleEmail, NoEmail, type EmailSender } from "./email";
 import { FakeIdProvider } from "./idcheck";
@@ -42,13 +41,9 @@ export function cryptoFor(): CryptoPartner | undefined {
   if (env.PARTNER !== "fake") return undefined;
   const fake = new FakeCryptoPartner(env.FAKE_PARTNER_SECRET, async (event: PartnerEvent) =>
     workflowTimers.schedule({ kind: "partner_event", at: new Date(Date.now() + 4000), event, source: "crypto" }));
-  const solana = solanaFor();
-  const evm = evmFor();
-  if (!solana && !evm) return fake;
-  const byNetwork: Partial<Record<Network, CryptoPartner>> = {};
-  if (solana) byNetwork.solana = solana;
-  for (const n of evm?.watches ?? []) byNetwork[n] = evm!;
-  return new CryptoRouter(byNetwork, fake);
+  const solana = solanaConfig();
+  const evm = evmConfig();
+  return solana || evm ? new LazyChainPartner(fake, solana, evm, checkSoon) : fake;
 }
 
 /** After NosHen sends anything on-chain, check the chain again soon: the result shows without waiting for the minute check. */
@@ -58,26 +53,26 @@ const checkSoon = () => Promise.all([10_000, 30_000].map((ms) => workflowTimers.
  * NosHen's own wallet on BNB Smart Chain, Base and Ethereum test networks, for each one set up (pnpm evm:setup puts
  * the networks, RPCs and test tokens in EVM_TESTNETS; the keys are secrets). Networks not set up stay pretend.
  */
-function evmFor(): EvmPartner | undefined {
+function evmConfig(): EvmConfig | undefined {
   const e = env as unknown as Record<string, unknown>;
   const networks = e.EVM_TESTNETS as EvmConfig["networks"] | undefined;
   if (!e.EVM_WALLET || !e.EVM_DEPOSIT_SECRET || !networks || !Object.keys(networks).length) return undefined;
-  return new EvmPartner({ networks, walletKey: String(e.EVM_WALLET), depositSecret: String(e.EVM_DEPOSIT_SECRET),
-    demoWalletKey: e.EVM_DEMO_WALLET ? String(e.EVM_DEMO_WALLET) : undefined }, checkSoon);
+  return { networks, walletKey: String(e.EVM_WALLET), depositSecret: String(e.EVM_DEPOSIT_SECRET),
+    demoWalletKey: e.EVM_DEMO_WALLET ? String(e.EVM_DEMO_WALLET) : undefined };
 }
 
 /**
  * NosHen's own Solana wallet, when its settings are present (scripts/solana-setup.mjs makes them). Only on devnet
  * for now: real tokens, a test network, NosHen's own test USDT and USDC. Everything else stays pretend.
  */
-function solanaFor(): SolanaPartner | undefined {
+function solanaConfig(): SolanaConfig | undefined {
   const e = env as unknown as Record<string, string | undefined>;
   if (!e.SOLANA_RPC_URL || !e.SOLANA_WALLET || !e.SOLANA_DEPOSIT_SECRET || !e.SOLANA_USDC_MINT || !e.SOLANA_USDT_MINT) return undefined;
-  return new SolanaPartner({
+  return {
     rpcUrl: e.SOLANA_RPC_URL, cluster: "devnet",
     mints: { usdc: e.SOLANA_USDC_MINT, usdt: e.SOLANA_USDT_MINT },
     walletSecret: e.SOLANA_WALLET, depositSecret: e.SOLANA_DEPOSIT_SECRET, demoWalletSecret: e.SOLANA_DEMO_WALLET,
-  }, checkSoon);
+  };
 }
 
 /**

@@ -131,3 +131,23 @@ describe("NosHen's wallet on BNB, Base and Ethereum test networks", () => {
     expect(p.watches.sort()).toEqual(["base", "bsc"] satisfies EvmNetwork[]);
   });
 });
+
+describe("the wallets, loaded only when first needed", () => {
+  it("answers which networks are real, their names and links without loading the wallets, matching the real ones", async () => {
+    const { LazyChainPartner, SOLANA_DEVNET, EVM_TESTNET } = await import("@noshen/engine/partner/lazy-chain");
+    const { SolanaPartner } = await import("@noshen/engine/partner/solana");
+    const { FakeCryptoPartner } = await import("@noshen/engine/partner/fake-crypto");
+    const evm = { networks: { base: { rpcUrl: "http://unused", usdc: USDC, usdt: USDT } }, walletKey: generatePrivateKey(), depositSecret: "s" };
+    const solana = { rpcUrl: "http://unused", cluster: "devnet" as const, mints: { usdc: "So11111111111111111111111111111111111111112", usdt: "So11111111111111111111111111111111111111112" },
+      walletSecret: btoa(String.fromCharCode(...new Uint8Array(32).fill(1))), depositSecret: "s" };
+    const lazy = new LazyChainPartner(new FakeCryptoPartner("x"), solana, evm, async () => {});
+    expect(lazy.watches).toEqual(["solana", "base"]);
+    expect([lazy.mode("solana"), lazy.mode("base"), lazy.mode("bsc")]).toEqual(["devnet", "devnet", "pretend"]);
+    expect([lazy.providerFor("solana"), lazy.providerFor("base"), lazy.providerFor("ethereum")]).toEqual([SOLANA_DEVNET, EVM_TESTNET, "fake-crypto"]);
+    expect(new SolanaPartner(solana).name).toBe(SOLANA_DEVNET);
+    expect(new EvmPartner(evm).name).toBe(EVM_TESTNET);
+    expect(lazy.explorer("base", "tx", "0xabc")).toBe(new EvmPartner(evm).explorer("base", "tx", "0xabc"));
+    expect(lazy.explorer("solana", "tx", "abc")).toBe(new SolanaPartner(solana).explorer("solana", "tx", "abc"));
+    expect(lazy.explorer("bsc", "tx", "0xabc")).toBeNull();
+  });
+});

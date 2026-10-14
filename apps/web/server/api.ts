@@ -10,7 +10,6 @@ import { DealError } from "@noshen/engine/core";
 import { FakePartner } from "@noshen/engine/partner/fake";
 import { FakeCryptoPartner } from "@noshen/engine/partner/fake-crypto";
 import { koboForCoin, type Network } from "@noshen/shared/payments";
-import { CryptoRouter } from "@noshen/engine/partner/crypto-router";
 import { WebhookSignatureError, type PartnerEvent } from "@noshen/engine/partner/types";
 import { optionalUser } from "./web";
 import { servePhoto } from "@noshen/engine/photos";
@@ -22,7 +21,7 @@ import { one } from "@noshen/engine/db";
  */
 export const api = new Hono();
 
-api.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(mailFor()).handler(c.req.raw));
+api.on(["GET", "POST"], "/api/auth/*", async (c) => (await createAuth(mailFor())).handler(c.req.raw));
 
 // The partner's webhook: verify the signature first, store the event once, then process it.
 api.post("/api/webhooks/partner", async (c) => {
@@ -201,7 +200,7 @@ api.post("/api/dev/crypto/send", async (c) => {
     id: `evt_${crypto.randomUUID()}`, type: "crypto.received",
     data: { deposit_ref: dep.provider_ref, coin: dep.coin, network: dep.network, amount_micro: sent, amount_kobo: kobo, tx_hash: network === "solana" ? `test${hex(40)}` : `0x${hex(32)}`, received_at: new Date().toISOString() },
   };
-  const partner = (coins instanceof CryptoRouter ? coins.fallback : coins) as FakeCryptoPartner;
+  const partner = ((coins as { fallback?: unknown }).fallback ?? coins) as FakeCryptoPartner;
   const body = JSON.stringify(event);
   const res = await api.request("/api/webhooks/crypto", { method: "POST", body, headers: { "x-fake-crypto-signature": await partner.sign(body) } }, env);
   return c.json(await res.json(), res.status as 200);
