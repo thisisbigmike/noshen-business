@@ -8,7 +8,7 @@
 
 <p align="center"><a href="https://noshen-web.usenoshen.workers.dev">Live demo</a> · <a href="#try-the-demo">Try it</a> · <a href="#how-its-built">How it's built</a> · <a href="#run-it-locally">Run it locally</a></p>
 
-> **The demo runs in test mode.** No real money moves: the bank, the crypto partner and the ID checks are stand-ins, and every screen where you'd type a payment, NIN, BVN or account number says so.
+> **The demo runs in test mode.** No real money moves. Solana payments are real transactions on **devnet** with NosHen's own test USDC and USDT; the bank, the other networks and the ID checks are stand-ins. Every screen where you'd type a payment, NIN, BVN or account number says so.
 
 ## The problem
 
@@ -41,7 +41,20 @@ Buyers outside Nigeria, including Nigerians abroad, can pay in **USDT or USDC on
 - The pay sheet is ordered by where the buyer's device is (from Cloudflare): bank transfer first in Nigeria, stablecoins first elsewhere.
 - A second payment for a deal that's already paid is sent back on its own.
 
-In the demo, the crypto partner is pretend. Its addresses are deliberately invalid (`0xTEST…`, `TEST0…`) so no wallet can send real coins to it.
+**On Solana, NosHen runs its own wallet (devnet in the demo).** No crypto partner sits in between:
+
+- **Addresses:** each deal's address comes from a server secret and the deal, so no keys are stored.
+- **Seeing payments:** the site reads the chain while the pay screen is open, every minute, and right after anything NosHen sends.
+- **Fees:** NosHen's wallet pays every network fee, so a deal's address never needs SOL.
+- **Refunds:** these go back on-chain from the deal's address.
+- **Release:** the coin moves into NosHen's wallet, which funds the seller's naira payout.
+- **The code:** `packages/engine/src/partner/solana.ts` (built with `@solana/kit`).
+
+The test tokens:
+- USDC [`J7sNd4p3…`](https://explorer.solana.com/address/J7sNd4p3yWKQwsYChizSTJtMTZbWPY9rKNfKHUTbTm5?cluster=devnet)
+- USDT [`BnWKpnFb…`](https://explorer.solana.com/address/BnWKpnFbmAcSsrtnSL3djPHbKSe9aHUJLqBysYu329Ht?cluster=devnet)
+
+BNB Chain, Base and Ethereum are still pretend in the demo. Their addresses are deliberately invalid (`0xTEST…`), so no wallet can send real coins to them.
 
 ## Try the demo
 
@@ -51,7 +64,8 @@ The live demo is at **https://noshen-web.usenoshen.workers.dev**. Sign in there 
 2. **Buy it from a second account.** In another browser (or a private window), sign in with a different Google account, find the listing in Browse and send a request. Accept it as the seller.
 3. **Pay.** Tap Pay as the buyer:
    - For a bank transfer: under "Pretend to be your bank", press **Send ₦… from my account**.
-   - For crypto: pick a coin and network (e.g. USDC on Solana), then under "Pretend to be your wallet", press **Send …**.
+   - For Solana: pick USDC or USDT on Solana and press **Send … from the demo wallet**. That's a real devnet transaction (there's a link to it on Solana Explorer), and the deal shows the money held a few seconds after it confirms. You can also pay from your own wallet set to Devnet, if it holds NosHen's test tokens.
+   - For the other networks: under "Pretend to be your wallet", press **Send …**.
 
    Both sides now see the money as held. The other test buttons (paying from someone else's account, or sending too little) show the review holds.
 4. **Chat** on the deal page. Messages, "typing…" and who's online update live, and phones get a notification if you turn notifications on.
@@ -148,6 +162,7 @@ pnpm test        # engine, Web Push and Cloudflare Access tests (uses a separate
 pnpm db:test     # schema checks: the ledger, deal states and money rules enforced by the database
 pnpm db:roles    # creates the two site logins and checks what each can and can't do
 pnpm typecheck
+SOLANA_LIVE=1 pnpm vitest run tests/solana.devnet.test.ts   # against real devnet: pay, read, refund, collect
 ```
 
 The engine tests cover:
@@ -170,12 +185,21 @@ The demo is deployed like this:
    - **Customer site:** `BETTER_AUTH_SECRET`, `RELEASE_CODE_SECRET`, `FIELD_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `VAPID_PRIVATE_JWK`.
    - **Staff site:** a different `BETTER_AUTH_SECRET`, the same `RELEASE_CODE_SECRET` and `FIELD_KEY`, and `VAPID_PRIVATE_JWK`.
 5. **Cloudflare Access for the staff site.** Add a self-hosted Access application allowing only staff emails. Put its AUD tag and team domain in `apps/admin/wrangler.jsonc` (`ACCESS_AUD`, `ACCESS_TEAM_DOMAIN`). Until both are set, the staff site refuses every request on https.
-6. **Staff accounts.** Create one with `pnpm staff:create "Name" email admin` (or `reviewer`). The person sets up two-factor at their first sign-in.
-7. **Deploy:** `pnpm deploy:web` and `pnpm deploy:admin`.
+6. **Solana (devnet).**
+   - Run `pnpm solana:setup` once. It makes NosHen's wallet, the demo wallet and the test tokens, and saves the keys to `.solana-devnet.vars` (git-ignored).
+   - Put `SOLANA_WALLET`, `SOLANA_DEMO_WALLET`, `SOLANA_DEPOSIT_SECRET` and `SOLANA_RPC_URL` on both sites as secrets.
+   - The RPC has to be a keyed one, such as Helius: Solana's public RPC refuses requests from Cloudflare Workers.
+   - Without these, Solana stays pretend like the other networks.
+7. **Staff accounts.** Create one with `pnpm staff:create "Name" email admin` (or `reviewer`). The person sets up two-factor at their first sign-in.
+8. **Deploy:** `pnpm deploy:web` and `pnpm deploy:admin`.
 
 ## Not built yet
 
-- **Real providers.** The payment partner (a licensed bank to hold naira), the stablecoin custody and conversion partner, NIN/BVN checks and email sending are all stand-ins. They plug in behind the interfaces in `packages/engine/src/partner/`, `idcheck.ts` and `email.ts`.
+- **Real providers.** These are still stand-ins, plugging in behind the interfaces in `packages/engine/src/partner/`, `idcheck.ts` and `email.ts`:
+  - the payment partner (a licensed bank to hold naira);
+  - live stablecoin rates and Solana mainnet. The devnet wallet uses a fixed test rate; mainnet needs the real mints and legal sign-off;
+  - NIN/BVN checks;
+  - email sending.
 - **Phone sign-in and SMS updates.**
 - **Smaller pieces:**
   - Cloudflare Queues for webhook retries.

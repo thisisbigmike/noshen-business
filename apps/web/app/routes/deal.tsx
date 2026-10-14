@@ -125,7 +125,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
             </section>
 
             {deal.state === "held" && !deal.review_hold && role === "buyer" ? (
-              <Info icon="lock">Our licensed partner holds your money. {other} can't get it until you {deal.handover === "meetup" ? "give your code" : "confirm you received it"}. If something is wrong, report it and the money stays held.</Info>
+              <Info icon="lock">{x.paymentUrl ? `Your ${x.paidCrypto} is held at this deal's own address, on-chain.` : "Our licensed partner holds your money."} {other} can't get it until you {deal.handover === "meetup" ? "give your code" : "confirm you received it"}. If something is wrong, report it and the money stays held.</Info>
             ) : null}
             {deal.state === "held" && role === "seller" ? (
               <section className="card">
