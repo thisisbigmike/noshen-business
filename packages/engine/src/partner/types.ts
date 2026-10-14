@@ -92,6 +92,10 @@ export interface CryptoPartner {
   // Partners that read the chain themselves instead of sending webhooks (NosHen's own Solana wallet).
   /** The networks this partner watches: their deposits are checked with watch(). */
   readonly watches?: readonly Network[];
+  /** The providers whose deposits are checked with watch() (each deposit records who made it). */
+  readonly watchingProviders?: readonly string[];
+  /** Which provider makes new deposits on a network (stored with each deposit). */
+  providerFor?(network: Network): string;
   /** New payments into one deal's address, and the cursor to start from next time. */
   watch?(deposit: WatchedDeposit): Promise<{ events: PartnerEvent[]; cursor: string | null }>;
   /** Results of refunds already sent on a network: an event for each one the network has settled. */

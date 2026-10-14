@@ -56,6 +56,8 @@ export class SolanaPartner implements CryptoPartner {
   readonly name: string;
   readonly test: boolean;
   readonly watches = ["solana"] as const;
+  get watchingProviders() { return [this.name]; }
+  providerFor() { return this.name; }
   private rpc: Rpc;
   private signers = new Map<string, Promise<Signer>>();
 

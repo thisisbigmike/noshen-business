@@ -207,6 +207,25 @@ describe("paying on Solana, read from the chain", () => {
     expect(ev.payload).toMatchObject({ network: "solana", micro: Number(dep.amount_micro) });
   });
 
+  it("replaces a pretend Solana address from before the switch, and never reads pretend addresses from the chain", async () => {
+    const seller = await verifiedSeller(w, "Uche Nwosu");
+    const buyer = await person(w, "Halima Bello");
+    const dealId = await requestDeal(w.d, buyer, { listingId: await liveListing(w, seller, 120_000), handover: "meetup" });
+    await acceptDeal(w.d, seller, dealId);
+    const router = w.d.crypto;
+    w.d.crypto = w.crypto; // before NosHen's Solana wallet: the pretend partner served Solana too
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdc", "solana");
+    const before = (await w.db.query("select provider, address from crypto_deposits where deal_id = $1", [dealId])).rows[0];
+    expect(before.provider).toBe("fake-crypto");
+    w.d.crypto = router;
+    expect(await watchCrypto(w.d, dealId)).toEqual({ payments: 0, settled: 0 }); // the pretend address isn't read
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdc", "solana"); // the buyer opens the pay screen again
+    const after = (await w.db.query("select provider, address, provider_ref from crypto_deposits where deal_id = $1", [dealId])).rows;
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ provider: "solana-devnet", provider_ref: depositRef("usdc", dealId) });
+    expect(after[0].address).not.toBe(before.address);
+  });
+
   it("refunds on-chain from the deal's address, in the coin paid, and marks it done once settled", async () => {
     const { buyer, dealId, dep } = await solanaDeal();
     chain.pay(dep.provider_ref, Number(dep.amount_micro), Number(dep.amount_kobo));

@@ -17,6 +17,10 @@ export class CryptoRouter implements CryptoPartner {
   }
 
   private for(network: Network) { return this.byNetwork[network] ?? this.fallback; }
+  providerFor(network: Network) { return this.for(network).name; }
+  get watchingProviders() {
+    return ([this.fallback, ...Object.values(this.byNetwork)] as CryptoPartner[]).filter((p) => p.watch).map((p) => p.name);
+  }
 
   mode(network: Network) { return this.for(network).mode(network); }
   quote(amountKobo: number, coin: Coin, now: Date) { return this.fallback.quote(amountKobo, coin, now); }

@@ -57,8 +57,20 @@ export async function prepareCryptoPayment(d: Deps, buyerId: string, dealId: str
     if (deal.state !== "accepted") throw new DealError("state", "This deal isn't waiting for a payment.");
     if (deal.payment_due_at && new Date(deal.payment_due_at) <= now) throw new DealError("expired", "The time to pay for this deal has run out.");
 
-    const dep = await one(tx.db, "select * from crypto_deposits where deal_id = $1 and coin = $2 and network = $3 for update", [dealId, coin, network]);
+    let dep = await one(tx.db, "select * from crypto_deposits where deal_id = $1 and coin = $2 and network = $3 for update", [dealId, coin, network]);
     const due = N(deal.amount_due_kobo);
+    // An address from a provider that no longer serves this network (a pretend Solana address from before NosHen's
+    // own wallet took over): replaced with a real one, as long as nothing has been paid into it.
+    const provider = partner.providerFor?.(network) ?? partner.name;
+    if (dep && dep.provider !== provider && !(await one(tx.db, "select 1 from payments where crypto_deposit_id = $1 limit 1", [dep.id]))) {
+      const q = await partner.quote(due, coin, now);
+      const opened = await partner.openDeposit(dealId, coin, network);
+      await tx.db.query(
+        `update crypto_deposits set provider = $2, provider_ref = $3, address = $4, amount_kobo = $5, amount_micro = $6, rate_kobo = $7,
+                quote_expires_at = $8, watched_until = null where id = $1`,
+        [dep.id, opened.provider ?? provider, opened.ref, opened.address, due, q.micro, q.rateKobo, q.expiresAt]);
+      return;
+    }
     if (!dep) {
       const q = await partner.quote(due, coin, now);
       const opened = await partner.openDeposit(dealId, coin, network);
@@ -128,10 +140,10 @@ export async function watchCrypto(d: Deps, dealId?: string) {
     amount_kobo: string; rate_kobo: string; quote_expires_at: Date; watched_until: string | null }>(d.db,
     `select c.id, c.provider_ref, c.coin, c.network, c.address, c.amount_micro, c.amount_kobo, c.rate_kobo, c.quote_expires_at, c.watched_until
        from crypto_deposits c join deals x on x.id = c.deal_id
-      where c.network = any($1::text[])
+      where c.network = any($1::text[]) and c.provider = any($2::text[])
         and (x.state = 'accepted' or c.created_at > now() - interval '2 days')
-        ${dealId ? "and c.deal_id = $2" : ""}
-      order by c.created_at desc limit 200`, dealId ? [p.watches, dealId] : [p.watches]);
+        ${dealId ? "and c.deal_id = $3" : ""}
+      order by c.created_at desc limit 200`, dealId ? [p.watches, p.watchingProviders ?? [p.name], dealId] : [p.watches, p.watchingProviders ?? [p.name]]);
   let payments = 0;
   for (const c of deposits) {
     try {

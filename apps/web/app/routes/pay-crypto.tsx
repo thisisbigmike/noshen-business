@@ -34,16 +34,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     if (!v || v.deal.buyer_id !== user.id) throw data("Not found", { status: 404 });
     if (v.deal.state !== "accepted") throw redirect(`/d/${params.id}`);
     // The deal's address for this coin and network is made the first time the buyer opens it: nothing to fill in first.
-    let found = await cryptoPaymentFor(d, user.id, v.deal.id, coin, network);
-    if (!found.payment) {
-      try {
-        await prepareCryptoPayment(d, user.id, v.deal.id, coin, network);
-      } catch (e) {
-        if (e instanceof DealError) throw redirect(`/d/${params.id}`);
-        throw e;
-      }
-      found = await cryptoPaymentFor(d, user.id, v.deal.id, coin, network);
+    // (Also replaces an unused address from a provider that no longer serves this network.)
+    try {
+      await prepareCryptoPayment(d, user.id, v.deal.id, coin, network);
+    } catch (e) {
+      if (e instanceof DealError) throw redirect(`/d/${params.id}`);
+      throw e;
     }
+    const found = await cryptoPaymentFor(d, user.id, v.deal.id, coin, network);
     const { payment, refundAddress } = found;
     return {
       deal: { id: v.deal.id as string, due: v.deal.amount_due_kobo as string, payBy: v.deal.payment_due_at as string | null, handover: v.deal.handover as string },
