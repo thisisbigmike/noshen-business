@@ -16,7 +16,8 @@
     "db:test": "node scripts/db-test.mjs",
     "test": "vitest run",
     "staff:create": "node scripts/create-staff.mjs",
-    "staff:password": "node scripts/staff-password.mjs"
+    "staff:password": "node scripts/staff-password.mjs",
+    "solana:setup": "node packages/engine/scripts/solana-setup.mjs"
   },
   "dependencies": {
     "better-auth": "^1.7.7",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "@noshen/engine": "workspace:*",
     "@noshen/shared": "workspace:*",
+    "@solana/kit": "8.4.0",
     "@types/node": "^22.20.5",
     "@types/pg": "^8.15.6",
     "@types/react": "^19.2.18",

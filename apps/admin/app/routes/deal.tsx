@@ -2,6 +2,7 @@ import { Link, data } from "react-router";
 import type { Route } from "./+types/deal";
 import { messageOf, requireStaff, withApp } from "../../server/web";
 import { staffDeal } from "@noshen/engine/queries";
+import { explorerLink } from "@noshen/engine/stablecoins";
 import { checkDeadlinesNow, giveMoreTime, noteToBoth, openDisputeForBuyer, retryTransfer, staffCancel, staffRefund, staffRelease, unlockReleaseCode } from "@noshen/engine/staff";
 import { Icon, Info, Kv, Select } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
@@ -17,7 +18,18 @@ export const meta: Route.MetaFunction = ({ loaderData: v }) => [{ title: `${v ? 
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const staff = await requireStaff(request);
-  const v = await withApp((d) => staffDeal(d.db, params.id));
+  const v = await withApp(async (d) => {
+    const found = await staffDeal(d.db, params.id);
+    if (!found) return null;
+    // Links to the network's explorer for coin paid, addresses, and coin collected at release (Solana).
+    const collected = found.events.filter((e: any) => e.type === "coin_collected");
+    return {
+      ...found,
+      payments: found.payments.map((p: any) => ({ ...p, tx_url: p.method === "crypto" ? explorerLink(d, p.network, "tx", p.tx_hash) : null })),
+      deposits: found.deposits.map((c: any) => ({ ...c, address_url: explorerLink(d, c.network, "address", c.address) })),
+      collected: collected.map((e: any) => ({ at: e.at, url: explorerLink(d, e.payload?.network, "tx", e.payload?.tx) })),
+    };
+  });
   if (!v) throw data("Not found", { status: 404 });
   const stuck = (v.deal.state === "held" && v.deal.handover_due_at && new Date(v.deal.handover_due_at).getTime() < Date.now() - 3_600_000)
     || (v.deal.state === "released" && new Date(v.deal.state_changed_at).getTime() < Date.now() - 3_600_000);
@@ -148,7 +160,7 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
                   <span className="body">{naira(p.amount_kobo)} {p.method === "crypto" && isCoin(p.coin) && isNetwork(p.network)
                     ? <span className="caption muted">· {coinAmount(p.amount_coin_micro, p.coin)}, {cryptoLabel(p.coin, p.network)}</span>
                     : <span className="caption muted">· bank transfer from {p.sender_name ?? "unknown"}</span>}</span>
-                  <span className="caption muted">{when(new Date(p.received_at))}{p.tx_hash ? <> · <span className="mono-sm">tx {String(p.tx_hash).slice(0, 18)}…</span></> : null}</span>
+                  <span className="caption muted">{when(new Date(p.received_at))}{p.tx_hash ? <> · {p.tx_url ? <a className="mono-sm" href={p.tx_url} target="_blank" rel="noreferrer">tx {String(p.tx_hash).slice(0, 18)}…</a> : <span className="mono-sm">tx {String(p.tx_hash).slice(0, 18)}…</span>}</> : null}</span>
                 </div>
                 <div className="row wrap" style={{ gap: 6, justifyContent: "flex-end" }}>
                   {p.sent_back ? <span className="st-pill muted">Sent back</span> : null}
@@ -167,6 +179,10 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
                 <StatePill map={TRANSFER_STATUS} value={t.status} />
               </div>
             ))}
+            {v.collected.length ? (
+              <p className="caption">Coin moved to NosHen's wallet at release: {v.collected.map((c: any, i: number) => c.url
+                ? <a key={i} href={c.url} target="_blank" rel="noreferrer">see the transaction</a> : <span key={i}>recorded</span>)}</p>
+            ) : null}
             {v.deposits.length ? (
               <>
                 <p className="label">Crypto addresses opened</p>
@@ -174,7 +190,7 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
                   <div key={i} className="money-row">
                     <div className="stack" style={{ gap: 2, minWidth: 0 }}>
                       <span className="body">{isCoin(c.coin) && isNetwork(c.network) ? cryptoLabel(c.coin, c.network) : c.coin}: {isCoin(c.coin) ? coinAmount(c.amount_micro, c.coin) : c.amount_micro}</span>
-                      <span className="caption muted mono-sm truncate">{c.address}</span>
+                      {c.address_url ? <a className="caption mono-sm truncate" href={c.address_url} target="_blank" rel="noreferrer">{c.address}</a> : <span className="caption muted mono-sm truncate">{c.address}</span>}
                     </div>
                     <span className="caption muted">{c.refund_address_last4 ? `Refunds to ••${c.refund_address_last4}` : "No refund address yet"}</span>
                   </div>

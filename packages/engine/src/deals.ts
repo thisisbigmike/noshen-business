@@ -417,10 +417,18 @@ async function sendCryptoRefund(d: Deps, tx: Tx, transferId: string, to: CoinRef
     `update transfers set status = 'sent' where id = $1 and status = 'pending' and partner_ref is null returning id, amount_kobo, idempotency_key`, [transferId]);
   if (!t) return;
   const address = await decryptField(d.secrets.fieldKey, asBytes(to.address_enc));
+  // The coin to send back: what was paid, or the same share of it when only part is refunded.
+  const paid = await one<{ provider_ref: string; amount_coin_micro: string; amount_kobo: string }>(tx.db,
+    `select c.provider_ref, p.amount_coin_micro, p.amount_kobo from transfers x join payments p on p.id = x.refund_payment_id
+       join crypto_deposits c on c.id = p.crypto_deposit_id where x.id = $1`, [t.id]);
+  const micro = paid && N(paid.amount_kobo) > 0
+    ? Math.min(N(paid.amount_coin_micro), Math.floor((N(paid.amount_coin_micro) * N(t.amount_kobo)) / N(paid.amount_kobo)))
+    : undefined;
   tx.after(async () => {
     try {
       if (!d.crypto) throw new Error(`refund ${t.id} is to a ${cryptoLabel(to.coin, to.network)} address, but no crypto partner is set up`);
-      const r = await d.crypto.sendRefund({ transferId: t.id, amountKobo: N(t.amount_kobo), idempotencyKey: t.idempotency_key, coin: to.coin, network: to.network, address });
+      const r = await d.crypto.sendRefund({ transferId: t.id, amountKobo: N(t.amount_kobo), idempotencyKey: t.idempotency_key, coin: to.coin, network: to.network, address,
+        depositRef: paid?.provider_ref, micro });
       await d.db.query("update transfers set partner_ref = coalesce(partner_ref, $2) where id = $1", [t.id, r.partnerRef]);
     } catch (e) {
       await d.db.query("update transfers set status = 'pending' where id = $1 and status = 'sent' and partner_ref is null", [t.id]);
@@ -473,6 +481,7 @@ export async function release(d: Deps, tx: Tx, deal: DealRow, by: "code" | "conf
   const bank = await one<{ id: string; account_last4: string }>(tx.db,
     "select id, account_last4 from bank_accounts where user_id = $1 and is_default and removed_at is null", [deal.seller_id]);
   if (bank) await createTransfer(d, tx, deal.id, "payout", share, { bankAccountId: bank.id });
+  await collectCoin(d, tx, deal.id);
   const listing = await one(tx.db, "select title from listings where id = $1", [deal.listing_id]);
   // One more sold; the last one marks the listing sold.
   await tx.db.query(
@@ -483,6 +492,28 @@ export async function release(d: Deps, tx: Tx, deal: DealRow, by: "code" | "conf
   const seller = firstName(await userName(tx.db, deal.seller_id));
   await notify(d, tx, deal.seller_id, deal.id, "released", `${naira(share)} released. Your payout${bank ? ` to ••${bank.account_last4}` : ""} is on its way.`);
   await notify(d, tx, deal.buyer_id, deal.id, "released", `Deal closed: ${naira(share)} released to ${seller}. The ${listing.title} is yours. Please rate ${seller}.`);
+}
+
+/**
+ * A deal paid in coin on a network NosHen holds itself (Solana): at release, the coin moves from the deal's address
+ * into NosHen's wallet, which funds the seller's payout. After commit, so a slow network never holds up the release;
+ * the transaction goes on the deal's history. If it fails, the coin stays at the deal's address to collect later.
+ */
+async function collectCoin(d: Deps, tx: Tx, dealId: string) {
+  const held = await one<{ provider_ref: string; network: Network; micro: string }>(tx.db,
+    `select c.provider_ref, c.network, sum(p.amount_coin_micro) as micro from payments p join crypto_deposits c on c.id = p.crypto_deposit_id
+      where p.deal_id = $1 and p.method = 'crypto' and not p.sent_back group by c.provider_ref, c.network`, [dealId]);
+  const partner = d.crypto;
+  if (!held || !partner?.collect || !partner.watches?.includes(held.network)) return;
+  tx.after(async () => {
+    try {
+      const sig = await partner.collect!(held.network, held.provider_ref, N(held.micro));
+      await d.db.query("insert into deal_events (deal_id, type, actor, actor_id, payload) values ($1, 'coin_collected', 'system', null, $2)",
+        [dealId, JSON.stringify({ tx: sig, micro: N(held.micro), network: held.network })]);
+    } catch (e) {
+      console.error("couldn't collect the coin for", dealId, e);
+    }
+  });
 }
 
 export type CodeResult = { ok: true } | { ok: false; message: string; locked?: boolean };

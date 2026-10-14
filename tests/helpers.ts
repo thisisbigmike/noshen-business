@@ -40,7 +40,7 @@ export async function world(): Promise<TestWorld> {
   return { d, db, settled, timers, mail, partner, crypto, clock };
 }
 
-let phoneSeq = 10_000_000;
+let phoneSeq = 10_000_000 + Math.floor(Math.random() * 80_000_000);
 export async function person(w: TestWorld, fullName: string) {
   const email = `${fullName.toLowerCase().replace(/[^a-z]+/g, ".")}${phoneSeq++}@example.com`;
   const r = await w.db.query("insert into users (email, full_name) values ($1, $2) returning id", [email, fullName]);
@@ -55,7 +55,8 @@ export async function verifiedSeller(w: TestWorld, fullName: string) {
   return id;
 }
 
-let imeiSeq = 352918112000000;
+// Random per test file: files run at the same time, and NosHen holds back a listing whose IMEI is already listed.
+let imeiSeq = 352918000000000 + Math.floor(Math.random() * 9_000) * 100_000;
 export async function liveListing(w: TestWorld, sellerId: string, priceNaira = 250_000, title = "iPhone 12, 128GB") {
   const id = await saveDraft(w.d, sellerId, null, ["a", "b", "c"], {
     category: "phone", title, priceNaira, condition: "good", state: "Lagos", area: "Yaba", imeiOrSerial: String(imeiSeq++),

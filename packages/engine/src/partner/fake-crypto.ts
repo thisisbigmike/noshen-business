@@ -1,7 +1,7 @@
 import { hmac, toHex, timingSafeEqual } from "../crypto";
 import { QUOTE_MINUTES, coinMicroFor, type Coin, type Network } from "@noshen/shared/payments";
 import { addMinutes } from "@noshen/shared/time";
-import type { CryptoPartner, CryptoRefund, PartnerEvent } from "./types";
+import type { CryptoMode, CryptoPartner, CryptoRefund, PartnerEvent } from "./types";
 import { WebhookSignatureError } from "./types";
 
 /** The pretend partner's rates: ₦1,500 to 1 USDT, ₦1,498 to 1 USDC. A real partner quotes its live rates. */
@@ -17,6 +17,7 @@ export const FAKE_RATE_KOBO: Record<Coin, number> = { usdt: 150_000, usdc: 149_8
 export class FakeCryptoPartner implements CryptoPartner {
   readonly name = "fake-crypto";
   readonly test = true;
+  mode(): CryptoMode { return "pretend"; }
   constructor(
     private secret: string,
     private settleLater: (event: PartnerEvent) => Promise<void> = async () => {},

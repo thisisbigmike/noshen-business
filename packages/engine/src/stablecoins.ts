@@ -1,5 +1,5 @@
 import { inTx, many, one } from "./db";
-import { sendWaitingCryptoRefunds } from "./deals";
+import { handlePartnerEvent, sendWaitingCryptoRefunds } from "./deals";
 import { DealError, N, lockDeal, nowOf, type Deps } from "./core";
 import { asBytes, decryptField, encryptField } from "./crypto";
 import { addressProblem, isCoin, isNetwork, last4, type Coin, type Network } from "@noshen/shared/payments";
@@ -65,7 +65,7 @@ export async function prepareCryptoPayment(d: Deps, buyerId: string, dealId: str
       await tx.db.query(
         `insert into crypto_deposits (deal_id, coin, network, provider, provider_ref, address, amount_kobo, amount_micro, rate_kobo, quote_expires_at)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [dealId, coin, network, partner.name, opened.ref, opened.address, due, q.micro, q.rateKobo, q.expiresAt]);
+        [dealId, coin, network, opened.provider ?? partner.name, opened.ref, opened.address, due, q.micro, q.rateKobo, q.expiresAt]);
       return;
     }
     const stale = new Date(dep.quote_expires_at) <= now || N(dep.amount_kobo) !== due;
@@ -113,4 +113,61 @@ export async function lastAddress(d: Deps, buyerId: string, network: Network): P
     `select c.refund_address_enc from crypto_deposits c join deals x on x.id = c.deal_id
       where x.buyer_id = $1 and c.network = $2 and c.refund_address_enc is not null order by c.updated_at desc limit 1`, [buyerId, network]);
   return last ? decryptField(d.secrets.fieldKey, asBytes(last.refund_address_enc)) : null;
+}
+
+/**
+ * Reads the chain for crypto partners that don't send webhooks (NosHen's own Solana wallet): new payments into deals'
+ * addresses are taken like any other payment, and refunds NosHen sent are marked done once the network settles them.
+ * Runs every minute, every few seconds while a buyer's pay screen waits, and soon after NosHen sends anything.
+ * With a deal, checks only that deal. Safe to run at the same time as itself: each payment is taken once.
+ */
+export async function watchCrypto(d: Deps, dealId?: string) {
+  const p = d.crypto;
+  if (!p?.watch || !p.watches?.length) return { payments: 0, settled: 0 };
+  const deposits = await many<{ id: string; provider_ref: string; coin: Coin; network: Network; address: string; amount_micro: string;
+    amount_kobo: string; rate_kobo: string; quote_expires_at: Date; watched_until: string | null }>(d.db,
+    `select c.id, c.provider_ref, c.coin, c.network, c.address, c.amount_micro, c.amount_kobo, c.rate_kobo, c.quote_expires_at, c.watched_until
+       from crypto_deposits c join deals x on x.id = c.deal_id
+      where c.network = any($1::text[])
+        and (x.state = 'accepted' or c.created_at > now() - interval '2 days')
+        ${dealId ? "and c.deal_id = $2" : ""}
+      order by c.created_at desc limit 200`, dealId ? [p.watches, dealId] : [p.watches]);
+  let payments = 0;
+  for (const c of deposits) {
+    try {
+      const { events, cursor } = await p.watch({
+        ref: c.provider_ref, coin: c.coin, network: c.network, address: c.address, amountMicro: N(c.amount_micro),
+        amountKobo: N(c.amount_kobo), rateKobo: N(c.rate_kobo), quoteExpiresAt: new Date(c.quote_expires_at), cursor: c.watched_until,
+      });
+      for (const e of events) if (await handlePartnerEvent(d, e, "crypto") === "processed") payments++;
+      // Only once every payment is taken: if one failed, the next check looks at it again.
+      if (cursor !== c.watched_until) await d.db.query("update crypto_deposits set watched_until = $2 where id = $1", [c.id, cursor]);
+    } catch (e) {
+      console.error("couldn't check", c.provider_ref, e);
+    }
+  }
+
+  let settled = 0;
+  if (p.settled) {
+    for (const network of p.watches) {
+      const sent = await many<{ id: string; partner_ref: string; updated_at: Date }>(d.db,
+        `select t.id, t.partner_ref, t.updated_at from transfers t
+           join payments pm on pm.id = t.refund_payment_id join crypto_deposits c on c.id = pm.crypto_deposit_id
+          where t.status = 'sent' and t.partner_ref is not null and c.network = $1 ${dealId ? "and t.deal_id = $2" : ""}
+          limit 100`, dealId ? [network, dealId] : [network]);
+      if (!sent.length) continue;
+      try {
+        const events = await p.settled(network, sent.map((t) => ({ transferId: t.id, partnerRef: t.partner_ref, sentAt: new Date(t.updated_at) })));
+        for (const e of events) if (await handlePartnerEvent(d, e, "crypto") === "processed") settled++;
+      } catch (e) {
+        console.error("couldn't check refunds on", network, e);
+      }
+    }
+  }
+  return { payments, settled };
+}
+
+/** Links to a deal's address and payments on the network's explorer, where the partner has one. */
+export function explorerLink(d: Deps, network: Network, kind: "address" | "tx", id: string | null | undefined) {
+  return id ? d.crypto?.explorer?.(network, kind, id) ?? null : null;
 }

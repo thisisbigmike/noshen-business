@@ -54,7 +54,27 @@ export interface CryptoRefund {
   coin: Coin;
   network: Network;
   address: string;
+  /** The deposit the refunded payment came into, and the coin to send back (millionths): what an on-chain partner sends. */
+  depositRef?: string;
+  micro?: number;
 }
+
+/** A deal's address that an on-chain partner watches for payments. */
+export interface WatchedDeposit {
+  ref: string;
+  coin: Coin;
+  network: Network;
+  address: string;
+  amountMicro: number;    // the coin asked for
+  amountKobo: number;     // what that pays: the deal's amount due
+  rateKobo: number;
+  quoteExpiresAt: Date;
+  /** The newest transaction already looked at, so each check only fetches what's new. */
+  cursor: string | null;
+}
+
+/** How real a network's payments are: made-up addresses, real transactions with test tokens, or real money. */
+export type CryptoMode = "pretend" | "devnet" | "live";
 
 export interface CryptoPartner {
   readonly name: string;
@@ -63,8 +83,23 @@ export interface CryptoPartner {
   /** The coin for a naira amount, fixed until expiresAt. */
   quote(amountKobo: number, coin: Coin, now: Date): Promise<CryptoQuote>;
   /** An address for this deal, coin and network. The same three always get the same address. */
-  openDeposit(dealId: string, coin: Coin, network: Network): Promise<{ ref: string; address: string }>;
+  openDeposit(dealId: string, coin: Coin, network: Network): Promise<{ ref: string; address: string; provider?: string }>;
   sendRefund(r: CryptoRefund): Promise<{ partnerRef: string }>;
   /** Throws unless the webhook's signature is valid. */
   verifyWebhook(rawBody: string, headers: Headers): Promise<PartnerEvent>;
+  mode(network: Network): CryptoMode;
+
+  // Partners that read the chain themselves instead of sending webhooks (NosHen's own Solana wallet).
+  /** The networks this partner watches: their deposits are checked with watch(). */
+  readonly watches?: readonly Network[];
+  /** New payments into one deal's address, and the cursor to start from next time. */
+  watch?(deposit: WatchedDeposit): Promise<{ events: PartnerEvent[]; cursor: string | null }>;
+  /** Results of refunds already sent on a network: an event for each one the network has settled. */
+  settled?(network: Network, sent: { transferId: string; partnerRef: string; sentAt: Date }[]): Promise<PartnerEvent[]>;
+  /** At release: moves the deal's coin from its address into NosHen's wallet. Returns the transaction. */
+  collect?(network: Network, depositRef: string, micro: number): Promise<string>;
+  /** Test networks only: pays a deal's address from NosHen's demo wallet, as a buyer's wallet would. */
+  demoPay?(network: Network, depositRef: string, micro: number): Promise<string>;
+  /** A link to an address or transaction on the network's explorer, where there is one. */
+  explorer?(network: Network, kind: "address" | "tx", id: string): string | null;
 }

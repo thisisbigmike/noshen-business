@@ -9,7 +9,8 @@ import { dealView, dealsFor } from "@noshen/engine/queries";
 import { DealError } from "@noshen/engine/core";
 import { FakePartner } from "@noshen/engine/partner/fake";
 import { FakeCryptoPartner } from "@noshen/engine/partner/fake-crypto";
-import { koboForCoin } from "@noshen/shared/payments";
+import { koboForCoin, type Network } from "@noshen/shared/payments";
+import { CryptoRouter } from "@noshen/engine/partner/crypto-router";
 import { WebhookSignatureError, type PartnerEvent } from "@noshen/engine/partner/types";
 import { optionalUser } from "./web";
 import { servePhoto } from "@noshen/engine/photos";
@@ -181,6 +182,12 @@ api.post("/api/dev/crypto/send", async (c) => {
   if (!dep || dep.buyer_id !== me.id) return c.json({ error: "Only the buyer can pay into this deal." }, 403);
   const quoted = Number(dep.amount_micro);
   const sent = short ? Math.floor((quoted * 0.9) / 10_000) * 10_000 : quoted;
+  // On a network NosHen reads itself (Solana devnet), the demo wallet really pays: a transaction anyone can look up.
+  const coins = cryptoFor();
+  if (coins?.watches?.includes(network as Network) && coins.demoPay) {
+    const tx = await coins.demoPay(network as Network, dep.provider_ref, sent);
+    return c.json({ ok: true, tx, explorer: coins.explorer?.(network as Network, "tx", tx) ?? null });
+  }
   // The partner credits the deal its amount due if the right USDT came while the amount held; otherwise it converts at its rate.
   const inTime = new Date(dep.quote_expires_at) > new Date();
   const kobo = sent === quoted && inTime ? Number(dep.amount_kobo) : koboForCoin(sent, Number(dep.rate_kobo));
@@ -189,7 +196,7 @@ api.post("/api/dev/crypto/send", async (c) => {
     id: `evt_${crypto.randomUUID()}`, type: "crypto.received",
     data: { deposit_ref: dep.provider_ref, coin: dep.coin, network: dep.network, amount_micro: sent, amount_kobo: kobo, tx_hash: network === "solana" ? `test${hex(40)}` : `0x${hex(32)}`, received_at: new Date().toISOString() },
   };
-  const partner = cryptoFor() as FakeCryptoPartner;
+  const partner = (coins instanceof CryptoRouter ? coins.fallback : coins) as FakeCryptoPartner;
   const body = JSON.stringify(event);
   const res = await api.request("/api/webhooks/crypto", { method: "POST", body, headers: { "x-fake-crypto-signature": await partner.sign(body) } }, env);
   return c.json(await res.json(), res.status as 200);

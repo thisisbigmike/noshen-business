@@ -5,7 +5,7 @@ import type { Route } from "./+types/pay-crypto";
 import { messageOf, requireUser, withApp } from "../../server/web";
 import { dealView } from "@noshen/engine/queries";
 import { isDev } from "@noshen/engine/context";
-import { cryptoPaymentFor, prepareCryptoPayment, saveRefundAddress } from "@noshen/engine/stablecoins";
+import { cryptoPaymentFor, explorerLink, prepareCryptoPayment, saveRefundAddress, watchCrypto } from "@noshen/engine/stablecoins";
 import { DealError } from "@noshen/engine/core";
 import { BottomAction, Button, ErrorText, Info, Kv, MoneyStatus, TopBar } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
@@ -26,6 +26,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const user = await requireUser(request, d);
     if (!d.crypto) throw redirect(`/d/${params.id}/pay`);
+    const mode = d.crypto.mode(network);
+    // On a network NosHen reads itself (Solana), look at the chain now: this page refreshes every few seconds while
+    // the buyer pays, so the payment shows moments after the network confirms it.
+    if (mode !== "pretend") await watchCrypto(d, params.id).catch((e) => console.error("chain check", e));
     const v = await dealView(d.db, params.id);
     if (!v || v.deal.buyer_id !== user.id) throw data("Not found", { status: 404 });
     if (v.deal.state !== "accepted") throw redirect(`/d/${params.id}`);
@@ -45,7 +49,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       deal: { id: v.deal.id as string, due: v.deal.amount_due_kobo as string, payBy: v.deal.payment_due_at as string | null, handover: v.deal.handover as string },
       title: v.listing.title as string, seller: firstName(v.seller.name), coin, network, payment, refundAddress,
       qr: payment ? renderSVG(payment.address, { ecc: "M", border: 2, pixelSize: 6, blackColor: "#000", whiteColor: "#fff" }) : null,
-      test: d.crypto.test, dev: isDev(), now: Date.now(),
+      test: d.crypto.test, mode, dev: isDev(), now: Date.now(),
+      addressUrl: explorerLink(d, network, "address", payment?.address),
     };
   });
 }
@@ -101,9 +106,14 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
   const send = async (short: boolean) => {
     setDevMsg("Sending…");
     const r = await fetch("/api/dev/crypto/send", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dealId: x.deal.id, coin: x.coin, network: x.network, short }) });
-    setDevMsg(r.ok ? "The test wallet sent it, and the crypto partner's webhook arrived. This page will update." : ((await r.json()) as { error?: string }).error ?? "Something went wrong.");
+    const body = (await r.json().catch(() => ({}))) as { error?: string; explorer?: string };
+    if (!r.ok) setDevMsg(body.error ?? "Something went wrong.");
+    else if (body.explorer) { setDevTx(body.explorer); setDevMsg("Sent on Solana devnet. This page moves on by itself once the network confirms it, usually within a few seconds."); }
+    else setDevMsg("The test wallet sent it, and the crypto partner's webhook arrived. This page will update.");
     revalidator.revalidate();
   };
+  const [devTx, setDevTx] = useState<string | null>(null);
+  const onChain = x.mode !== "pretend";
 
   return (
     <div>
@@ -132,7 +142,8 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
         ) : (
           <>
             {/* Read before sending: these come first, above the address. */}
-            {x.test ? <Info icon="alert-triangle" tone="warn"><strong>Test mode: don't send real {c}.</strong> This address is pretend, so wallets won't accept it. Use the test buttons below instead.</Info> : null}
+            {x.mode === "pretend" ? <Info icon="alert-triangle" tone="warn"><strong>Test mode: don't send real {c}.</strong> This address is pretend, so wallets won't accept it. Use the test buttons below instead.</Info> : null}
+            {x.mode === "devnet" ? <Info icon="alert-triangle" tone="warn"><strong>Solana devnet: test tokens, not real money.</strong> This is a real Solana address on the test network. Pay from a wallet set to Devnet, or with NosHen's demo wallet below. Never send mainnet {c} here.</Info> : null}
             <Info icon="alert-triangle" tone="warn"><strong>Send only {c} on {n.name}.</strong> Another coin, or {c} on another network, can't be recovered.</Info>
             <Info icon="coin">Make sure exactly {coinAmount(p!.micro, x.coin)} arrives. If your exchange takes its fee out of what you send, add the fee on top.</Info>
             <section className="card stack-4" aria-label="Where to send">
@@ -142,7 +153,10 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
                   {x.qr ? <span className="pay-qr" role="img" aria-label="QR code of the address" dangerouslySetInnerHTML={{ __html: x.qr }} /> : null}
                   <code className="pay-addr">{groupAddress(p!.address)}</code>
                 </div>
-                <div><CopyButton text={p!.address} label="Copy address" /></div>
+                <div className="row wrap" style={{ gap: 12, alignItems: "center" }}>
+                  <CopyButton text={p!.address} label="Copy address" />
+                  {x.addressUrl ? <a className="caption" href={x.addressUrl} target="_blank" rel="noreferrer">See it on Solana Explorer</a> : null}
+                </div>
               </div>
               <div>
                 <div className="kv" style={{ alignItems: "center" }}><span className="stack"><span className="muted">Exact amount</span><span className="title tabular">{coinAmount(p!.micro, x.coin)}</span></span><CopyButton text={plainAmount(p!.micro)} /></div>
@@ -169,12 +183,19 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
                 </>
               )}
             </section>
-            <p className="caption muted">Our crypto partner turns the {c} into {naira(x.deal.due)} for this deal, and our licensed partner holds it. {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}.</p>
+            {onChain ? (
+              <p className="caption muted">The {c} stays at this deal's own address, and {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}. Then it moves to NosHen, which pays {x.seller} {naira(x.deal.due)} less the fee.</p>
+            ) : (
+              <p className="caption muted">Our crypto partner turns the {c} into {naira(x.deal.due)} for this deal, and our licensed partner holds it. {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}.</p>
+            )}
             {x.dev ? (
               <div className="dev stack">
-                <p className="label">Test mode: no real {c} moves. Pretend to be your wallet:</p>
-                <div className="row wrap"><Button onClick={() => send(false)}>Send {coinAmount(p!.micro, x.coin)}</Button><Button onClick={() => send(true)}>Send too little</Button></div>
-                {devMsg ? <p className="caption">{devMsg}</p> : null}
+                <p className="label">{onChain ? `Devnet: pay from NosHen's demo wallet. A real Solana transaction, with test ${c}:` : `Test mode: no real ${c} moves. Pretend to be your wallet:`}</p>
+                <div className="row wrap">
+                  <Button onClick={() => send(false)}>{onChain ? `Send ${coinAmount(p!.micro, x.coin)} from the demo wallet` : `Send ${coinAmount(p!.micro, x.coin)}`}</Button>
+                  <Button onClick={() => send(true)}>Send too little</Button>
+                </div>
+                {devMsg ? <p className="caption">{devMsg}{devTx ? <> <a href={devTx} target="_blank" rel="noreferrer">See the transaction</a></> : null}</p> : null}
               </div>
             ) : null}
             <BottomAction>

@@ -2,6 +2,7 @@ import { createRequestHandler } from "react-router";
 import { api } from "../server/api";
 import { isDemo, withApp } from "@noshen/engine/context";
 import { sweep } from "@noshen/engine/sweep";
+import { watchCrypto } from "@noshen/engine/stablecoins";
 
 // Deal deadlines run as Cloudflare Workflows (see wrangler.jsonc).
 export { DealTimers } from "@noshen/engine/timers";
@@ -40,7 +41,9 @@ export default {
   },
 
   // Every 15 minutes: act on any deadline whose timer didn't fire (TRD: stuck-deal watch).
-  async scheduled(_event, _env, ctx) {
-    ctx.waitUntil(withApp((d) => sweep(d)).then((done) => { if (done.length) console.log("sweep", done); }));
+  async scheduled(event, _env, ctx) {
+    // Every 15 minutes: act on passed deadlines. Every minute: read the chain for payments to deals' Solana addresses.
+    if (event.cron === "*/15 * * * *") ctx.waitUntil(withApp((d) => sweep(d)).then((done) => { if (done.length) console.log("sweep", done); }));
+    else ctx.waitUntil(withApp((d) => watchCrypto(d)).then((r) => { if (r.payments || r.settled) console.log("chain", r); }));
   },
 } satisfies ExportedHandler<Env>;

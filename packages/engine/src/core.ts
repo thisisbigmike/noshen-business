@@ -8,7 +8,7 @@ import type { Settings } from "./settings";
 import { loadSettings } from "./settings";
 import type { DealState } from "@noshen/shared/deal";
 
-export type TimerKind = "request_expiry" | "payment_expiry" | "handover_due" | "delivery_release" | "evidence_close" | "partner_event";
+export type TimerKind = "request_expiry" | "payment_expiry" | "handover_due" | "delivery_release" | "evidence_close" | "partner_event" | "crypto_watch";
 
 export interface Timers {
   /** source: which partner a partner_event came from ("crypto" for the crypto partner; the bank partner otherwise). */

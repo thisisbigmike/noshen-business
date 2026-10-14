@@ -11,3 +11,4 @@ worker-configuration.d.ts
 *.tsbuildinfo
 .prod.vars
 .backups/
+.solana-devnet.vars

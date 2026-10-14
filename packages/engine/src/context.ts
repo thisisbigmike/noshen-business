@@ -3,6 +3,8 @@ import { withDb, type Db } from "./db";
 import type { Deps, LiveRooms } from "./core";
 import { FakePartner } from "./partner/fake";
 import { FakeCryptoPartner } from "./partner/fake-crypto";
+import { CryptoRouter } from "./partner/crypto-router";
+import { SolanaPartner } from "./partner/solana";
 import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
 import { ConsoleEmail, NoEmail, type EmailSender } from "./email";
 import { FakeIdProvider } from "./idcheck";
@@ -35,11 +37,27 @@ export function partnerFor(): PaymentsPartner {
  * here once it's chosen (and cleared by the lawyer). Until then, a site with real payments offers bank transfer only.
  */
 export function cryptoFor(): CryptoPartner | undefined {
-  if (env.PARTNER === "fake") {
-    return new FakeCryptoPartner(env.FAKE_PARTNER_SECRET, async (event: PartnerEvent) =>
-      workflowTimers.schedule({ kind: "partner_event", at: new Date(Date.now() + 4000), event, source: "crypto" }));
-  }
-  return undefined;
+  if (env.PARTNER !== "fake") return undefined;
+  const fake = new FakeCryptoPartner(env.FAKE_PARTNER_SECRET, async (event: PartnerEvent) =>
+    workflowTimers.schedule({ kind: "partner_event", at: new Date(Date.now() + 4000), event, source: "crypto" }));
+  const solana = solanaFor();
+  return solana ? new CryptoRouter({ solana }, fake) : fake;
+}
+
+/**
+ * NosHen's own Solana wallet, when its settings are present (scripts/solana-setup.mjs makes them). Only on devnet
+ * for now: real tokens, a test network, NosHen's own test USDT and USDC. Everything else stays pretend.
+ */
+function solanaFor(): SolanaPartner | undefined {
+  const e = env as unknown as Record<string, string | undefined>;
+  if (!e.SOLANA_RPC_URL || !e.SOLANA_WALLET || !e.SOLANA_DEPOSIT_SECRET || !e.SOLANA_USDC_MINT || !e.SOLANA_USDT_MINT) return undefined;
+  // After NosHen sends anything, check the chain again soon: the result shows without waiting for the minute check.
+  const checkSoon = () => Promise.all([10_000, 30_000].map((ms) => workflowTimers.schedule({ kind: "crypto_watch", at: new Date(Date.now() + ms) })));
+  return new SolanaPartner({
+    rpcUrl: e.SOLANA_RPC_URL, cluster: "devnet",
+    mints: { usdc: e.SOLANA_USDC_MINT, usdt: e.SOLANA_USDT_MINT },
+    walletSecret: e.SOLANA_WALLET, depositSecret: e.SOLANA_DEPOSIT_SECRET, demoWalletSecret: e.SOLANA_DEMO_WALLET,
+  }, checkSoon);
 }
 
 /**
