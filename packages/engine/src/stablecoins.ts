@@ -67,17 +67,17 @@ export async function prepareCryptoPayment(d: Deps, buyerId: string, dealId: str
       const opened = await partner.openDeposit(dealId, coin, network);
       await tx.db.query(
         `update crypto_deposits set provider = $2, provider_ref = $3, address = $4, amount_kobo = $5, amount_micro = $6, rate_kobo = $7,
-                quote_expires_at = $8, watched_until = null where id = $1`,
-        [dep.id, opened.provider ?? provider, opened.ref, opened.address, due, q.micro, q.rateKobo, q.expiresAt]);
+                quote_expires_at = $8, watched_until = $9 where id = $1`,
+        [dep.id, opened.provider ?? provider, opened.ref, opened.address, due, q.micro, q.rateKobo, q.expiresAt, opened.cursor ?? null]);
       return;
     }
     if (!dep) {
       const q = await partner.quote(due, coin, now);
       const opened = await partner.openDeposit(dealId, coin, network);
       await tx.db.query(
-        `insert into crypto_deposits (deal_id, coin, network, provider, provider_ref, address, amount_kobo, amount_micro, rate_kobo, quote_expires_at)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [dealId, coin, network, opened.provider ?? partner.name, opened.ref, opened.address, due, q.micro, q.rateKobo, q.expiresAt]);
+        `insert into crypto_deposits (deal_id, coin, network, provider, provider_ref, address, amount_kobo, amount_micro, rate_kobo, quote_expires_at, watched_until)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [dealId, coin, network, opened.provider ?? partner.name, opened.ref, opened.address, due, q.micro, q.rateKobo, q.expiresAt, opened.cursor ?? null]);
       return;
     }
     const stale = new Date(dep.quote_expires_at) <= now || N(dep.amount_kobo) !== due;

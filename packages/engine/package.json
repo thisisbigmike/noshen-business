@@ -11,6 +11,10 @@
     "@solana-program/system": "0.15.0",
     "@solana-program/token": "0.17.0",
     "@solana/kit": "8.4.0",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "viem": "2.57.1"
+  },
+  "devDependencies": {
+    "solc": "0.8.37"
   }
 }

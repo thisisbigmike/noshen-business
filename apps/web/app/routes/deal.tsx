@@ -11,7 +11,7 @@ import { disputeReasonLabel, firstName, isOpen } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
-import { cryptoLabel, type Coin, type Network } from "@noshen/shared/payments";
+import { cryptoLabel, isNetwork, networkOf, type Coin, type Network } from "@noshen/shared/payments";
 import { cryptoQuotes, explorerLink, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
 import { RefundAddressForm } from "../lib/refund-address";
 import { PushCard } from "../lib/push";
@@ -39,6 +39,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       me: user.id, role, paid, paidCrypto, country: countryOf(request), quotes, refundWaiting,
       // A stablecoin payment anyone can look up on the network's explorer (Solana), for both people to see.
       paymentUrl: counted[0]?.method === "crypto" ? explorerLink(d, counted[0].network, "tx", counted[0].tx_hash) : null,
+      paymentExplorer: counted[0]?.method === "crypto" && isNetwork(counted[0].network) ? networkOf(counted[0].network).explorer : null,
       // For the buyer, while a payment is being checked: who it came from, and how much.
       holdPayment: role === "buyer" && v.deal.review_hold && counted[0] ? { amount_kobo: counted[0].amount_kobo as string, sender_name: (counted[0].sender_name ?? null) as string | null } : null,
       deal: v.deal, listing: { id: v.listing.id, title: v.listing.title, category: v.listing.category, area: placeLabel(v.listing.area, v.listing.state), photo: v.listing.photo_keys?.[0] ?? null },
@@ -121,7 +122,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
               <p className="big-amount">{naira(t.amountKobo)}{t.amountSuffix ? ` ${t.amountSuffix}` : ""}</p>
               <p className="body muted">{listing.title} · {other} · {deal.handover === "meetup" ? "Meet-up" : "Delivery"}</p>
               <p className="body">{t.next}</p>
-              {x.paymentUrl ? <p className="caption"><a href={x.paymentUrl} target="_blank" rel="noreferrer">See the payment on Solana Explorer</a></p> : null}
+              {x.paymentUrl ? <p className="caption"><a href={x.paymentUrl} target="_blank" rel="noreferrer">See the payment on {x.paymentExplorer}</a></p> : null}
             </section>
 
             {deal.state === "held" && !deal.review_hold && role === "buyer" ? (

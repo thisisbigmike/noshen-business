@@ -83,7 +83,8 @@ export interface CryptoPartner {
   /** The coin for a naira amount, fixed until expiresAt. */
   quote(amountKobo: number, coin: Coin, now: Date): Promise<CryptoQuote>;
   /** An address for this deal, coin and network. The same three always get the same address. */
-  openDeposit(dealId: string, coin: Coin, network: Network): Promise<{ ref: string; address: string; provider?: string }>;
+  /** cursor: where an on-chain partner starts reading this address (just before it was opened). */
+  openDeposit(dealId: string, coin: Coin, network: Network): Promise<{ ref: string; address: string; provider?: string; cursor?: string | null }>;
   sendRefund(r: CryptoRefund): Promise<{ partnerRef: string }>;
   /** Throws unless the webhook's signature is valid. */
   verifyWebhook(rawBody: string, headers: Headers): Promise<PartnerEvent>;

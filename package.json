@@ -17,7 +17,10 @@
     "test": "vitest run",
     "staff:create": "node scripts/create-staff.mjs",
     "staff:password": "node scripts/staff-password.mjs",
-    "solana:setup": "node packages/engine/scripts/solana-setup.mjs"
+    "solana:setup": "node packages/engine/scripts/solana-setup.mjs",
+    "solana:keys": "node packages/engine/scripts/solana-keys.mjs",
+    "evm:setup": "node packages/engine/scripts/evm-setup.mjs",
+    "evm:keys": "node packages/engine/scripts/evm-keys.mjs"
   },
   "dependencies": {
     "better-auth": "^1.7.7",
@@ -32,6 +35,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "typescript": "^5.9.3",
+    "viem": "2.57.1",
     "vitest": "^5.0.3"
   },
   "packageManager": "pnpm@12.6.0"

@@ -106,7 +106,7 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
     const r = await fetch("/api/dev/crypto/send", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dealId: x.deal.id, coin: x.coin, network: x.network, short }) });
     const body = (await r.json().catch(() => ({}))) as { error?: string; explorer?: string };
     if (!r.ok) setDevMsg(body.error ?? "Something went wrong.");
-    else if (body.explorer) { setDevTx(body.explorer); setDevMsg("Sent on Solana devnet. This page moves on by itself once the network confirms it, usually within a few seconds."); }
+    else if (body.explorer) { setDevTx(body.explorer); setDevMsg(`Sent on ${n.testnet}. This page moves on by itself once the network confirms it, usually within a few seconds.`); }
     else setDevMsg("The test wallet sent it, and the crypto partner's webhook arrived. This page will update.");
     revalidator.revalidate();
   };
@@ -141,7 +141,7 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
           <>
             {/* Read before sending: these come first, above the address. */}
             {x.mode === "pretend" ? <Info icon="alert-triangle" tone="warn"><strong>Test mode: don't send real {c}.</strong> This address is pretend, so wallets won't accept it. Use the test buttons below instead.</Info> : null}
-            {x.mode === "devnet" ? <Info icon="alert-triangle" tone="warn"><strong>Solana devnet: test tokens, not real money.</strong> This is a real Solana address on the test network. Pay from a wallet set to Devnet, or with NosHen's demo wallet below. Never send mainnet {c} here.</Info> : null}
+            {x.mode === "devnet" ? <Info icon="alert-triangle" tone="warn"><strong>{n.testnet}: test tokens, not real money.</strong> This is a real {n.name} address on the test network. Pay from a wallet set to {n.testnet}, or with NosHen's demo wallet below. Never send real {c} here.</Info> : null}
             <Info icon="alert-triangle" tone="warn"><strong>Send only {c} on {n.name}.</strong> Another coin, or {c} on another network, can't be recovered.</Info>
             <Info icon="coin">Make sure exactly {coinAmount(p!.micro, x.coin)} arrives. If your exchange takes its fee out of what you send, add the fee on top.</Info>
             <section className="card stack-4" aria-label="Where to send">
@@ -153,7 +153,7 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
                 </div>
                 <div className="row wrap" style={{ gap: 12, alignItems: "center" }}>
                   <CopyButton text={p!.address} label="Copy address" />
-                  {x.addressUrl ? <a className="caption" href={x.addressUrl} target="_blank" rel="noreferrer">See it on Solana Explorer</a> : null}
+                  {x.addressUrl ? <a className="caption" href={x.addressUrl} target="_blank" rel="noreferrer">See it on {n.explorer}</a> : null}
                 </div>
               </div>
               <div>
@@ -188,7 +188,7 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
             )}
             {x.dev ? (
               <div className="dev stack">
-                <p className="label">{onChain ? `Devnet: pay from NosHen's demo wallet. A real Solana transaction, with test ${c}:` : `Test mode: no real ${c} moves. Pretend to be your wallet:`}</p>
+                <p className="label">{onChain ? `${n.testnet}: pay from NosHen's demo wallet. A real ${n.name} transaction, with test ${c}:` : `Test mode: no real ${c} moves. Pretend to be your wallet:`}</p>
                 <div className="row wrap">
                   <Button onClick={() => send(false)}>{onChain ? `Send ${coinAmount(p!.micro, x.coin)} from the demo wallet` : `Send ${coinAmount(p!.micro, x.coin)}`}</Button>
                   <Button onClick={() => send(true)}>Send too little</Button>

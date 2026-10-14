@@ -11,15 +11,15 @@ export class CryptoRouter implements CryptoPartner {
   readonly watches: Network[];
 
   constructor(private byNetwork: Partial<Record<Network, CryptoPartner>>, readonly fallback: CryptoPartner) {
-    const all = [fallback, ...Object.values(byNetwork)] as CryptoPartner[];
+    const all = [...new Set([fallback, ...Object.values(byNetwork)])] as CryptoPartner[];
     this.test = all.some((p) => p.test);
-    this.watches = all.flatMap((p) => [...(p.watches ?? [])]);
+    this.watches = [...new Set(all.flatMap((p) => [...(p.watches ?? [])]))];
   }
 
   private for(network: Network) { return this.byNetwork[network] ?? this.fallback; }
   providerFor(network: Network) { return this.for(network).name; }
   get watchingProviders() {
-    return ([this.fallback, ...Object.values(this.byNetwork)] as CryptoPartner[]).filter((p) => p.watch).map((p) => p.name);
+    return [...new Set(([this.fallback, ...Object.values(this.byNetwork)] as CryptoPartner[]).filter((p) => p.watch).map((p) => p.name))];
   }
 
   mode(network: Network) { return this.for(network).mode(network); }

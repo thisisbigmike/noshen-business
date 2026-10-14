@@ -11,11 +11,12 @@ export type Coin = (typeof COINS)[number]["id"];
 export const isCoin = (s: unknown): s is Coin => typeof s === "string" && COINS.some((c) => c.id === s);
 export const coinName = (c: Coin) => COINS.find((x) => x.id === c)!.name;
 
+// testnet: the test network NosHen uses there for now; explorer: where anyone can look a payment up.
 export const NETWORKS = [
-  { id: "solana", name: "Solana", standard: "SPL", fees: "Lowest network fees", evm: false },
-  { id: "bsc", name: "BNB Smart Chain", standard: "BEP-20", fees: "Low network fees", evm: true },
-  { id: "base", name: "Base", standard: "", fees: "Low network fees", evm: true },
-  { id: "ethereum", name: "Ethereum", standard: "ERC-20", fees: "Higher network fees", evm: true },
+  { id: "solana", name: "Solana", standard: "SPL", fees: "Lowest network fees", evm: false, testnet: "Solana devnet", explorer: "Solana Explorer" },
+  { id: "bsc", name: "BNB Smart Chain", standard: "BEP-20", fees: "Low network fees", evm: true, testnet: "BNB Smart Chain testnet", explorer: "BscScan" },
+  { id: "base", name: "Base", standard: "", fees: "Low network fees", evm: true, testnet: "Base Sepolia", explorer: "BaseScan" },
+  { id: "ethereum", name: "Ethereum", standard: "ERC-20", fees: "Higher network fees", evm: true, testnet: "Ethereum Sepolia", explorer: "Etherscan" },
 ] as const;
 
 export type Network = (typeof NETWORKS)[number]["id"];

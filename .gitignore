@@ -12,3 +12,6 @@ worker-configuration.d.ts
 .prod.vars
 .backups/
 .solana-devnet.vars
+.solana-devnet-keys.txt
+.evm-testnet.vars
+.evm-testnet-keys.txt
