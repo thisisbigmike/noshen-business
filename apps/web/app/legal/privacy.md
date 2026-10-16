@@ -16,7 +16,7 @@ NosHen is the data controller for the personal data described here. Our Data Pro
 - **Crypto payment data, if you pay with USDT or USDC:** the address you give for refunds (stored encrypted), and the network, amount and transaction of your payment. Transactions on public blockchains can be seen by anyone; we don't publish which ones are yours.
 - **Listing data:** photos, descriptions, category, price, condition and area, and, where the category asks for one, the item's IMEI, serial number or chassis number.
 - **Deal data:** your buy requests, deals, deadlines, release and refund history, and ratings you give and receive.
-- **Messages and evidence:** chat messages in your deals, and photos and notes you add when a problem is reported.
+- **Messages and evidence:** chat messages in your deals, photos and notes you add when a problem is reported, and, for a delivery, the seller's packing photos, the courier's name and the tracking or waybill number. Packing photos can show the delivery label, with the buyer's name, address or phone number; only the buyer, the seller and NosHen reviewers see them.
 - **Support data:** what you tell us when you contact us.
 
 ### From others
@@ -98,7 +98,7 @@ We keep personal data only as long as we need it for the purposes above, includi
 | Account data | While your account is open, then <mark>[6 years]</mark> |
 | Deal, payment, payout and refund records | <mark>[6 years]</mark> after the deal closes |
 | Identity check results | <mark>[6 years]</mark> after your account closes |
-| Chat messages and dispute evidence | 12 months after the deal closes, longer if a claim is ongoing |
+| Chat messages, dispute evidence and packing photos | 12 months after the deal closes, longer if a claim is ongoing |
 | Listing photos | Until the listing is removed, then up to 12 months if a deal used them |
 | Sign-in codes | Until used, or 5 minutes, whichever is sooner |
 | Security logs | <mark>[12 months]</mark> |

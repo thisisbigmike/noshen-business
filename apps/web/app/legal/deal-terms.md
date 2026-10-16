@@ -24,11 +24,11 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 ## 3. Starting a deal
 
-3.1. **Request.** A buyer starts a deal by sending a buy request from a listing, choosing a meet-up or delivery. The request shows the price, the NosHen fee and the total.
+3.1. **Request.** A buyer starts a deal by sending a buy request from a listing, choosing a meet-up or delivery. For delivery, the buyer chooses the state to deliver to, and the seller's delivery price for that state, as shown on the listing, is added. The request shows the price, any delivery fee, the NosHen fee and the total.
 
 3.2. **Acceptance.** The seller has {{request_hours}} hours to accept or decline. A request that is not answered in time expires. The buyer can cancel a request before the seller answers. Accepting one request declines any others on the same listing.
 
-3.3. **Terms are fixed.** Once the seller accepts, the price, fee, who pays the fee and the hand-over method can't be changed. To change them, cancel the deal and start a new one.
+3.3. **Terms are fixed.** Once the seller accepts, the price, fee, who pays the fee, the hand-over method, and the delivery fee and state can't be changed. To change them, cancel the deal and start a new one.
 
 ## 4. Paying
 
@@ -54,19 +54,21 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 5.1. NosHen charges a fee of {{fee_percent}}% of the price, at least {{fee_min}} and at most {{fee_max}}, shown before anyone pays. The buyer pays it unless the seller chose to cover it, in which case it is taken from the seller's payout.
 
-5.2. If a deal is cancelled before hand-over, the buyer gets everything back, fee included. If a dispute is decided in the buyer's favour, the buyer is refunded in full, fee included. <mark>[Proposed; confirm.]</mark> Once money is released to the seller, the fee is not refundable.
+5.2. If a deal is cancelled before hand-over, the buyer gets everything back, fee and any delivery fee included. If a dispute is decided in the buyer's favour, the buyer is refunded in full, fee and any delivery fee included. <mark>[Proposed; confirm.]</mark> Once money is released to the seller, the fee is not refundable.
 
 5.3. NosHen may change the fee for future deals by giving notice in the app. The fee for a deal is the one shown when it was accepted.
 
+5.4. **Delivery fee.** The seller sets the delivery prices on the listing: one within the state the item is in, and one to other states, or free, or not offered. NosHen's fee is on the price only, not on delivery. The delivery fee is paid with the price, held with it, and paid to the seller with it on release; the seller pays the courier. The buyer should never pay a seller, rider or courier anything extra for delivery outside NosHen.
+
 ## 6. Hand-over
 
-6.1. The seller must hand over the item within {{handover_hours}} hours of the payment being confirmed. If the hand-over hasn't happened by then, the buyer may cancel and be refunded in full.
+6.1. The seller must hand over the item, or send it for a delivery, within {{handover_hours}} hours of the payment being confirmed. If that hasn't happened by then, the buyer may cancel and be refunded in full.
 
 6.2. **At a meet-up.** The buyer checks the item first, using the checks the app shows for that kind of item. If satisfied, the buyer gives the seller the release code shown in the buyer's NosHen app, and the seller enters it.
 
-6.3. **By delivery.** The seller sends the item and marks the deal Delivered in the app. The buyer then has {{delivery_hours}} hours to tap Received or Report a problem.
+6.3. **By delivery.** The seller sends the item and marks the deal Sent in the app, with at least two photos taken while packing it (the item going into the package, and the package sealed), who is delivering it, and, for delivery to another state, the tracking or waybill number. The buyer sees these, and they are evidence in any dispute. Once a deal is marked Sent, neither person can cancel it; the buyer can tap Received as soon as the item arrives, or Report a problem if it is wrong or never comes. When the item arrives, the seller marks the deal Delivered, and the buyer then has {{delivery_hours}} hours to tap Received or Report a problem.
 
-6.4. The seller is responsible for the item until the buyer receives it, including delivery costs and risk unless the buyer and seller agree otherwise in the deal chat.
+6.4. The seller is responsible for the item until the buyer receives it, including the cost of delivery and the risk of loss or damage on the way.
 
 ## 7. The release code
 
@@ -93,7 +95,7 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 ## 9. Cancelling
 
-9.1. Before hand-over, either the buyer or the seller can cancel a deal in the app. If the buyer has paid, the buyer is refunded in full.
+9.1. Before hand-over, and for a delivery before it is marked Sent, either the buyer or the seller can cancel a deal in the app. If the buyer has paid, the buyer is refunded in full.
 
 9.2. A seller who often cancels paid deals may have their account limited or closed.
 
@@ -101,7 +103,7 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 10.1. **Reporting.** If the item is not as described, does not work, is fake, is locked to someone else's account, has a different IMEI, serial or chassis number from the listing, comes with papers that don't match, or doesn't arrive, the buyer can report a problem in the app at any time before the money is released. The money is frozen at once.
 
-10.2. **Evidence.** Both sides have {{evidence_hours}} hours from the report to add photos, notes and anything else that shows what happened. The deal's chat, timeline and listing are also used.
+10.2. **Evidence.** Both sides have {{evidence_hours}} hours from the report to add photos, notes and anything else that shows what happened. The deal's chat, timeline and listing are also used, and for a delivery, the packing photos and tracking number.
 
 10.3. **Decision.** A NosHen reviewer decides within {{decision_hours}} hours of the report, either to refund the buyer or to release the money to the seller, and tells both people the reason. Where a refund depends on the item being returned, the reviewer will say how and by when. <mark>[Decide the return process.]</mark>
 

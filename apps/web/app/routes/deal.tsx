@@ -10,13 +10,14 @@ import { naira } from "@noshen/shared/money";
 import { disputeReasonLabel, firstName, isOpen } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
-import { placeLabel } from "@noshen/shared/locations";
+import { placeLabel, stateLabel } from "@noshen/shared/locations";
 import { cryptoLabel, isNetwork, networkOf, type Coin, type Network } from "@noshen/shared/payments";
 import { cryptoQuotes, explorerLink, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
 import { RefundAddressForm } from "../lib/refund-address";
 import { PushCard } from "../lib/push";
 import { PayOptions } from "../lib/pay-options";
 import { useDealLive } from "../lib/live-deal";
+import { PackingPhotos } from "../lib/delivery";
 
 export const handle = { tabs: false };
 export const meta: Route.MetaFunction = ({ loaderData: d }) => [{ title: d ? `Deal with ${firstName(d.otherName)} · NosHen` : "Deal · NosHen" }];
@@ -103,7 +104,10 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
     return () => clearInterval(id);
   }, [deal.state, live.connected]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const canCancel = (deal.state === "requested" || deal.state === "accepted" || (deal.state === "held" && !deal.delivered_at));
+  // Once a delivery is on its way it can't be cancelled: the buyer confirms it, or reports a problem.
+  const canCancel = (deal.state === "requested" || deal.state === "accepted" || (deal.state === "held" && !deal.delivered_at && !deal.sent_at));
+  const delivery = Number(deal.delivery_kobo ?? 0);
+  const deliveryTo = deal.delivery_state ? `Delivery to ${stateLabel(deal.delivery_state)}` : "Delivery";
   const actions = actionsFor(x, other, () => setCancelOpen(true), canCancel, () => setPayOpen(true));
 
   return (
@@ -120,7 +124,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
                 {t.deadline ? <span className="caption muted row"><Icon name="clock" size={16} />{t.deadline}</span> : null}
               </div>
               <p className="big-amount">{naira(t.amountKobo)}{t.amountSuffix ? ` ${t.amountSuffix}` : ""}</p>
-              <p className="body muted">{listing.title} · {other} · {deal.handover === "meetup" ? "Meet-up" : "Delivery"}</p>
+              <p className="body muted">{listing.title} · {other} · {deal.handover === "meetup" ? "Meet-up" : deliveryTo}</p>
               <p className="body">{t.next}</p>
               {x.paymentUrl ? <p className="caption"><a href={x.paymentUrl} target="_blank" rel="noreferrer">See the payment on {x.paymentExplorer}</a></p> : null}
             </section>
@@ -132,9 +136,22 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
               <section className="card">
                 <Kv k={`${firstName(names.buyer)} paid`} v={naira(x.paid)} />
                 <Kv k={`NosHen fee, paid by ${deal.fee_payer === "buyer" ? firstName(names.buyer) : "you"}`} v={naira(deal.fee_kobo)} />
+                {deal.handover === "delivery" ? <Kv k={`${deliveryTo}, for you to pay the courier`} v={delivery ? naira(delivery) : "Free"} /> : null}
                 <Kv k="You get" v={naira(deal.seller_share_kobo)} total />
                 {x.bankLast4 ? <Kv k="Paid to" v={`Your bank ••${x.bankLast4}`} /> : null}
               </section>
+            ) : null}
+            {role === "buyer" && deal.handover === "delivery" && (deal.state === "requested" || deal.state === "accepted") ? (
+              <section className="card">
+                <Kv k="Price" v={naira(deal.price_kobo)} />
+                <Kv k={deliveryTo} v={delivery ? naira(delivery) : "Free"} />
+                <Kv k="NosHen fee" v={naira(deal.fee_kobo)} />
+                <Kv k="Total" v={naira(deal.amount_due_kobo)} total />
+              </section>
+            ) : null}
+            {deal.handover === "delivery" && deal.sent_at ? <SentCard x={x} /> : null}
+            {deal.state === "held" && !deal.review_hold && deal.handover === "delivery" && !deal.sent_at && role === "buyer" ? (
+              <Info icon="truck-delivery">Share your full address and phone number with {other} in the chat. {other} will add photos of it packed when it's sent. Delivery is already paid: don't pay a rider anything extra.</Info>
             ) : null}
             {deal.state === "held" && role === "seller" && deal.handover === "meetup" ? (
               <Info icon="shield-lock">Only {firstName(names.buyer)}'s phone shows the code. Nobody from NosHen will ever ask you for it.</Info>
@@ -192,7 +209,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
             <input type="hidden" name="intent" value="cancel" />
             <h2 id="cancel-title" className="heading">{deal.state === "requested" && role === "buyer" ? "Cancel this request?" : "Cancel this deal?"}</h2>
             <p className="body">{deal.state === "held"
-              ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee included, ${deal.review_hold && !x.paidCrypto ? "to the account it came from" : x.paidCrypto ? `as ${x.paidCrypto} to your own address, at the rate on the day` : "to the account you paid from"}.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
+              ? (role === "buyer" ? `You get all ${naira(x.paid)} back, fee${delivery ? " and delivery" : ""} included, ${deal.review_hold && !x.paidCrypto ? "to the account it came from" : x.paidCrypto ? `as ${x.paidCrypto} to your own address, at the rate on the day` : "to the account you paid from"}.` : `${firstName(names.buyer)} gets all their money back. You won't be paid for this deal.`)
               : "Nothing has been paid, so there's nothing to refund."}</p>
             <Button type="submit" variant="danger" size="lg" block disabled={busy}>{cancelling ? "Cancelling…" : deal.state === "requested" && role === "buyer" ? "Cancel request" : "Cancel deal"}</Button>
             <Button size="lg" block autoFocus disabled={cancelling} onClick={() => setCancelOpen(false)}>{deal.state === "requested" && role === "buyer" ? "Keep the request" : "Keep the deal"}</Button>
@@ -284,9 +301,13 @@ function actionsFor(x: View, other: string, openCancel: () => void, canCancel: b
         <Button key="report" block to={`/d/${deal.id}/report`}>Report a problem</Button>);
       else out.push(<Button key="enter" variant="primary" size="lg" block to={`/d/${deal.id}/enter-code`}>Enter release code</Button>);
       out.push(cancel);
-    } else if (!deal.delivered_at) {
-      if (role === "seller") out.push(post("delivered", "Mark delivered", "primary"));
+    } else if (!deal.sent_at) {
+      if (role === "seller") out.push(<Button key="send" variant="primary" size="lg" block icon="truck-delivery" to={`/d/${deal.id}/send`}>Send it: add packing photos</Button>);
       out.push(cancel);
+    } else if (!deal.delivered_at) {
+      // On its way: the seller marks it delivered, or the buyer confirms as soon as they have it.
+      if (role === "seller") out.push(post("delivered", "Mark delivered", "primary"));
+      else out.push(post("received", "I received it: release the money", "primary"), <Button key="report" block to={`/d/${deal.id}/report`}>Report a problem</Button>);
     } else if (role === "buyer") {
       out.push(post("received", "I received it: release the money", "primary"), <Button key="report" block to={`/d/${deal.id}/report`}>Report a problem</Button>);
     }
@@ -296,6 +317,39 @@ function actionsFor(x: View, other: string, openCancel: () => void, canCancel: b
     out.push(<Button key="sell" block to="/sell">Sell something else</Button>);
   }
   return out.filter(Boolean);
+}
+
+/** What the seller sent: when, with whom, the tracking number, and the packing photos. Both people see it. */
+function SentCard({ x }: { x: View }) {
+  const { deal, role } = x;
+  const seller = firstName(x.names.seller);
+  return (
+    <section className="card stack" aria-labelledby="sent-title">
+      <h2 id="sent-title" className="title">{role === "buyer" ? `What ${seller} sent` : "What you sent"}</h2>
+      <div>
+        <Kv k="Sent" v={when(new Date(deal.sent_at))} />
+        <Kv k="With" v={deal.courier} />
+        {deal.tracking_ref ? <Kv k="Tracking" v={<span className="row" style={{ gap: 6, flexWrap: "nowrap" }}><span style={{ overflowWrap: "anywhere" }}>{deal.tracking_ref}</span><CopyText text={deal.tracking_ref} /></span>} /> : null}
+        {deal.delivered_at ? <Kv k="Marked delivered" v={when(new Date(deal.delivered_at))} /> : null}
+      </div>
+      <p className="label">Packing photos</p>
+      <PackingPhotos keys={deal.packing_photo_keys ?? []} title={x.listing.title} />
+      {role === "buyer" && !deal.delivered_at && deal.state === "held"
+        ? <p className="caption muted">Check what arrives against these photos before you confirm. Don't pay the rider anything extra: delivery is already paid.</p>
+        : <p className="caption muted">Kept with the deal as evidence if there's a problem.</p>}
+    </section>
+  );
+}
+
+/** A small "Copy" button for a tracking number. */
+function CopyText({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button type="button" className="icon-btn" style={{ width: 32, height: 32 }} aria-label={copied ? "Copied" : "Copy tracking number"}
+      onClick={async () => { await navigator.clipboard?.writeText(text).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
+      <Icon name={copied ? "check" : "copy"} size={16} />
+    </button>
+  );
 }
 
 function DisputeSummary({ x }: { x: View }) {

@@ -8,7 +8,7 @@ import type { Settings } from "./settings";
 import { loadSettings } from "./settings";
 import type { DealState } from "@noshen/shared/deal";
 
-export type TimerKind = "request_expiry" | "payment_expiry" | "handover_due" | "delivery_release" | "evidence_close" | "partner_event" | "crypto_watch";
+export type TimerKind = "request_expiry" | "payment_expiry" | "handover_due" | "delivery_release" | "arrival_check" | "evidence_close" | "partner_event" | "crypto_watch";
 
 export interface Timers {
   /** source: which partner a partner_event came from ("crypto" for the crypto partner; the bank partner otherwise). */
@@ -67,6 +67,9 @@ export interface DealRow {
   handover: "meetup" | "delivery"; state: DealState;
   request_expires_at: Date; payment_due_at: Date | null; handover_due_at: Date | null;
   delivered_at: Date | null; release_due_at: Date | null;
+  /** Delivery: the fee for the buyer's zone (held with the price), the buyer's state, and what the seller sent. */
+  delivery_kobo: string; delivery_state: string | null;
+  sent_at: Date | null; courier: string | null; tracking_ref: string | null; packing_photo_keys: string[];
   collection_ref: string | null; collection_account_number: string | null; collection_bank_name: string | null;
   review_hold: boolean; review_hold_reason: string | null;
   created_at: Date; closed_at: Date | null;

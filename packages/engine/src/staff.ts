@@ -178,9 +178,11 @@ export async function staffRelease(d: Deps, staff: StaffActor, dealId: string, r
 }
 
 /** Which deadline a deal is waiting on, and the timer that acts on it. */
-function deadlineOf(deal: { state: string; delivered_at: Date | null }) {
+function deadlineOf(deal: { state: string; delivered_at: Date | null; sent_at: Date | null }) {
   if (deal.state === "accepted") return { field: "payment_due_at", timer: "payment_expiry", what: "to pay" } as const;
   if (deal.state === "held" && deal.delivered_at) return { field: "release_due_at", timer: "delivery_release", what: "for the buyer to check the item" } as const;
+  // Sent and on its way: there's no deadline to move (the buyer confirms, or reports it as not delivered).
+  if (deal.state === "held" && deal.sent_at) return null;
   if (deal.state === "held") return { field: "handover_due_at", timer: "handover_due", what: "for the hand-over" } as const;
   return null;
 }

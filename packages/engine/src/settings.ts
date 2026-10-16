@@ -10,6 +10,8 @@ export interface Settings {
   payment_ttl_hours: number;
   handover_window_hours: number;
   delivery_confirm_hours: number;
+  /** How long a delivery may be on its way, by zone, before both people are asked whether it has arrived. */
+  delivery_transit_hours: { local: number; other: number };
   evidence_window_hours: number;
   dispute_decision_hours: number;
   release_code: { digits: number; max_attempts: number; lock_minutes: number };
@@ -26,6 +28,7 @@ const DEFAULTS: Settings = {
   payment_ttl_hours: 24,
   handover_window_hours: 72,
   delivery_confirm_hours: 24,
+  delivery_transit_hours: { local: 48, other: 120 },
   evidence_window_hours: 24,
   dispute_decision_hours: 72,
   release_code: { digits: 6, max_attempts: 5, lock_minutes: 30 },

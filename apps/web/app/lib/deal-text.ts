@@ -15,6 +15,10 @@ export interface DealLike {
   handover_due_at: string | Date | null;
   delivered_at: string | Date | null;
   release_due_at: string | Date | null;
+  /** A delivery the seller has sent: when, with whom, and the tracking number. */
+  sent_at?: string | Date | null;
+  courier?: string | null;
+  tracking_ref?: string | null;
   review_hold: boolean;
   created_at: string | Date;
 }
@@ -58,10 +62,16 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
           ? { chip, deadline: `Confirm by ${t(deal.release_due_at)}`, amountKobo: paidKobo, amountSuffix: "held", next: `Check the item. Confirm or report a problem by ${t(deal.release_due_at)}, or the money goes to ${seller}.` }
           : { chip, deadline: `Release ${t(deal.release_due_at)}`, amountKobo: share, amountSuffix: "held", next: `Waiting for ${buyer} to confirm, until ${t(deal.release_due_at)}.` };
       }
+      if (deal.handover === "delivery" && deal.sent_at) {
+        const how = `${deal.courier ?? "the courier"}${deal.tracking_ref ? `, tracking ${deal.tracking_ref}` : ""}`;
+        return role === "buyer"
+          ? { chip: { state: "held", word: "On its way" }, deadline: `Sent ${t(deal.sent_at)}`, amountKobo: paidKobo, amountSuffix: "held", next: `On its way with ${how}. When it arrives, check it, then confirm. If something's wrong, report it and the money stays held.` }
+          : { chip: { state: "held", word: "On its way" }, deadline: `Sent ${t(deal.sent_at)}`, amountKobo: share, amountSuffix: "held", next: `Sent with ${how}. Mark it delivered when ${buyer} has it.` };
+      }
       if (deal.handover === "delivery") {
         return role === "buyer"
-          ? { chip, deadline: `Delivery by ${t(deal.handover_due_at)}`, amountKobo: paidKobo, amountSuffix: "held", next: `${seller} will send it by ${t(deal.handover_due_at)}. Check it when it arrives, before you confirm.` }
-          : { chip, deadline: `Send by ${t(deal.handover_due_at)}`, amountKobo: share, amountSuffix: "held", next: `${naira(share)} is held for you. Send it by ${t(deal.handover_due_at)}, then mark it delivered.` };
+          ? { chip, deadline: `${seller} sends by ${t(deal.handover_due_at)}`, amountKobo: paidKobo, amountSuffix: "held", next: `${seller} will send it by ${t(deal.handover_due_at)}, with photos of it packed. Check it when it arrives, before you confirm.` }
+          : { chip, deadline: `Send by ${t(deal.handover_due_at)}`, amountKobo: share, amountSuffix: "held", next: `${naira(share)} is held for you, delivery included. Pack it, take photos as you do, and send it by ${t(deal.handover_due_at)}.` };
       }
       return role === "buyer"
         ? { chip, deadline: `Meet by ${t(deal.handover_due_at)}`, amountKobo: paidKobo, amountSuffix: "held", next: `Meet in a public place. Check the item, then give ${seller} your code.` }
@@ -126,12 +136,21 @@ export function dealSteps(deal: DealLike, role: "buyer" | "seller", names: { buy
       { label: "A reviewer decides", when: `By ${fmt(dispute.decision_due_at)}`, status: new Date(dispute.evidence_due_at) > now ? "todo" : "now" },
     ];
   }
-  const handoverLabel = deal.handover === "delivery"
-    ? (role === "buyer" ? `${seller} sends it; you check it` : `Send it and mark it delivered`)
-    : (role === "buyer" ? "Meet and check the item" : `Hand over and enter ${buyer}'s code`);
-  const releaseLabel = deal.handover === "delivery"
-    ? (role === "buyer" ? "You confirm, and the money is released" : `${buyer} confirms, and you're paid`)
-    : (role === "buyer" ? `Give ${seller} your code` : "Payout to your bank");
+  if (deal.handover === "delivery") {
+    // Sent (with packing photos), then delivered and checked, then released.
+    const held = deal.state === "held";
+    const done = reached("released");
+    return [
+      { label: role === "buyer" ? "Request sent" : `${buyer} sent a request`, when: fmt(deal.created_at), status: "done" },
+      { label: role === "buyer" ? `${seller} accepts` : "You accept", when: reached("accepted") ? fmt(at("accepted")) : deal.state === "requested" ? `By ${fmt(deal.request_expires_at)}` : undefined, status: st(reached("accepted"), deal.state === "requested") },
+      { label: role === "buyer" ? `You pay ${due} into NosHen` : `${share} held for you`, when: reached("held") ? fmt(at("held")) : deal.state === "accepted" ? `By ${fmt(deal.payment_due_at)}` : undefined, status: st(reached("held"), deal.state === "accepted") },
+      { label: role === "buyer" ? `${seller} sends it, with packing photos` : "Pack it, take photos, send it", when: deal.sent_at ? fmt(deal.sent_at) : held ? `By ${fmt(deal.handover_due_at)}` : undefined, status: st(done || !!deal.sent_at, held && !deal.sent_at) },
+      { label: role === "buyer" ? "It arrives, and you check it" : `It arrives, and ${buyer} checks it`, when: deal.delivered_at ? fmt(deal.delivered_at) : undefined, status: st(done || !!deal.delivered_at, held && !!deal.sent_at && !deal.delivered_at) },
+      { label: role === "buyer" ? "You confirm, and the money is released" : `${buyer} confirms, and you're paid`, when: done ? fmt(at("released")) : deal.delivered_at && held ? `Or on its own ${fmt(deal.release_due_at)}` : undefined, status: st(done, held && !!deal.delivered_at) },
+    ];
+  }
+  const handoverLabel = role === "buyer" ? "Meet and check the item" : `Hand over and enter ${buyer}'s code`;
+  const releaseLabel = role === "buyer" ? `Give ${seller} your code` : "Payout to your bank";
   return [
     { label: role === "buyer" ? "Request sent" : `${buyer} sent a request`, when: fmt(deal.created_at), status: "done" },
     { label: role === "buyer" ? `${seller} accepts` : "You accept", when: reached("accepted") ? fmt(at("accepted")) : deal.state === "requested" ? `By ${fmt(deal.request_expires_at)}` : undefined, status: st(reached("accepted"), deal.state === "requested") },

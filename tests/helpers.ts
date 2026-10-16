@@ -6,7 +6,8 @@ import { ConsoleEmail } from "@noshen/engine/email";
 import { FakeIdProvider } from "@noshen/engine/idcheck";
 import type { Deps, TimerKind } from "@noshen/engine/core";
 import { handlePartnerEvent } from "@noshen/engine/deals";
-import { saveDraft, publish, setName, verifyId, addBankAccount } from "@noshen/engine/sellers";
+import { saveDraft, publish, setName, verifyId, addBankAccount, type ListingInput } from "@noshen/engine/sellers";
+import { markSent } from "@noshen/engine/deals";
 import { testDatabaseUrl } from "./global-setup";
 
 export interface TestWorld {
@@ -57,9 +58,9 @@ export async function verifiedSeller(w: TestWorld, fullName: string) {
 
 // Random per test file: files run at the same time, and NosHen holds back a listing whose IMEI is already listed.
 let imeiSeq = 352918000000000 + Math.floor(Math.random() * 9_000) * 100_000;
-export async function liveListing(w: TestWorld, sellerId: string, priceNaira = 250_000, title = "iPhone 12, 128GB") {
+export async function liveListing(w: TestWorld, sellerId: string, priceNaira = 250_000, title = "iPhone 12, 128GB", extra: Partial<ListingInput> = {}) {
   const id = await saveDraft(w.d, sellerId, null, ["a", "b", "c"], {
-    category: "phone", title, priceNaira, condition: "good", state: "Lagos", area: "Yaba", imeiOrSerial: String(imeiSeq++),
+    category: "phone", title, priceNaira, condition: "good", state: "Lagos", area: "Yaba", imeiOrSerial: String(imeiSeq++), ...extra,
   });
   await publish(w.d, sellerId, id);
   return id;
@@ -99,3 +100,7 @@ export async function balances(w: TestWorld, dealId: string) {
 }
 
 export const stateOf = async (w: TestWorld, dealId: string) => (await w.db.query("select state from deals where id = $1", [dealId])).rows[0].state;
+
+/** The seller sends a delivery with packing photos (stored already) and who's delivering it. */
+export const sendIt = (w: TestWorld, sellerId: string, dealId: string, trackingRef?: string) =>
+  markSent(w.d, sellerId, dealId, { courier: "Dispatch rider", trackingRef, photoKeys: [`packing/${dealId}/1.jpg`, `packing/${dealId}/2.jpg`] });

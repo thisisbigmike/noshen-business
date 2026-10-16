@@ -79,7 +79,8 @@ export interface DealListItem {
   id: string; state: DealState; role: "buyer" | "seller"; title: string; other: string;
   price_kobo: string; amount_due_kobo: string; seller_share_kobo: string; handover: "meetup" | "delivery";
   request_expires_at: Date; payment_due_at: Date | null; handover_due_at: Date | null; release_due_at: Date | null;
-  delivered_at: Date | null; review_hold: boolean; created_at: Date; updated_at: Date; decision_due_at: Date | null;
+  delivered_at: Date | null; sent_at: Date | null; courier: string | null; tracking_ref: string | null; delivery_kobo: string; delivery_state: string | null;
+  review_hold: boolean; created_at: Date; updated_at: Date; decision_due_at: Date | null;
   ended_by?: "buyer" | "seller" | "system" | null;
 }
 
@@ -88,7 +89,8 @@ export async function dealsFor(db: Db, userId: string): Promise<DealListItem[]> 
     `select d.id, d.state, case when d.buyer_id = $1 then 'buyer' else 'seller' end as role, l.title,
        coalesce(case when d.buyer_id = $1 then s.full_name else b.full_name end, 'Someone') as other,
        d.price_kobo, d.amount_due_kobo, d.seller_share_kobo, d.handover, d.request_expires_at, d.payment_due_at,
-       d.handover_due_at, d.release_due_at, d.delivered_at, d.review_hold, d.created_at, d.updated_at,
+       d.handover_due_at, d.release_due_at, d.delivered_at, d.sent_at, d.courier, d.tracking_ref, d.delivery_kobo, d.delivery_state,
+       d.review_hold, d.created_at, d.updated_at,
        (select decision_due_at from disputes x where x.deal_id = d.id) as decision_due_at,
        (select e.actor from deal_events e where e.deal_id = d.id and e.to_state = 'declined' order by e.id desc limit 1) as ended_by
      from deals d join listings l on l.id = d.listing_id join users b on b.id = d.buyer_id join users s on s.id = d.seller_id
@@ -97,11 +99,12 @@ export async function dealsFor(db: Db, userId: string): Promise<DealListItem[]> 
 }
 
 /** Whether this person needs to act on the deal now. */
-export function needsAction(x: { state: DealState; role: "buyer" | "seller"; delivered_at: Date | null; handover: string; review_hold: boolean }) {
+export function needsAction(x: { state: DealState; role: "buyer" | "seller"; delivered_at: Date | null; sent_at?: Date | null; handover: string; review_hold: boolean }) {
   if (x.review_hold) return false;
   if (x.state === "requested") return x.role === "seller";
   if (x.state === "accepted") return x.role === "buyer";
-  if (x.state === "held") return x.handover === "delivery" ? (x.delivered_at ? x.role === "buyer" : x.role === "seller") : true;
+  // A delivery: the seller sends it; while it's on its way nobody has to act; once delivered, the buyer checks it.
+  if (x.state === "held") return x.handover === "delivery" ? (x.delivered_at ? x.role === "buyer" : !x.sent_at && x.role === "seller") : true;
   if (x.state === "disputed") return true;
   return false;
 }

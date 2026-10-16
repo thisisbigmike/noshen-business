@@ -200,6 +200,30 @@ select pg_temp.expect_error($$
   values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e9', 1000, true, now(), 'crypto', 'dai', 'base', '0xab', 1) $$,
   'a coin NosHen does not take');
 
+-- 10. Delivery: the fee is held with the price and paid to the seller with it, fixed once accepted, and what was
+-- sent can't be changed or skipped.
+update deals set delivery_kobo = 800000, delivery_state = 'FCT' where id = '00000000-0000-0000-0000-0000000000d2';
+select pg_temp.expect((select amount_due_kobo = 46475000 and seller_share_kobo = 45800000 from deals
+                       where id = '00000000-0000-0000-0000-0000000000d2'),
+                      'delivery is added to what the buyer pays and what the seller gets');
+select pg_temp.expect_error($$
+  insert into deals (listing_id, buyer_id, seller_id, price_kobo, fee_kobo, handover, request_expires_at, delivery_kobo)
+  values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000000b',
+          '00000000-0000-0000-0000-00000000000a', 45000000, 675000, 'meetup', now() + interval '12 hours', 100000) $$,
+  'a meet-up deal with a delivery fee');
+update deals set state = 'accepted', payment_due_at = now() + interval '24 hours' where id = '00000000-0000-0000-0000-0000000000d2';
+select pg_temp.expect_error($$ update deals set delivery_kobo = 0 where id = '00000000-0000-0000-0000-0000000000d2' $$,
+                            'changing the delivery fee after acceptance');
+update deals set state = 'held', handover_due_at = now() + interval '72 hours' where id = '00000000-0000-0000-0000-0000000000d2';
+select pg_temp.expect_error($$ update deals set delivered_at = now() where id = '00000000-0000-0000-0000-0000000000d2' $$,
+                            'marking a delivery delivered before it was sent');
+update deals set sent_at = now(), courier = 'GIG Logistics', tracking_ref = 'GIG123', packing_photo_keys = '{p1,p2}'
+ where id = '00000000-0000-0000-0000-0000000000d2';
+select pg_temp.expect_error($$ update deals set tracking_ref = 'OTHER' where id = '00000000-0000-0000-0000-0000000000d2' $$,
+                            'changing what was sent after marking it sent');
+select pg_temp.expect_error($$ update deals set packing_photo_keys = '{}' where id = '00000000-0000-0000-0000-0000000000d2' $$,
+                            'removing the packing photos');
+
 select 'all schema checks passed' as result;
 
 rollback;

@@ -13,6 +13,7 @@ import { sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
 import { settingsOf } from "@noshen/engine/core";
 import { sellerLimit } from "@noshen/engine/deals";
 import { overLimit, sellerLimitText } from "@noshen/shared/limits";
+import { DeliveryFields, deliveryFromForm } from "../lib/delivery";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Details · Sell · NosHen" }];
@@ -37,6 +38,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export async function action({ request, params }: Route.ActionArgs) {
   const f = await request.formData();
+  const delivery = deliveryFromForm(f);
   const input = {
     category: (isCategory(f.get("category")) ? f.get("category") : "other") as CategoryKey,
     title: String(f.get("title") ?? ""), description: String(f.get("description") ?? ""),
@@ -44,6 +46,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     state: String(f.get("state") ?? ""), area: String(f.get("area") ?? ""), imeiOrSerial: String(f.get("imei") ?? ""),
     sizeSystem: String(f.get("size_system") ?? ""), size: String(f.get("size") ?? ""),
     quantity: Number(f.get("quantity") ?? 1),
+    deliveryLocalKobo: delivery.localKobo, deliveryOtherKobo: delivery.otherKobo,
   };
   // Saved, not published: the seller checks everything on the next step first.
   try {
@@ -70,6 +73,8 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
   const [sizeError, setSizeError] = useState<string | null>(null);
   const kind = sizeRule?.systems.find((x) => x.id === sizeKind) ?? sizeRule?.systems[0];
   const [price, setPrice] = useState<string>(untouched ? "" : String(Number(l.price_kobo) / 100));
+  // The delivery prices name the state ("Delivery within Lagos"), so they follow the state chosen here.
+  const [itemState, setItemState] = useState<string>(place.state);
   const p = Number(price.replace(/[^\d]/g, "")) * 100;
   const c = categoryOf(l.category);
   return (
@@ -132,12 +137,13 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
         {overLimit(p, limit) && (max === null || p <= max) ? <Info icon="alert-triangle" tone="warn">{sellerLimitText(limit, "seller")}</Info> : null}
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="label" style={{ marginBottom: 8 }}>Where the item is</legend>
-          <Select name="state" label="State" defaultValue={place.state}
+          <Select name="state" label="State" value={itemState} onChange={setItemState}
             options={[...(place.state ? [] : [{ value: "", label: "Choose a state" }]), ...NIGERIA_STATES.map((s) => ({ value: s, label: stateLabel(s) }))]} />
           <TextField label="Area or town" name="area" defaultValue={place.area} placeholder="Yaba, Wuse 2, GRA, Bodija…" maxLength={40} required
             hint="Buyers see this to plan the meet-up. Never your street address." missing="Add your area or town, like Yaba, Wuse 2 or GRA." validate={areaProblem} />
           <p className="caption muted">NosHen works in all 36 states and Abuja. {comingSoonList()} are coming soon.</p>
         </fieldset>
+        <DeliveryFields state={itemState} local={l.delivery_local_kobo} other={l.delivery_other_kobo} />
         {c?.id ? (
           <TextField key={c.key} label={c.id.label} name="imei" inputMode={c.id.numeric ? "numeric" : "text"} autoCapitalize="characters" defaultValue={l.category === c.key ? l.imei_or_serial ?? "" : ""}
             hint={c.id.hint} required={c.id.required} missing={idProblem(c.key, "") ?? undefined} validate={(v) => idProblem(c.key, v)} />

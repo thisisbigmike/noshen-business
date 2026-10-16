@@ -1,7 +1,8 @@
 import { inTx, many, one } from "./db";
 import { alertStaff } from "./staff-alerts";
 import { firstName } from "@noshen/shared/deal";
-import { type Deps, lockDeal, notify, nowOf, userName } from "./core";
+import { when } from "@noshen/shared/time";
+import { type Deps, lockDeal, notify, nowOf, settingsOf, userName } from "./core";
 import { release } from "./deals";
 
 /**
@@ -57,9 +58,9 @@ export async function sweep(d: Deps, onlyDealId?: string) {
     done.push(`evidence closed ${r.id}`);
   }
 
-  // Hand-over deadline passed: tell the buyer once that they may cancel for a full refund.
+  // Hand-over deadline passed (and nothing sent): tell the buyer once that they may cancel for a full refund.
   for (const r of await many<{ id: string }>(d.db,
-    `select id from deals dl where state = 'held' and handover_due_at <= $1 and delivered_at is null
+    `select id from deals dl where state = 'held' and handover_due_at <= $1 and delivered_at is null and sent_at is null
        and not exists (select 1 from notifications n where n.deal_id = dl.id and n.template = 'handover_overdue') ${filter}`, params())) {
     await inTx(d.db, { type: "system" }, async (tx) => {
       const deal = await lockDeal(tx.db, r.id);
@@ -67,6 +68,29 @@ export async function sweep(d: Deps, onlyDealId?: string) {
       const seller = firstName(await userName(tx.db, deal.seller_id));
       await notify(d, tx, deal.buyer_id, deal.id, "handover_overdue", `${seller} hasn't handed over in time. You can cancel now and get all your money back.`);
       done.push(`hand-over overdue ${deal.id}`);
+    });
+  }
+
+  // A delivery on its way longer than usual for its zone, and not marked delivered: ask both people once, and tell
+  // staff, so the money never sits held with nobody acting.
+  const s = await settingsOf(d);
+  for (const r of await many<{ id: string }>(d.db,
+    `select dl.id from deals dl join listings l on l.id = dl.listing_id
+      where dl.state = 'held' and dl.sent_at is not null and dl.delivered_at is null
+        and dl.sent_at + make_interval(hours => case when dl.delivery_state = l.state then $${onlyDealId ? 3 : 2}::int else $${onlyDealId ? 4 : 3}::int end) <= $1
+        and not exists (select 1 from notifications n where n.deal_id = dl.id and n.template = 'arrival_check') ${onlyDealId ? "and dl.id = $2" : ""}`,
+    params([s.delivery_transit_hours.local, s.delivery_transit_hours.other]))) {
+    await inTx(d.db, { type: "system" }, async (tx) => {
+      const deal = await lockDeal(tx.db, r.id);
+      if (deal.state !== "held" || deal.delivered_at) return;
+      const seller = firstName(await userName(tx.db, deal.seller_id));
+      const buyer = firstName(await userName(tx.db, deal.buyer_id));
+      await notify(d, tx, deal.buyer_id, deal.id, "arrival_check", `Has your item arrived? If you have it, check it and confirm. If it hasn't come, report it as not delivered and the money stays held.`);
+      await notify(d, tx, deal.seller_id, deal.id, "arrival_check", `Has ${buyer} got the item? Mark it delivered once it arrives. If it's stuck with ${deal.courier ?? "the courier"}, tell ${buyer} in the chat.`);
+      const item = await one<{ title: string }>(tx.db, "select title from listings where id = $1", [deal.listing_id]);
+      await alertStaff(d, tx, "delivery_late", `Delivery not confirmed: ${item?.title ?? "a deal"}`,
+        `Sent ${when(deal.sent_at!, now)} with ${deal.courier ?? "a courier"}${deal.tracking_ref ? `, tracking ${deal.tracking_ref}` : ""}, and not marked delivered. ${seller} and ${buyer} have been asked.`, `/deals/${deal.id}`);
+      done.push(`arrival check ${deal.id}`);
     });
   }
   return done;

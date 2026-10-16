@@ -14,6 +14,8 @@ import { placeLabel } from "@noshen/shared/locations";
 import { sizeLabel, sizeRuleFor } from "@noshen/shared/sizes";
 import { overLimit, sellerLimit, sellerLimitText } from "@noshen/engine/deals";
 import { ShareButton } from "../lib/share";
+import { DeliveryCard } from "../lib/delivery";
+import { deliverySummary } from "@noshen/shared/delivery";
 
 export const handle = { tabs: false };
 
@@ -28,7 +30,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     // Sellers who haven't verified can only take deals up to a limit. Say so here, before a buyer starts, not at the last step.
     const limit = await sellerLimit(d.db, v.listing.seller_id, s);
     const limitText = overLimit(price, limit) ? sellerLimitText(limit, mine ? "seller" : "buyer") : null;
-    return { ...v, fee: feeFor(price, s.fee), mine, limitText, origin: new URL(request.url).origin };
+    return { ...v, fee: feeFor(price, s.fee), mine, limitText, sendHours: s.handover_window_hours, origin: new URL(request.url).origin };
   });
 }
 
@@ -52,7 +54,7 @@ export const meta: Route.MetaFunction = ({ loaderData: d }) => {
 };
 
 export default function Listing({ loaderData }: Route.ComponentProps) {
-  const { listing: l, seller, fee, mine, limitText } = loaderData;
+  const { listing: l, seller, fee, mine, limitText, sendHours } = loaderData;
   const [photo, setPhoto] = useState(0);
   const photos: string[] = l.photo_keys ?? [];
   // Tapping a photo opens it full size; closing comes back to the photo they ended on.
@@ -113,6 +115,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             {status ? <p className="info warn">{status}</p> : null}
             {!status && limitText ? <div className="mobile-only"><Info icon="info-circle">{limitText}</Info></div> : null}
             <SellerCard seller={seller} area={placeLabel(l.area, l.state)} />
+            <DeliveryCard l={l} seller={sellerName} sendHours={sendHours} editTo={mine && ["live", "paused"].includes(l.status) ? `/sell/${l.id}/delivery` : undefined} />
             <section className="card stack-4" aria-labelledby="how">
               <h2 id="how" className="title">How protection works</h2>
               <div className="steps4">
@@ -141,6 +144,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             {buy}
             {share("button")}
             <div><Kv k="Price" v={naira(price)} /><Kv k="NosHen fee" v={naira(fee)} /><Kv k="Total" v={naira(price + fee)} total /></div>
+            <p className="caption muted row" style={{ gap: 6 }}><Icon name="truck-delivery" size={16} />{deliverySummary(l) ?? "Meet-up only"}{deliverySummary(l) ? ". Meet-up is free." : ""}</p>
             {limitText ? null : <p className="caption muted">You pay nothing until {sellerName} accepts.</p>}
           </aside>
         </div>

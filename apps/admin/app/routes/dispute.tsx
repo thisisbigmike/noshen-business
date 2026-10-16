@@ -10,7 +10,7 @@ import { CONDITIONS, disputeReasonLabel, firstName } from "@noshen/shared/deal";
 import { left, when } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
 import { categoryOf } from "@noshen/shared/categories";
-import { placeLabel } from "@noshen/shared/locations";
+import { placeLabel, stateLabel } from "@noshen/shared/locations";
 
 export const meta = () => [{ title: "Dispute · NosHen staff" }];
 
@@ -51,7 +51,7 @@ export default function Dispute({ loaderData: v, actionData }: Route.ComponentPr
     <>
       <nav className="caption muted" aria-label="Breadcrumb"><Link to="/">Dashboard</Link> / <Link to="/disputes">Disputes</Link> / <Link to={`/deals/${v.deal.id}`}>Deal {String(v.deal.id).slice(0, 8).toUpperCase()}</Link></nav>
       <header className="stack">
-        <p className="caption muted">Deal {v.deal.id.slice(0, 8).toUpperCase()} · {v.deal.handover === "meetup" ? "Meet-up" : "Delivery"} · {placeLabel(v.listing.area, v.listing.state)}</p>
+        <p className="caption muted">Deal {v.deal.id.slice(0, 8).toUpperCase()} · {v.deal.handover === "meetup" ? "Meet-up" : v.deal.delivery_state ? `Delivery to ${stateLabel(v.deal.delivery_state)}` : "Delivery"} · {placeLabel(v.listing.area, v.listing.state)}</p>
         <h1 className="heading">{v.listing.title}: {buyer} vs {seller}</h1>
         <p className="body">{buyer} reported: “{disputeReasonLabel(d.reason)}{d.description ? `: ${d.description}` : ""}”</p>
         <div className="row wrap" style={{ gap: 16 }}>
@@ -82,6 +82,16 @@ export default function Dispute({ loaderData: v, actionData }: Route.ComponentPr
           </div>
         </section>
         <section className="stack-4">
+          {v.deal.sent_at ? (
+            <div className="card stack">
+              <p className="label">What the seller sent</p>
+              <p className="caption muted">{when(new Date(v.deal.sent_at))} with {v.deal.courier}{v.deal.tracking_ref ? `, tracking ${v.deal.tracking_ref}` : ", no tracking number"}{v.deal.delivered_at ? ` · marked delivered ${when(new Date(v.deal.delivered_at))}` : " · not marked delivered"}</p>
+              {(v.deal.packing_photo_keys ?? []).length ? (
+                <div className="photo-grid">{v.deal.packing_photo_keys.map((k: string) => <a key={k} href={photoUrl(k)} target="_blank" rel="noreferrer" className="photo-slot"><img src={photoUrl(k)} alt="Packing photo" /></a>)}</div>
+              ) : <p className="caption muted">No packing photos.</p>}
+              <p className="caption muted">Taken by the seller when they packed it. Compare them with what the buyer says arrived.</p>
+            </div>
+          ) : null}
           <div className="card stack">
             <p className="label">Evidence</p>
             {v.evidence.length === 0 ? <p className="caption muted">No evidence added.</p> : v.evidence.map((e: any, i: number) => (

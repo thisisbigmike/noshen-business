@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { world, person, verifiedSeller, liveListing, pay, payCrypto, settleAll, balances, stateOf, type TestWorld } from "./helpers";
+import { world, person, verifiedSeller, liveListing, pay, payCrypto, settleAll, balances, stateOf, sendIt, type TestWorld } from "./helpers";
 import {
-  requestDeal, sellerLimit, acceptDeal, releaseByCode, releaseCodeForBuyer, markDelivered, confirmReceived, cancelDeal, handlePartnerEvent, sendMessage, rate, explainHold,
+  requestDeal, sellerLimit, acceptDeal, releaseByCode, releaseCodeForBuyer, markDelivered, markSent, confirmReceived, cancelDeal, handlePartnerEvent, sendMessage, rate, explainHold,
 } from "@noshen/engine/deals";
 import { reportProblem, decideDispute, resolveReviewHold, addEvidence } from "@noshen/engine/disputes";
 import { sweep } from "@noshen/engine/sweep";
 import { DealError, settingsOf } from "@noshen/engine/core";
 import { feeFor, naira } from "@noshen/shared/money";
-import { saveDraft, publish } from "@noshen/engine/sellers";
+import { saveDraft, publish, setDelivery } from "@noshen/engine/sellers";
 import { sizeLabel } from "@noshen/shared/sizes";
 import { moderateListing, setAccountStatus, setDealLimit, unlockReleaseCode, retryTransfer, checkDeadlinesNow, deleteSoldListings, staffRefund, staffRelease, giveMoreTime, openDisputeForBuyer, staffCancel, noteToBoth } from "@noshen/engine/staff";
 import { adminOverview, browse, staffListings, staffUsers, statesWithListings, staffDeals, staffDeal, staffPerson, staffCounts, auditLog, listingView } from "@noshen/engine/queries";
@@ -26,8 +26,9 @@ afterAll(async () => { await w.db.end(); });
 async function heldDeal(price = 250_000, handover: "meetup" | "delivery" = "meetup", payer?: string) {
   const seller = await verifiedSeller(w, "Tunde Bakare");
   const buyer = await person(w, "Chioma Obi");
-  const listing = await liveListing(w, seller, price);
-  const dealId = await requestDeal(w.d, buyer, { listingId: listing, handover });
+  // Delivery within Lagos costs ₦3,000, to other states ₦8,000.
+  const listing = await liveListing(w, seller, price, undefined, handover === "delivery" ? { deliveryLocalKobo: 300_000, deliveryOtherKobo: 800_000 } : {});
+  const dealId = await requestDeal(w.d, buyer, { listingId: listing, handover, deliveryState: handover === "delivery" ? "Lagos" : undefined });
   await acceptDeal(w.d, seller, dealId);
   const due = Number((await w.db.query("select amount_due_kobo from deals where id = $1", [dealId])).rows[0].amount_due_kobo);
   await pay(w, dealId, due, payer ?? "CHIOMA OBI");
@@ -195,6 +196,7 @@ describe("protections", () => {
 describe("disputes", () => {
   it("freezes the money and refunds the buyer in full when the reviewer decides so", async () => {
     const { buyer, seller, dealId, due } = await heldDeal(285_000, "delivery");
+    await sendIt(w, seller, dealId);
     await markDelivered(w.d, seller, dealId);
     await reportProblem(w.d, buyer, dealId, { reason: "not_as_described", description: "Battery won't charge" });
     expect(await stateOf(w, dealId)).toBe("disputed");
@@ -217,6 +219,7 @@ describe("disputes", () => {
 describe("timers", () => {
   it("releases a delivered deal 24 hours later if the buyer says nothing", async () => {
     const { seller, dealId } = await heldDeal(80_000, "delivery");
+    await sendIt(w, seller, dealId);
     await markDelivered(w.d, seller, dealId);
     expect(w.timers.some((t) => t.kind === "delivery_release" && t.dealId === dealId)).toBe(true);
     expect(await sweep(w.d, dealId)).toEqual([]);
@@ -251,9 +254,131 @@ describe("timers", () => {
   it("confirms receipt after delivery", async () => {
     const { buyer, seller, dealId } = await heldDeal(50_000, "delivery");
     await expect(confirmReceived(w.d, buyer, dealId)).rejects.toThrow();
+    await sendIt(w, seller, dealId);
     await markDelivered(w.d, seller, dealId);
     await confirmReceived(w.d, buyer, dealId);
     expect(await stateOf(w, dealId)).toBe("released");
+  });
+});
+
+describe("delivery prices and packing proof", () => {
+  const PRICE = 100_000; // ₦100,000
+  /** A seller who delivers within Lagos for ₦3,000 and to other states for ₦8,000, unless told otherwise. */
+  async function deliveryListing(prices: { deliveryLocalKobo?: number | null; deliveryOtherKobo?: number | null } = { deliveryLocalKobo: 300_000, deliveryOtherKobo: 800_000 }) {
+    const seller = await verifiedSeller(w, "Funke Delivers");
+    const listing = await liveListing(w, seller, PRICE, "Samsung A54, 128GB", prices);
+    return { seller, listing };
+  }
+  async function paidDelivery(to: string) {
+    const { seller, listing } = await deliveryListing();
+    const buyer = await person(w, "Emeka Okafor");
+    const dealId = await requestDeal(w.d, buyer, { listingId: listing, handover: "delivery", deliveryState: to });
+    await acceptDeal(w.d, seller, dealId);
+    const deal = (await w.db.query("select amount_due_kobo, seller_share_kobo, delivery_kobo, fee_kobo from deals where id = $1", [dealId])).rows[0];
+    await pay(w, dealId, Number(deal.amount_due_kobo), "EMEKA OKAFOR");
+    return { seller, buyer, dealId, deal };
+  }
+
+  it("charges the seller's price for the buyer's zone, and pays it to the seller with the price", async () => {
+    const { seller, buyer, dealId, deal } = await paidDelivery("FCT");
+    const price = PRICE * 100;
+    const fee = feeFor(price);
+    expect(Number(deal.delivery_kobo)).toBe(800_000);
+    expect(Number(deal.fee_kobo)).toBe(fee); // NosHen's fee is on the price only
+    expect(Number(deal.amount_due_kobo)).toBe(price + fee + 800_000);
+    expect(Number(deal.seller_share_kobo)).toBe(price + 800_000);
+
+    // To another state, the tracking or waybill number is required.
+    await expect(markSent(w.d, seller, dealId, { courier: "GIG Logistics", photoKeys: ["p/1.jpg", "p/2.jpg"] })).rejects.toThrow(/tracking or waybill/);
+    await sendIt(w, seller, dealId, "GIG-4471902");
+    await markDelivered(w.d, seller, dealId);
+    await confirmReceived(w.d, buyer, dealId);
+    await settleAll(w);
+    const payout = (await w.db.query("select amount_kobo from transfers where deal_id = $1 and kind = 'payout'", [dealId])).rows[0];
+    expect(Number(payout.amount_kobo)).toBe(price + 800_000);
+    const b = await balances(w, dealId);
+    expect(b.held_funds ?? 0).toBe(0);
+    expect(b.fee_revenue).toBe(-fee);
+  });
+
+  it("charges the within-the-state price to a buyer in the same state, and free means free", async () => {
+    const { dealId, deal } = await paidDelivery("Lagos");
+    expect(Number(deal.delivery_kobo)).toBe(300_000);
+    expect(await stateOf(w, dealId)).toBe("held");
+    const { listing } = await deliveryListing({ deliveryLocalKobo: 0, deliveryOtherKobo: null });
+    const buyer = await person(w, "Free Delivery");
+    const free = await requestDeal(w.d, buyer, { listingId: listing, handover: "delivery", deliveryState: "Lagos" });
+    expect(Number((await w.db.query("select delivery_kobo from deals where id = $1", [free])).rows[0].delivery_kobo)).toBe(0);
+  });
+
+  it("refuses delivery the seller doesn't offer, or without a state", async () => {
+    const { listing: meetOnly } = await deliveryListing({});
+    const buyer = await person(w, "Wants Delivery");
+    await expect(requestDeal(w.d, buyer, { listingId: meetOnly, handover: "delivery", deliveryState: "Lagos" })).rejects.toThrow(/doesn't deliver this item/);
+    const { listing: lagosOnly } = await deliveryListing({ deliveryLocalKobo: 250_000, deliveryOtherKobo: null });
+    await expect(requestDeal(w.d, buyer, { listingId: lagosOnly, handover: "delivery", deliveryState: "Kano" })).rejects.toThrow(/doesn't deliver to Kano/);
+    await expect(requestDeal(w.d, buyer, { listingId: lagosOnly, handover: "delivery" })).rejects.toThrow(/Choose the state/);
+    // Meet-up never carries a delivery fee.
+    const meet = await requestDeal(w.d, buyer, { listingId: lagosOnly, handover: "meetup", deliveryState: "Lagos" });
+    expect((await w.db.query("select delivery_kobo, delivery_state from deals where id = $1", [meet])).rows[0]).toEqual({ delivery_kobo: "0", delivery_state: null });
+  });
+
+  it("refunds the delivery fee too when the seller never sends it", async () => {
+    const { buyer, dealId, deal } = await paidDelivery("Oyo");
+    await cancelDeal(w.d, buyer, dealId);
+    await settleAll(w);
+    const refund = (await w.db.query("select amount_kobo from transfers where deal_id = $1 and kind = 'refund'", [dealId])).rows[0];
+    expect(Number(refund.amount_kobo)).toBe(Number(deal.amount_due_kobo));
+  });
+
+  it("needs packing photos to send, and can't be cancelled once sent", async () => {
+    const { seller, buyer, dealId } = await paidDelivery("Lagos");
+    await expect(markDelivered(w.d, seller, dealId)).rejects.toThrow(/Mark it sent first/);
+    await expect(markSent(w.d, seller, dealId, { courier: "Dispatch rider", photoKeys: ["p/1.jpg"] })).rejects.toThrow(/at least 2 photos/);
+    await expect(markSent(w.d, seller, dealId, { courier: "", photoKeys: ["p/1.jpg", "p/2.jpg"] })).rejects.toThrow(/who is delivering/);
+    await expect(markSent(w.d, buyer, dealId, { courier: "Dispatch rider", photoKeys: ["p/1.jpg", "p/2.jpg"] })).rejects.toThrow(/Only the seller/);
+    // Within the state, a dispatch rider without a tracking number is fine.
+    await sendIt(w, seller, dealId);
+    const sent = (await w.db.query("select sent_at, courier, tracking_ref, packing_photo_keys from deals where id = $1", [dealId])).rows[0];
+    expect(sent).toMatchObject({ courier: "Dispatch rider", tracking_ref: null });
+    expect(sent.packing_photo_keys).toHaveLength(2);
+    expect(w.timers.some((t) => t.kind === "arrival_check" && t.dealId === dealId)).toBe(true);
+    await expect(sendIt(w, seller, dealId)).rejects.toThrow(/can't be marked sent/);
+    await expect(cancelDeal(w.d, buyer, dealId)).rejects.toThrow(/on its way/);
+    await expect(cancelDeal(w.d, seller, dealId)).rejects.toThrow(/You've sent the item/);
+    // The buyer can confirm as soon as it arrives, before the seller marks it delivered.
+    await confirmReceived(w.d, buyer, dealId);
+    expect(await stateOf(w, dealId)).toBe("released");
+  });
+
+  it("asks both people, once, when a delivery takes longer than usual, and doesn't call it overdue", async () => {
+    const { seller, dealId } = await paidDelivery("Lagos");
+    await sendIt(w, seller, dealId);
+    w.clock.now = new Date(Date.now() + 40 * 3600_000);
+    expect(await sweep(w.d, dealId)).toEqual([]);
+    w.clock.now = new Date(Date.now() + 80 * 3600_000); // past 48 hours on the way, and past the 72-hour hand-over deadline
+    expect(await sweep(w.d, dealId)).toEqual([`arrival check ${dealId}`]);
+    expect(await sweep(w.d, dealId)).toEqual([]);
+    w.clock.now = new Date();
+    const sent = (await w.db.query("select template from notifications where deal_id = $1 and channel = 'in_app'", [dealId])).rows.map((r: any) => r.template);
+    expect(sent.filter((t: string) => t === "arrival_check")).toHaveLength(2);
+    expect(sent).not.toContain("handover_overdue");
+    const alert = (await w.db.query("select kind, title from staff_alerts where url = $1", [`/deals/${dealId}`])).rows;
+    expect(alert.some((a: any) => a.kind === "delivery_late")).toBe(true);
+  });
+
+  it("lets a seller change delivery prices on a live listing without changing deals already made", async () => {
+    const { seller, listing } = await deliveryListing();
+    const first = await requestDeal(w.d, await person(w, "First Buyer"), { listingId: listing, handover: "delivery", deliveryState: "Lagos" });
+    await expect(setDelivery(w.d, seller, listing, { localKobo: -1, otherKobo: null })).rejects.toThrow(/0 for free/);
+    await expect(setDelivery(w.d, seller, listing, { localKobo: 60_000_000, otherKobo: null })).rejects.toThrow(/up to ₦500,000/);
+    await expect(setDelivery(w.d, seller, listing, { localKobo: NaN, otherKobo: null })).rejects.toThrow(/0 for free/);
+    await expect(setDelivery(w.d, await person(w, "Not The Seller"), listing, { localKobo: 0, otherKobo: null })).rejects.toThrow(/isn't yours/);
+    await setDelivery(w.d, seller, listing, { localKobo: 500_000, otherKobo: null });
+    const second = await requestDeal(w.d, await person(w, "Second Buyer"), { listingId: listing, handover: "delivery", deliveryState: "Lagos" });
+    const fees = (await w.db.query("select id, delivery_kobo from deals where id = any($1)", [[first, second]])).rows;
+    expect(Number(fees.find((r: any) => r.id === first).delivery_kobo)).toBe(300_000);
+    expect(Number(fees.find((r: any) => r.id === second).delivery_kobo)).toBe(500_000);
   });
 });
 

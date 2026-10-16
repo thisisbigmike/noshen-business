@@ -1,5 +1,6 @@
 import { inTx, one } from "./db";
-import { areaProblem, isState } from "@noshen/shared/locations";
+import { areaProblem, isState, stateLabel } from "@noshen/shared/locations";
+import { DELIVERY_MAX_KOBO } from "@noshen/shared/delivery";
 import { encryptField, hmac } from "./crypto";
 import { namesMatch } from "./deals";
 import { type Deps, DealError, N, notify, settingsOf } from "./core";
@@ -80,6 +81,32 @@ export interface ListingInput {
   size?: string;
   /** How many the seller has (1 to 999). Each deal is for one. */
   quantity?: number;
+  /** Delivery prices in kobo, within the item's state and to other states: null when not offered, 0 when free. */
+  deliveryLocalKobo?: number | null;
+  deliveryOtherKobo?: number | null;
+}
+
+/** Checks a seller's delivery prices: each is not offered (null), free (0), or up to the most allowed. */
+function checkDelivery(local: number | null | undefined, other: number | null | undefined, state: string | null) {
+  const where = state ? stateLabel(state) : "the item's state";
+  for (const [k, label] of [[local, `within ${where}`], [other, "to other states"]] as const) {
+    if (k === null || k === undefined) continue;
+    if (!Number.isSafeInteger(k) || k < 0) throw new DealError("delivery", `Enter the delivery price ${label} in naira, or 0 for free delivery.`);
+    if (k > DELIVERY_MAX_KOBO) throw new DealError("delivery", `Delivery ${label} can be up to ${naira(DELIVERY_MAX_KOBO)}.`);
+  }
+  return { local: local ?? null, other: other ?? null };
+}
+
+/**
+ * Changes what delivery costs on a listing, published or not. Deals already requested keep the price they were
+ * made at: it's fixed on the deal.
+ */
+export async function setDelivery(d: Deps, userId: string, listingId: string, prices: { localKobo: number | null; otherKobo: number | null }) {
+  const l = await one(d.db, "select seller_id, status, state from listings where id = $1", [listingId]);
+  if (!l || l.seller_id !== userId) throw new DealError("forbidden", "This listing isn't yours.", 403);
+  if (!["draft", "live", "paused"].includes(l.status)) throw new DealError("state", "This listing can't be changed now.");
+  const p = checkDelivery(prices.localKobo, prices.otherKobo, l.state);
+  await d.db.query("update listings set delivery_local_kobo = $2, delivery_other_kobo = $3 where id = $1", [listingId, p.local, p.other]);
 }
 
 /**
@@ -133,11 +160,12 @@ export async function saveDraft(d: Deps, userId: string, listingId: string | nul
     const hasSize = !!sizeRuleFor(input.category) && !!input.size;
     const sizeWrong = sizeProblem(input.category, input.sizeSystem, input.size);
     if (sizeWrong) throw new DealError("size", sizeWrong);
+    const delivery = checkDelivery(input.deliveryLocalKobo, input.deliveryOtherKobo, input.state);
     await d.db.query(
       `update listings set category = $2, title = $3, description = $4, price_kobo = $5, condition = $6, area = $7, imei_or_serial = $8, state = $9,
-              size_system = $10, size = $11, quantity = $12 where id = $1`,
+              size_system = $10, size = $11, quantity = $12, delivery_local_kobo = $13, delivery_other_kobo = $14 where id = $1`,
       [listingId, input.category, input.title.trim().slice(0, 80), input.description?.trim().slice(0, 2000) || null, price, input.condition, area, imei || null, input.state,
-       hasSize ? input.sizeSystem : null, hasSize ? input.size : null, quantity]);
+       hasSize ? input.sizeSystem : null, hasSize ? input.size : null, quantity, delivery.local, delivery.other]);
   }
   return listingId!;
 }

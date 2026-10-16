@@ -9,6 +9,8 @@ import type { Settings } from "./settings";
 import { overLimit, sellerLimitText, type SellerLimit } from "@noshen/shared/limits";
 import { coinAmount, coinName, cryptoLabel, networkOf, type Coin, type Network } from "@noshen/shared/payments";
 import { alertStaff } from "./staff-alerts";
+import { isState, stateLabel } from "@noshen/shared/locations";
+import { deliveryFee, deliveryZone, offersDelivery, sendingProblem } from "@noshen/shared/delivery";
 
 export { overLimit, sellerLimitText, type SellerLimit };
 import {
@@ -34,7 +36,8 @@ export async function sellerLimit(db: Tx["db"], sellerId: string, s: Settings): 
   return { capKobo: verified ? s.deal_max_kobo : s.unverified_seller_max_kobo, custom: false, verified };
 }
 
-export async function requestDeal(d: Deps, buyerId: string, input: { listingId: string; handover: Handover; note?: string }): Promise<string> {
+/** deliveryState: where the buyer wants it delivered (one of the 36 states or FCT), when handover is "delivery". */
+export async function requestDeal(d: Deps, buyerId: string, input: { listingId: string; handover: Handover; deliveryState?: string; note?: string }): Promise<string> {
   return inTx(d.db, { type: "buyer", id: buyerId }, async (tx) => {
     const s = await settingsOf(d);
     const now = nowOf(d);
@@ -61,20 +64,35 @@ export async function requestDeal(d: Deps, buyerId: string, input: { listingId: 
     );
     if (existing) return existing.id;
 
+    // Delivery costs what the seller set for the buyer's zone: within the item's state, or to another state.
+    let delivery = 0;
+    if (input.handover === "delivery") {
+      if (!isState(input.deliveryState)) throw new DealError("delivery_state", "Choose the state to deliver to.");
+      const fee = deliveryFee(listing, input.deliveryState);
+      if (fee === null) throw new DealError("no_delivery", offersDelivery(listing)
+        ? `The seller doesn't deliver to ${stateLabel(input.deliveryState)}. Choose meet-up instead.`
+        : "The seller doesn't deliver this item. Choose meet-up instead.");
+      delivery = fee;
+    }
+
     const fee = feeFor(price, s.fee);
     const deal = await one<{ id: string }>(
       tx.db,
-      `insert into deals (listing_id, buyer_id, seller_id, price_kobo, fee_kobo, fee_payer, handover, request_expires_at)
-       values ($1, $2, $3, $4, $5, 'buyer', $6, $7) returning id`,
-      [listing.id, buyerId, listing.seller_id, price, fee, input.handover, addHours(now, s.request_ttl_hours)],
+      `insert into deals (listing_id, buyer_id, seller_id, price_kobo, fee_kobo, fee_payer, handover, request_expires_at, delivery_kobo, delivery_state)
+       values ($1, $2, $3, $4, $5, 'buyer', $6, $7, $8, $9) returning id`,
+      [listing.id, buyerId, listing.seller_id, price, fee, input.handover, addHours(now, s.request_ttl_hours), delivery,
+       input.handover === "delivery" ? input.deliveryState : null],
     );
     const id = deal!.id;
     if (input.note?.trim()) {
       await tx.db.query("insert into messages (deal_id, sender_id, body) values ($1, $2, $3)", [id, buyerId, input.note.trim().slice(0, 2000)]);
     }
     const buyer = firstName(await userName(tx.db, buyerId));
+    const sendTo = input.handover === "delivery"
+      ? `, delivered to ${stateLabel(input.deliveryState!)}${delivery ? ` (${naira(delivery)} delivery, paid to you with the price)` : " (free delivery)"}`
+      : "";
     await notify(d, tx, listing.seller_id, id, "request_received",
-      `${buyer} wants to buy your ${listing.title} with protection. Answer by ${when(addHours(now, s.request_ttl_hours), now)}.`);
+      `${buyer} wants to buy your ${listing.title} with protection${sendTo}. Answer by ${when(addHours(now, s.request_ttl_hours), now)}.`);
     schedule(d, tx, "request_expiry", id, addHours(now, s.request_ttl_hours));
     return id;
   });
@@ -150,6 +168,9 @@ export async function cancelDeal(d: Deps, userId: string, dealId: string) {
     }
     if (deal.state === "held") {
       if (deal.delivered_at) throw new DealError("delivered", "The item was marked delivered. Confirm you received it, or report a problem.");
+      if (deal.sent_at) throw new DealError("sent", isBuyer
+        ? "The item is on its way. When it arrives, check it and confirm, or report a problem. If it never arrives, report it as not delivered."
+        : "You've sent the item, so the deal can't be cancelled. If something went wrong, contact NosHen support.");
       await refund(d, tx, deal, "cancelled");
       await notify(d, tx, other, dealId, "deal_cancelled", `${who} cancelled the deal before the hand-over. The buyer is refunded.`);
       return;
@@ -300,6 +321,9 @@ async function paymentArrived(d: Deps, tx: Tx, deal: DealRow, paymentId: string,
     await alertStaff(d, tx, "review_hold", `Payment to check: ${item?.title ?? "a deal"}`, hold, `/holds/${deal.id}`);
     await notify(d, tx, deal.buyer_id, deal.id, "payment_review", "Your payment arrived. We're checking it and will email you. Don't meet yet.");
     await notify(d, tx, deal.seller_id, deal.id, "payment_review", "A payment arrived, and NosHen is checking it. Don't hand over yet.");
+  } else if (deal.handover === "delivery") {
+    await notify(d, tx, deal.buyer_id, deal.id, "payment_held", `${naira(amountKobo)} is held safely. ${seller} sends it by ${when(handoverDue, now)}, with photos of it packed. Don't pay anyone extra for delivery.`);
+    await notify(d, tx, deal.seller_id, deal.id, "payment_held", `${naira(deal.seller_share_kobo)} is held for you, delivery included. Pack it, take photos, and send it by ${when(handoverDue, now)}.`);
   } else {
     await notify(d, tx, deal.buyer_id, deal.id, "payment_held", `${naira(amountKobo)} is held safely. Your release code is in the app. Meet ${seller} by ${when(handoverDue, now)}.`);
     await notify(d, tx, deal.seller_id, deal.id, "payment_held", `${naira(deal.seller_share_kobo)} is held for you. Hand over by ${when(handoverDue, now)} and ask for the code.`);
@@ -555,6 +579,37 @@ export async function releaseByCode(d: Deps, sellerId: string, dealId: string, c
   });
 }
 
+/**
+ * The seller has sent a delivery: photos of the item being packed and of the sealed package (already stored), who
+ * is delivering it, and, to another state, the tracking or waybill number. The buyer sees all of it, and a reviewer
+ * uses it if the buyer says something else arrived. Once sent, the deal can't be cancelled.
+ */
+export async function markSent(d: Deps, sellerId: string, dealId: string, input: { courier: string; trackingRef?: string; photoKeys: string[] }) {
+  return inTx(d.db, { type: "seller", id: sellerId }, async (tx) => {
+    const s = await settingsOf(d);
+    const now = nowOf(d);
+    const deal = await lockDeal(tx.db, dealId);
+    if (deal.seller_id !== sellerId) throw new DealError("forbidden", "Only the seller can mark this sent.", 403);
+    if (deal.state !== "held" || deal.handover !== "delivery" || deal.sent_at) throw new DealError("state", "This deal can't be marked sent now.");
+    if (deal.review_hold) throw new DealError("review_hold", "NosHen is checking the payment for this deal. Don't send it yet.");
+    const listing = await one<{ state: string | null }>(tx.db, "select state from listings where id = $1", [deal.listing_id]);
+    const zone = deal.delivery_state ? deliveryZone(listing?.state ?? null, deal.delivery_state) : "local";
+    const courier = input.courier.trim().replace(/\s+/g, " ");
+    const tracking = (input.trackingRef ?? "").trim().replace(/\s+/g, " ");
+    const problem = sendingProblem(zone, courier, tracking, input.photoKeys.length);
+    if (problem) throw new DealError("sending", problem);
+    await tx.db.query("update deals set sent_at = $2, courier = $3, tracking_ref = $4, packing_photo_keys = $5 where id = $1",
+      [dealId, now, courier, tracking || null, input.photoKeys]);
+    await tx.db.query("insert into deal_events (deal_id, type, actor, actor_id, payload) values ($1, 'marked_sent', 'seller', $2, $3)",
+      [dealId, sellerId, JSON.stringify({ courier, tracking: tracking || null, photos: input.photoKeys.length })]);
+    const seller = firstName(await userName(tx.db, sellerId));
+    await notify(d, tx, deal.buyer_id, dealId, "sent",
+      `${seller} sent your item with ${courier}${tracking ? `, tracking ${tracking}` : ""}. See the packing photos in the deal. When it arrives, check it before you confirm, and don't pay the rider anything extra.`);
+    // If it isn't marked delivered in the usual time for its zone, both people are asked whether it arrived.
+    schedule(d, tx, "arrival_check", dealId, addHours(now, s.delivery_transit_hours[zone]));
+  });
+}
+
 export async function markDelivered(d: Deps, sellerId: string, dealId: string) {
   return inTx(d.db, { type: "seller", id: sellerId }, async (tx) => {
     const s = await settingsOf(d);
@@ -562,6 +617,7 @@ export async function markDelivered(d: Deps, sellerId: string, dealId: string) {
     const deal = await lockDeal(tx.db, dealId);
     if (deal.seller_id !== sellerId) throw new DealError("forbidden", "Only the seller can mark this delivered.", 403);
     if (deal.state !== "held" || deal.handover !== "delivery" || deal.delivered_at) throw new DealError("state", "This deal can't be marked delivered now.");
+    if (!deal.sent_at) throw new DealError("not_sent", "Mark it sent first, with photos of it packed.");
     const due = addHours(now, s.delivery_confirm_hours);
     await tx.db.query("update deals set delivered_at = $2, release_due_at = $3 where id = $1", [dealId, now, due]);
     await tx.db.query("insert into deal_events (deal_id, type, actor, actor_id, payload) values ($1, 'marked_delivered', 'seller', $2, '{}')", [dealId, sellerId]);
@@ -574,7 +630,8 @@ export async function confirmReceived(d: Deps, buyerId: string, dealId: string) 
   return inTx(d.db, { type: "buyer", id: buyerId }, async (tx) => {
     const deal = await lockDeal(tx.db, dealId);
     if (deal.buyer_id !== buyerId) throw new DealError("forbidden", "Only the buyer can confirm receipt.", 403);
-    if (deal.state !== "held" || !deal.delivered_at) throw new DealError("state", "This deal isn't waiting for your confirmation.");
+    // Once it's on its way, the buyer can confirm as soon as they have it, before the seller marks it delivered.
+    if (deal.state !== "held" || deal.handover !== "delivery" || !(deal.delivered_at || deal.sent_at)) throw new DealError("state", "This deal isn't waiting for your confirmation.");
     await release(d, tx, deal, "confirmed");
   });
 }

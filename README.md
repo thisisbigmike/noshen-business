@@ -22,14 +22,17 @@ NosHen takes the risk out of the first step. The buyer pays NosHen, the money is
 
 ## How a deal works
 
-1. **Request.** The buyer finds a listing and sends a request. The seller accepts.
+1. **Request.** The buyer finds a listing and sends a request: meet-up (free) or delivery to their state, at the delivery price the seller set on the listing. The seller accepts.
 2. **Pay.** The buyer pays into that deal's own account, by naira bank transfer or with a dollar stablecoin. The money is **held**: the seller can see it, but can't touch it.
 3. **Check the item.** They meet in a public place, or the seller delivers it. Before handing over anything, the app takes the buyer through checks for that kind of item (a phone's IMEI and account lock, a car's papers, and so on).
-4. **Release.** The buyer gives the seller a 6-digit **release code**, which exists only in the buyer's app. The seller types it in, and the payout starts. For a delivery, the buyer confirms instead; if they do nothing, the money is released 24 hours after delivery.
+   - **For a delivery,** the seller marks it sent with packing photos (the item going in, the package sealed), the courier, and the tracking or waybill number (required to another state). The buyer sees them, and they're evidence if something else arrives.
+4. **Release.** The buyer gives the seller a 6-digit **release code**, which exists only in the buyer's app. The seller types it in, and the payout starts. For a delivery, the buyer confirms instead; if they do nothing, the money is released 24 hours after it's marked delivered.
 
 If something is wrong, the buyer **reports a problem** before release. The money freezes, both sides add photos and notes for 24 hours, and a NosHen reviewer decides within 72 hours: refund the buyer or release to the seller, with the reason sent to both.
 
 **Fee:** 1.5% of the price, at least ₦500 and at most ₦7,500. The buyer or the seller can pay it.
+
+**Delivery:** the seller sets two prices on the listing, one within the item's state and one to other states (or free, or not offered), so buyers see the full cost before they ask. The fee for the buyer's state is fixed on the deal, held with the price, paid to the seller with it, and refunded with it. NosHen's fee is on the price only.
 
 ## Paying with stablecoins
 
@@ -77,6 +80,7 @@ The live demo is at **https://noshen-web.usenoshen.workers.dev**. Sign in there 
 - Listings in 13 categories across all 36 states and the FCT, with sizes for clothes and shoes, and more than one unit per listing.
 - Search and filters, a share link for every listing (with a WhatsApp preview), and photos.
 - Deals for meet-ups and deliveries, release codes, disputes with evidence, and ratings.
+- Delivery prices by zone (within the state, other states), held with the price; sending with packing photos and a tracking number; and a check-in with both people (and staff) when a delivery takes longer than usual.
 - Real-time chat, and notifications on the phone or computer (Web Push, with no third-party push service).
 - Naira and stablecoin payments.
 - Light and dark themes, and a layout that works from small phones to wide screens.
@@ -167,6 +171,7 @@ SOLANA_LIVE=1 pnpm vitest run tests/solana.devnet.test.ts   # against real devne
 
 The engine tests cover:
 - Deals, fees, disputes, deadlines and refunds.
+- Delivery prices, sending with packing proof, and late deliveries.
 - Bank and stablecoin payments, including second and wrong-name payments.
 - Units and sizes.
 - Staff actions and staff alerts.

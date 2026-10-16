@@ -13,6 +13,7 @@ import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
 import { overLimit, sellerLimitText } from "@noshen/shared/limits";
 import { sizeLabel, sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
+import { deliveryPriceLabel, deliveryZones, offersDelivery } from "@noshen/shared/delivery";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Review · Sell · NosHen" }];
@@ -121,6 +122,15 @@ export default function SellReview({ loaderData: { listing: l, fee, limitText, r
           <div className="row-between"><h2 id="r-place" className="label">Where it is</h2>{edit("details", "where it is")}</div>
           <Kv k="Area" v={placeLabel(l.area, l.state)} />
           <p className="caption muted">Buyers see the area, never your address.</p>
+        </section>
+
+        <section className="card" aria-labelledby="r-delivery">
+          <div className="row-between"><h2 id="r-delivery" className="label">Getting it</h2>{edit("details", "delivery")}</div>
+          <Kv k="Meet-up" v="Free" />
+          {deliveryZones(l).map((z) => <Kv key={z.zone} k={`Delivery ${z.label}`} v={deliveryPriceLabel(z.kobo)} />)}
+          <p className="caption muted">{offersDelivery(l)
+            ? "The buyer pays delivery with the price. You get it when the deal closes, and you send the item with photos of it packed."
+            : "Meet-up only. You can add delivery prices later from your listing."}</p>
         </section>
 
         <section className="card stack" aria-labelledby="r-desc">

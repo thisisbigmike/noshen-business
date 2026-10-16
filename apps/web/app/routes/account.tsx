@@ -3,6 +3,7 @@ import type { Route } from "./+types/account";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { myListings, sellerSummary } from "@noshen/engine/queries";
 import { sellerReady, setListingStatus } from "@noshen/engine/sellers";
+import { offersDelivery } from "@noshen/shared/delivery";
 import { one } from "@noshen/engine/db";
 import { Button, ErrorText, Icon, Info, Kv, TopBar } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
@@ -67,6 +68,7 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
                 <span className="stack" style={{ gap: 0 }}>
                   <Link to={l.status === "draft" ? (l.title === "Untitled listing" ? `/sell/${l.id}/photos` : `/sell/${l.id}/review`) : `/l/${l.id}`} className="body">{l.title === "Untitled listing" ? "Draft listing" : l.title}</Link>
                   <span className="caption muted">{STATUS_WORD[l.status] ?? l.status} · {naira(l.price_kobo)}{Number(l.requests) ? ` · ${l.requests} request${Number(l.requests) > 1 ? "s" : ""}` : ""}</span>
+                  {l.status === "live" || l.status === "paused" ? <Link to={`/sell/${l.id}/delivery`} className="caption">{offersDelivery(l) ? "Delivery prices" : "Add delivery prices"}</Link> : null}
                 </span>
                 {l.status === "live" || l.status === "paused" ? (
                   <Form method="post">

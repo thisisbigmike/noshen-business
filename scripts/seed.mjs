@@ -58,38 +58,42 @@ const tunde = await seller("Tunde Bakare", "tunde@example.com", "1234");
 const kunle = await seller("Kunle Adeyemi", "kunle@example.com", "5521");
 
 const LISTINGS = [
-  [tunde, "phone", "iPhone 13, 128GB", 450000, "good", "Yaba|Lagos", "352918112047631", "Used for one year. Battery health 86%. No cracks. Comes with the box and cable.", 2],
-  [kunle, "laptop", "HP EliteBook 840 G5", 285000, "good", "Wuse 2|FCT", "5CG8274XQZ", "Core i5 8th gen, 8GB RAM, 256GB SSD. Battery good, holds about 3 hours. Charger included.", 26],
-  [tunde, "phone", "Samsung Galaxy S21, 128GB", 310000, "like_new", "GRA Phase 2|Rivers", "351234567890123", "Bought in March. Screen protector on since day one.", 3],
-  [kunle, "laptop", "MacBook Air M1, 256GB", 620000, "like_new", "Lekki|Lagos", "FVFG1234Q6L4", "8GB RAM. 91 battery cycles. Comes with the original charger.", 8],
-  [kunle, "phone", "iPhone 11, 64GB", 235000, "fair", "Ikeja|Lagos", "356789012345670", "Works well. Small scratch on the back. Battery health 79%.", 30],
-  [tunde, "laptop", "Dell Latitude 7490", 240000, "good", "Bodija|Oyo", "7490DL22X", "Core i7, 16GB RAM, 512GB SSD. Keyboard like new.", 50],
-  [kunle, "shoes", "Nike Air Force 1, size 43", 45000, "like_new", "Lekki|Lagos", null, "Worn twice. UK 9 / EU 43. Original box included.", 4],
-  [tunde, "fashion", "Ankara maxi dress, size 12", 18000, "new", "Nassarawa GRA|Kano", null, "Sewn last month, never worn. Cotton wax print, side zip, fully lined.", 6],
-  [kunle, "vehicle", "Toyota Corolla 2014, automatic", 9800000, "good", "Garki|FCT", "2T1BURHE0EC123456", "Foreign used, cleared 2021. 84,000 km. AC works, new tyres. Papers complete.", 20],
-  [tunde, "home", "3-seater fabric sofa, grey", 250000, "good", "Gbagada|Lagos", null, "Two years old, no tears. Hardwood frame. You arrange pickup.", 30],
-  [kunle, "electronics", "PlayStation 5 with two pads", 650000, "like_new", "Victoria Island|Lagos", "E7K4QX2021", "Disc edition. Two pads, HDMI and power cables. No faults.", 9],
-  [tunde, "hair", "Bone straight wig, 22 inches", 185000, "like_new", "Independence Layout|Enugu", null, "100% human hair, 13x4 HD lace, medium cap. Worn twice, washed and restyled.", 3],
-  [kunle, "beauty", "Eau de parfum, 100ml, sealed", 65000, "new", "Ugbowo|Edo", null, "Sealed in the box. Batch code matches the bottle. Bought in Dubai last month.", 5],
+  [tunde, "phone", "iPhone 13, 128GB", 450000, "good", "Yaba|Lagos", "352918112047631", "Used for one year. Battery health 86%. No cracks. Comes with the box and cable.", 2, [2500, 6000]],
+  [kunle, "laptop", "HP EliteBook 840 G5", 285000, "good", "Wuse 2|FCT", "5CG8274XQZ", "Core i5 8th gen, 8GB RAM, 256GB SSD. Battery good, holds about 3 hours. Charger included.", 26, [2500, 7000]],
+  [tunde, "phone", "Samsung Galaxy S21, 128GB", 310000, "like_new", "GRA Phase 2|Rivers", "351234567890123", "Bought in March. Screen protector on since day one.", 3, [2000, 6000]],
+  [kunle, "laptop", "MacBook Air M1, 256GB", 620000, "like_new", "Lekki|Lagos", "FVFG1234Q6L4", "8GB RAM. 91 battery cycles. Comes with the original charger.", 8, [0, 7000]],
+  [kunle, "phone", "iPhone 11, 64GB", 235000, "fair", "Ikeja|Lagos", "356789012345670", "Works well. Small scratch on the back. Battery health 79%.", 30, [2500, 6000]],
+  [tunde, "laptop", "Dell Latitude 7490", 240000, "good", "Bodija|Oyo", "7490DL22X", "Core i7, 16GB RAM, 512GB SSD. Keyboard like new.", 50, [3000, null]],
+  [kunle, "shoes", "Nike Air Force 1, size 43", 45000, "like_new", "Lekki|Lagos", null, "Worn twice. UK 9 / EU 43. Original box included.", 4, [2000, 4500]],
+  [tunde, "fashion", "Ankara maxi dress, size 12", 18000, "new", "Nassarawa GRA|Kano", null, "Sewn last month, never worn. Cotton wax print, side zip, fully lined.", 6, [1500, 3500]],
+  [kunle, "vehicle", "Toyota Corolla 2014, automatic", 9800000, "good", "Garki|FCT", "2T1BURHE0EC123456", "Foreign used, cleared 2021. 84,000 km. AC works, new tyres. Papers complete.", 20, null],
+  [tunde, "home", "3-seater fabric sofa, grey", 250000, "good", "Gbagada|Lagos", null, "Two years old, no tears. Hardwood frame. You arrange pickup.", 30, null],
+  [kunle, "electronics", "PlayStation 5 with two pads", 650000, "like_new", "Victoria Island|Lagos", "E7K4QX2021", "Disc edition. Two pads, HDMI and power cables. No faults.", 9, [3000, 8000]],
+  [tunde, "hair", "Bone straight wig, 22 inches", 185000, "like_new", "Independence Layout|Enugu", null, "100% human hair, 13x4 HD lace, medium cap. Worn twice, washed and restyled.", 3, [0, 5000]],
+  [kunle, "beauty", "Eau de parfum, 100ml, sealed", 65000, "new", "Ugbowo|Edo", null, "Sealed in the box. Batch code matches the bottle. Bought in Dubai last month.", 5, [1500, 4000]],
 ];
 let n = 0;
 let added = 0;
 // Demo listings are spread across Nigeria (area|state), so the marketplace reads as nationwide.
-for (const [sellerId, cat, title, naira, cond, place, imei, desc, hoursAgo] of LISTINGS) {
+// The last column is delivery in naira: [within the state, to other states] (null: not offered, 0: free), or null for meet-up only.
+for (const [sellerId, cat, title, naira, cond, place, imei, desc, hoursAgo, delivery] of LISTINGS) {
   n++;
   const [area, state] = place.split("|");
   const keys = [1, 2, 3, 4, 5].map((i) => `seed/${n}/${i}`);
+  const [local, other] = (delivery ?? [null, null]).map((v) => (v === null ? null : v * 100));
   const have = await db.query("select 1 from listings where photo_keys[1] = $1", [keys[0]]);
   if (have.rows[0]) {
-    // Keep earlier demo rows in step with the places above.
-    await db.query("update listings set area = $2, state = $3 where photo_keys[1] = $1 and (area, state) is distinct from ($2, $3)", [keys[0], area, state]);
+    // Keep earlier demo rows in step with the places and delivery prices above.
+    await db.query(`update listings set area = $2, state = $3, delivery_local_kobo = $4, delivery_other_kobo = $5 where photo_keys[1] = $1
+                      and (area, state, delivery_local_kobo, delivery_other_kobo) is distinct from ($2, $3, $4::bigint, $5::bigint)`, [keys[0], area, state, local, other]);
     continue;
   }
   added++;
   await db.query(
-    `insert into listings (seller_id, category, title, description, price_kobo, condition, area, state, imei_or_serial, photo_keys, status, published_at, created_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'live', now() - make_interval(hours => $11), now() - make_interval(hours => $11))`,
-    [sellerId, cat, title, desc, naira * 100, cond, area, state, imei, keys, hoursAgo]);
+    `insert into listings (seller_id, category, title, description, price_kobo, condition, area, state, imei_or_serial, photo_keys, status, published_at, created_at,
+                           delivery_local_kobo, delivery_other_kobo)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'live', now() - make_interval(hours => $11), now() - make_interval(hours => $11), $12, $13)`,
+    [sellerId, cat, title, desc, naira * 100, cond, area, state, imei, keys, hoursAgo, local, other]);
 }
 await db.end();
 console.log(`Seed: ${added} new listing(s), ${LISTINGS.length} in all. Sellers tunde@example.com and kunle@example.com.` +

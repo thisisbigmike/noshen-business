@@ -9,7 +9,7 @@ import { naira } from "@noshen/shared/money";
 import { DISPUTE_REASONS, disputeReasonLabel, firstName } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
-import { placeLabel } from "@noshen/shared/locations";
+import { placeLabel, stateLabel } from "@noshen/shared/locations";
 import { coinAmount, cryptoLabel, isCoin, isNetwork } from "@noshen/shared/payments";
 import { ACCOUNT_STATUS, DEAL_STATE, StatePill, TRANSFER_STATUS, actionLabel } from "../lib/labels";
 import { ReasonAction, type ActionResult } from "../lib/reason-action";
@@ -101,7 +101,9 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
   const deadline: [string, string | null] | null = deal.state === "requested" ? ["Seller answers by", deal.request_expires_at]
     : deal.state === "accepted" ? ["Buyer pays by", deal.payment_due_at]
     : deal.state === "held" && deal.delivered_at ? ["Buyer checks the delivery by", deal.release_due_at]
-    : deal.state === "held" ? ["Hand-over by", deal.handover_due_at] : null;
+    : deal.state === "held" && deal.sent_at ? ["Sent, on its way since", deal.sent_at]
+    : deal.state === "held" ? [deal.handover === "delivery" ? "Seller sends by" : "Hand-over by", deal.handover_due_at] : null;
+  const deliveryTo = deal.delivery_state ? `Delivery to ${stateLabel(deal.delivery_state)}` : "Delivery";
 
   return (
     <>
@@ -114,7 +116,7 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
             <div className="row wrap" style={{ gap: 8 }}>
               <StatePill map={DEAL_STATE} value={deal.state} />
               {deal.review_hold ? <span className="st-pill warn">Review hold</span> : null}
-              <span className="caption muted">{naira(deal.amount_due_kobo)} · {deal.handover === "meetup" ? "Meet-up" : "Delivery"} · {placeLabel(listing.area, listing.state)} · started {when(new Date(deal.created_at))}</span>
+              <span className="caption muted">{naira(deal.amount_due_kobo)} · {deal.handover === "meetup" ? "Meet-up" : deliveryTo} · {placeLabel(listing.area, listing.state)} · started {when(new Date(deal.created_at))}</span>
             </div>
           </div>
         </div>
@@ -145,11 +147,28 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
             </div>
           </section>
 
+          {deal.sent_at ? (
+            <section className="panel" aria-labelledby="sent-title">
+              <h2 id="sent-title" className="title">What the seller sent</h2>
+              <div>
+                <Kv k="Sent" v={when(new Date(deal.sent_at))} />
+                <Kv k="With" v={deal.courier ?? "—"} />
+                <Kv k="Tracking number" v={deal.tracking_ref ?? "None given"} />
+                <Kv k="Marked delivered" v={deal.delivered_at ? when(new Date(deal.delivered_at)) : "Not yet"} />
+              </div>
+              <p className="label">Packing photos</p>
+              {(deal.packing_photo_keys ?? []).length ? (
+                <div className="photo-grid">{deal.packing_photo_keys.map((k: string) => <a key={k} href={photoUrl(k)} target="_blank" rel="noreferrer" className="photo-slot"><img src={photoUrl(k)} alt="Packing photo" /></a>)}</div>
+              ) : <p className="caption muted">None (marked delivered before packing photos were asked for).</p>}
+            </section>
+          ) : null}
+
           <section className="panel" aria-labelledby="money-title">
             <h2 id="money-title" className="title">Money</h2>
             <div>
               <Kv k="Price" v={naira(deal.price_kobo)} />
               <Kv k={`NosHen fee (paid by the ${deal.fee_payer})`} v={naira(deal.fee_kobo)} />
+              {deal.handover === "delivery" ? <Kv k={`${deliveryTo} (paid to the seller with the price)`} v={Number(deal.delivery_kobo) ? naira(deal.delivery_kobo) : "Free"} /> : null}
               <Kv k="Buyer pays" v={naira(deal.amount_due_kobo)} />
               <Kv k="Seller gets" v={naira(deal.seller_share_kobo)} total />
             </div>
