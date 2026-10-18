@@ -5,6 +5,7 @@ import { setDelivery } from "@noshen/engine/sellers";
 import { one } from "@noshen/engine/db";
 import { BottomAction, Button, CheckedForm, ErrorText, Info, TopBar } from "@noshen/ui/ui";
 import { DeliveryFields, deliveryFromForm } from "../lib/delivery";
+import { useT } from "@noshen/ui/i18n";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Delivery prices · NosHen" }];
@@ -36,19 +37,20 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function SellDelivery({ loaderData: { listing: l }, actionData }: Route.ComponentProps) {
+  const t = useT();
   const busy = useNavigation().state !== "idle";
   return (
     <CheckedForm method="post">
-      <TopBar title="Delivery prices" back={`/l/${l.id}`} />
+      <TopBar title={t("Delivery prices")} back={`/l/${l.id}`} />
       <main className="page narrow no-tabs stack-4">
         <div className="stack">
-          <h1 className="heading desktop-only">Delivery prices</h1>
+          <h1 className="heading desktop-only">{t("Delivery prices")}</h1>
           <p className="body muted">{l.title}</p>
         </div>
         <DeliveryFields state={l.state ?? ""} local={l.delivery_local_kobo} other={l.delivery_other_kobo} />
-        <Info icon="info-circle">New prices apply to new requests. Buyers who've already asked keep the price they saw.</Info>
+        <Info icon="info-circle">{t("New prices apply to new requests. Buyers who've already asked keep the price they saw.")}</Info>
         <ErrorText>{actionData?.error}</ErrorText>
-        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? "Saving…" : "Save delivery prices"}</Button></BottomAction>
+        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? t("Saving…") : t("Save delivery prices")}</Button></BottomAction>
       </main>
     </CheckedForm>
   );

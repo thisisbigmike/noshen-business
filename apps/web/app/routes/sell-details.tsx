@@ -14,6 +14,7 @@ import { settingsOf } from "@noshen/engine/core";
 import { sellerLimit } from "@noshen/engine/deals";
 import { overLimit, sellerLimitText } from "@noshen/shared/limits";
 import { DeliveryFields, deliveryFromForm } from "../lib/delivery";
+import { useT } from "@noshen/ui/i18n";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Details · Sell · NosHen" }];
@@ -62,6 +63,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function SellDetails({ loaderData: { listing: l, place, limit, min, max, fee }, actionData }: Route.ComponentProps) {
+  const t = useT();
   const busy = useNavigation().state !== "idle";
   const untouched = l.title === "Untitled listing";
   const [cond, setCond] = useState<string>(l.condition);
@@ -79,80 +81,80 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
   const c = categoryOf(l.category);
   return (
     <CheckedForm method="post" onSubmit={(e) => {
-      const problem = sizeRule ? sizeProblem(l.category, kind?.id, size) : null;
+      const problem = sizeRule ? sizeProblem(l.category, kind?.id, size, t) : null;
       setSizeError(problem);
       if (problem) { e.preventDefault(); document.getElementById("size-field")?.scrollIntoView({ block: "center", behavior: "smooth" }); }
     }}>
-      <TopBar title={<span>Details <span className="caption muted">Step 3 of 4</span></span>} back={`/sell/${l.id}/photos`} />
+      <TopBar title={<span>{t("Details")} <span className="caption muted">{t("Step {n} of {total}", { n: 3, total: 4 })}</span></span>} back={`/sell/${l.id}/photos`} />
       <main className="page narrow stack-4">
-        <h1 className="heading desktop-only">Details <span className="caption muted">Step 3 of 4</span></h1>
+        <h1 className="heading desktop-only">{t("Details")} <span className="caption muted">{t("Step {n} of {total}", { n: 3, total: 4 })}</span></h1>
         <input type="hidden" name="category" value={l.category} />
         <div className="chosen-cat">
           <span className="cat-icon"><Icon name={c.icon} size={22} /></span>
-          <span className="grow stack" style={{ gap: 0 }}><span className="caption muted">Selling</span><span className="label">{c.label}</span></span>
-          <Link to="/sell" className="caption tap" style={{ padding: "0 8px" }}>Change</Link>
+          <span className="grow stack" style={{ gap: 0 }}><span className="caption muted">{t("Selling")}</span><span className="label">{t(c.label)}</span></span>
+          <Link to="/sell" className="caption tap" style={{ padding: "0 8px" }}>{t("Change")}</Link>
         </div>
-        <TextField label="Title" name="title" defaultValue={untouched ? "" : l.title} placeholder={c?.titleExample ?? "What it is, in a few words"} maxLength={80} required
-          missing={`Give it a title, like “${c?.titleExample ?? "iPhone 13, 128GB"}”.`} validate={(v) => (v.trim().length < 3 ? `Make the title a little longer: at least 3 characters, like “${c?.titleExample ?? "iPhone 13, 128GB"}”.` : null)} />
+        <TextField label={t("Title")} name="title" defaultValue={untouched ? "" : l.title} placeholder={c.titleExample} maxLength={80} required
+          missing={t("Give it a title, like “{example}”.", { example: c.titleExample })} validate={(v) => (v.trim().length < 3 ? t("Make the title a little longer: at least 3 characters, like “{example}”.", { example: c.titleExample }) : null)} />
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="label" style={{ marginBottom: 8 }}>Condition</legend>
+          <legend className="label" style={{ marginBottom: 8 }}>{t("Condition")}</legend>
           {CONDITIONS.map(([v, label, hint]) => (
-            <label key={v} className="choice"><input type="radio" name="condition" value={v} checked={cond === v} onChange={() => setCond(v)} /><span className="stack" style={{ gap: 0 }}><span className="body">{label}</span><span className="caption muted">{hint}</span></span></label>
+            <label key={v} className="choice"><input type="radio" name="condition" value={v} checked={cond === v} onChange={() => setCond(v)} /><span className="stack" style={{ gap: 0 }}><span className="body">{t(label)}</span><span className="caption muted">{t(hint)}</span></span></label>
           ))}
         </fieldset>
         {sizeRule && kind ? (
           <fieldset id="size-field" className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-            <legend className="label" style={{ marginBottom: 8 }}>{sizeRule.label}{sizeRule.required ? "" : " (optional)"}</legend>
+            <legend className="label" style={{ marginBottom: 8 }}>{sizeRule.required ? t(sizeRule.label) : t("{label} (optional)", { label: t(sizeRule.label) })}</legend>
             {sizeRule.systems.length > 1 ? (
-              <div className="size-kinds" role="radiogroup" aria-label={`Kind of ${sizeRule.label.toLowerCase()}`}>
+              <div className="size-kinds" role="radiogroup" aria-label={t("Kind of {what}", { what: t(sizeRule.label).toLowerCase() })}>
                 {sizeRule.systems.map((x) => (
                   <label key={x.id} className="chip">
                     <input type="radio" name="size_system" value={x.id} checked={kind.id === x.id} className="sr-only"
                       onChange={() => { setSizeKind(x.id); setSize(x.values.length === 1 ? x.values[0] : ""); setSizeError(null); }} />
-                    {x.label}
+                    {t(x.label)}
                   </label>
                 ))}
               </div>
             ) : <input type="hidden" name="size_system" value={kind.id} />}
             {kind.values.length > 1 ? (
-              <Select key={kind.id} name="size" label={sizeRule.label} hideLabel value={size} onChange={(v) => { setSize(v); setSizeError(null); }}
-                options={[{ value: "", label: `Choose ${kind.prefix ? `${kind.prefix} ` : ""}${sizeRule.label.toLowerCase()}` }, ...kind.values.map((v) => ({ value: v, label: kind.prefix && kind.id !== "waist" ? `${kind.prefix} ${v}` : v }))]} />
+              <Select key={kind.id} name="size" label={t(sizeRule.label)} hideLabel value={size} onChange={(v) => { setSize(v); setSizeError(null); }}
+                options={[{ value: "", label: t("Choose {what}", { what: `${kind.prefix ? `${kind.prefix} ` : ""}${t(sizeRule.label).toLowerCase()}` }) }, ...kind.values.map((v) => ({ value: v, label: kind.prefix && kind.id !== "waist" ? `${kind.prefix} ${v}` : v }))]} />
             ) : <input type="hidden" name="size" value={kind.values[0]} />}
-            {sizeError ? <p className="nh-field-msg nh-field-msg-error caption" role="alert"><Icon name="alert-triangle" size={16} />{sizeError}</p> : <p className="caption muted">{sizeRule.hint}</p>}
+            {sizeError ? <p className="nh-field-msg nh-field-msg-error caption" role="alert"><Icon name="alert-triangle" size={16} />{sizeError}</p> : <p className="caption muted">{t(sizeRule.hint)}</p>}
           </fieldset>
         ) : null}
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="label" style={{ marginBottom: 8 }}>How many do you have?</legend>
+          <legend className="label" style={{ marginBottom: 8 }}>{t("How many do you have?")}</legend>
           <div className="qty-stepper">
-            <button type="button" className="icon-btn" aria-label="One fewer" disabled={qty <= 1} onClick={() => setQty((q) => Math.max(1, q - 1))}><span aria-hidden="true">−</span></button>
-            <input name="quantity" type="number" inputMode="numeric" min={1} max={999} value={qty} aria-label="How many you have"
+            <button type="button" className="icon-btn" aria-label={t("One fewer")} disabled={qty <= 1} onClick={() => setQty((q) => Math.max(1, q - 1))}><span aria-hidden="true">−</span></button>
+            <input name="quantity" type="number" inputMode="numeric" min={1} max={999} value={qty} aria-label={t("How many you have")}
               onChange={(e) => setQty(Math.min(999, Math.max(1, Math.floor(Number(e.target.value) || 1))))} />
-            <button type="button" className="icon-btn" aria-label="One more" disabled={qty >= 999} onClick={() => setQty((q) => Math.min(999, q + 1))}><Icon name="plus" size={18} /></button>
+            <button type="button" className="icon-btn" aria-label={t("One more")} disabled={qty >= 999} onClick={() => setQty((q) => Math.min(999, q + 1))}><Icon name="plus" size={18} /></button>
           </div>
-          <p className="caption muted">{qty > 1 ? `Each buyer gets one. Buyers see how many are left, and it shows as sold when all ${qty} have gone.` : "Selling more than one of the same thing? Set how many, and buyers can each buy one."}</p>
+          <p className="caption muted">{qty > 1 ? t("Each buyer gets one. Buyers see how many are left, and it shows as sold when all {n} have gone.", { n: qty }) : t("Selling more than one of the same thing? Set how many, and buyers can each buy one.")}</p>
         </fieldset>
-        <TextField label="Price (₦)" name="price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d,]/g, ""))} placeholder="45,000" required missing="Enter a price in naira, like 45,000."
-          validate={(v) => { const k = Number(v.replace(/[^\d]/g, "")) * 100; return k < min ? `The lowest price on NosHen is ${naira(min)}. You've entered ${naira(k)}.` : max !== null && k > max ? `The highest price on NosHen is ${naira(max)}. You've entered ${naira(k)}.` : !Number.isSafeInteger(k) ? "That price is too large. Check the number of zeros." : null; }}
-          hint={p >= min && (max === null || p <= max) && Number.isSafeInteger(p) ? `The buyer pays ${naira(p + feeFor(p, fee))} with NosHen's fee. You get ${naira(p)}.` : max === null ? `From ${naira(min)}. There's no top price.` : `From ${naira(min)} to ${naira(max)}.`} />
-        {overLimit(p, limit) && (max === null || p <= max) ? <Info icon="alert-triangle" tone="warn">{sellerLimitText(limit, "seller")}</Info> : null}
+        <TextField label={t("Price (₦)")} name="price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d,]/g, ""))} placeholder="45,000" required missing={t("Enter a price in naira, like 45,000.")}
+          validate={(v) => { const k = Number(v.replace(/[^\d]/g, "")) * 100; return k < min ? t("The lowest price on NosHen is {min}. You've entered {price}.", { min: naira(min), price: naira(k) }) : max !== null && k > max ? t("The highest price on NosHen is {max}. You've entered {price}.", { max: naira(max), price: naira(k) }) : !Number.isSafeInteger(k) ? t("That price is too large. Check the number of zeros.") : null; }}
+          hint={p >= min && (max === null || p <= max) && Number.isSafeInteger(p) ? t("The buyer pays {total} with NosHen's fee. You get {price}.", { total: naira(p + feeFor(p, fee)), price: naira(p) }) : max === null ? t("From {min}. There's no top price.", { min: naira(min) }) : t("From {min} to {max}.", { min: naira(min), max: naira(max) })} />
+        {overLimit(p, limit) && (max === null || p <= max) ? <Info icon="alert-triangle" tone="warn">{sellerLimitText(limit, "seller", t)}</Info> : null}
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="label" style={{ marginBottom: 8 }}>Where the item is</legend>
-          <Select name="state" label="State" value={itemState} onChange={setItemState}
-            options={[...(place.state ? [] : [{ value: "", label: "Choose a state" }]), ...NIGERIA_STATES.map((s) => ({ value: s, label: stateLabel(s) }))]} />
-          <TextField label="Area or town" name="area" defaultValue={place.area} placeholder="Yaba, Wuse 2, GRA, Bodija…" maxLength={40} required
-            hint="Buyers see this to plan the meet-up. Never your street address." missing="Add your area or town, like Yaba, Wuse 2 or GRA." validate={areaProblem} />
-          <p className="caption muted">NosHen works in all 36 states and Abuja. {comingSoonList()} are coming soon.</p>
+          <legend className="label" style={{ marginBottom: 8 }}>{t("Where the item is")}</legend>
+          <Select name="state" label={t("State")} value={itemState} onChange={setItemState}
+            options={[...(place.state ? [] : [{ value: "", label: t("Choose a state") }]), ...NIGERIA_STATES.map((s) => ({ value: s, label: stateLabel(s) }))]} />
+          <TextField label={t("Area or town")} name="area" defaultValue={place.area} placeholder="Yaba, Wuse 2, GRA, Bodija…" maxLength={40} required
+            hint={t("Buyers see this to plan the meet-up. Never your street address.")} missing={t("Add your area or town, like Yaba, Wuse 2 or GRA.")} validate={(v) => areaProblem(v, t)} />
+          <p className="caption muted">{t("NosHen works in all 36 states and Abuja. {countries} are coming soon.", { countries: comingSoonList() })}</p>
         </fieldset>
         <DeliveryFields state={itemState} local={l.delivery_local_kobo} other={l.delivery_other_kobo} />
         {c?.id ? (
-          <TextField key={c.key} label={c.id.label} name="imei" inputMode={c.id.numeric ? "numeric" : "text"} autoCapitalize="characters" defaultValue={l.category === c.key ? l.imei_or_serial ?? "" : ""}
-            hint={c.id.hint} required={c.id.required} missing={idProblem(c.key, "") ?? undefined} validate={(v) => idProblem(c.key, v)} />
+          <TextField key={c.key} label={t(c.id.label)} name="imei" inputMode={c.id.numeric ? "numeric" : "text"} autoCapitalize="characters" defaultValue={l.category === c.key ? l.imei_or_serial ?? "" : ""}
+            hint={t(c.id.hint)} required={c.id.required} missing={idProblem(c.key, "", t) ?? undefined} validate={(v) => idProblem(c.key, v, t)} />
         ) : null}
-        <TextArea label="Description (optional)" name="description" defaultValue={l.description ?? ""} maxLength={2000} placeholder={c?.describeHint ?? "Its condition, how long you've had it, and what comes with it."} />
-        <Info icon="shield-check">Your listing shows "Protected by NosHen". Buyers pay NosHen, and you're paid when they give you their code.</Info>
-        <p className="caption muted">Some things can't be sold on NosHen, such as anything stolen or fake. See the <Link to="/prohibited-items">prohibited items</Link>.</p>
+        <TextArea label={t("Description (optional)")} name="description" defaultValue={l.description ?? ""} maxLength={2000} placeholder={t(c.describeHint)} />
+        <Info icon="shield-check">{t("Your listing shows “Protected by NosHen”. Buyers pay NosHen, and you're paid when they give you their code.")}</Info>
+        <p className="caption muted">{t.rich("Some things can't be sold on NosHen, such as anything stolen or fake. See the <list>prohibited items</list>.", { list: (s) => <Link to="/prohibited-items">{s}</Link> })}</p>
         <ErrorText>{actionData?.error}</ErrorText>
-        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight="arrow-right">{busy ? "Saving…" : "Next: review"}</Button></BottomAction>
+        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight="arrow-right">{busy ? t("Saving…") : t("Next: review")}</Button></BottomAction>
       </main>
     </CheckedForm>
   );

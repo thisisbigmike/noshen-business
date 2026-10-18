@@ -5,6 +5,7 @@ import { withApp, mailFor } from "@noshen/engine/context";
 import type { Deps } from "@noshen/engine/core";
 import { one } from "@noshen/engine/db";
 import { cleanCountry } from "@noshen/shared/payments";
+import { langFromRequest, loadCatalog, translator, type T } from "@noshen/shared/i18n";
 
 export interface AppUser {
   id: string; email: string | null; phone: string | null; full_name: string | null; status: string; auth_user_id: string;
@@ -64,6 +65,13 @@ export async function requireUser(request: Request, d?: Deps): Promise<AppUser> 
 
 /** The visitor's country (set by the worker from Cloudflare). Nigeria when it isn't known, as on this computer. */
 export const countryOf = (request: Request) => cleanCountry(request.headers.get("x-noshen-country")) ?? "NG";
+
+/** The reader's language, for messages an action writes itself (most come from the engine, in English). */
+export async function translatorFor(request: Request): Promise<T> {
+  const lang = langFromRequest(request.headers.get("Cookie"), request.headers.get("Accept-Language"));
+  await loadCatalog(lang);
+  return translator(lang);
+}
 
 export { pagePath, messageOf } from "@noshen/engine/http";
 export { withApp };

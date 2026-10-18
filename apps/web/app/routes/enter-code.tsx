@@ -6,6 +6,7 @@ import { releaseByCode } from "@noshen/engine/deals";
 import { BottomAction, Button, CheckedForm, CodeInput, Info, MoneyStatus, TopBar } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { firstName } from "@noshen/shared/deal";
+import { useT } from "@noshen/ui/i18n";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Enter release code · NosHen" }];
@@ -33,18 +34,21 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function EnterCode({ loaderData: x, actionData }: Route.ComponentProps) {
+  const t = useT();
   const busy = useNavigation().state !== "idle";
   const amount = naira(x.share);
   return (
     <CheckedForm method="post">
-      <TopBar title="Enter release code" back={`/d/${x.dealId}`} />
+      <TopBar title={t("Enter release code")} back={`/d/${x.dealId}`} />
       <main className="page narrow no-tabs stack-4">
-        <div className="row"><MoneyStatus state="held">{amount} held for you</MoneyStatus></div>
-        <h1 className="heading">Ask {x.buyer} for the code</h1>
-        <p className="body muted">It's on {x.buyer}'s phone. Enter it here and {amount} is released to your bank{x.last4 ? ` ••${x.last4}` : ""}.</p>
+        <div className="row"><MoneyStatus state="held">{t("{amount} held for you", { amount })}</MoneyStatus></div>
+        <h1 className="heading">{t("Ask {name} for the code", { name: x.buyer })}</h1>
+        <p className="body muted">{x.last4
+          ? t("It's on {name}'s phone. Enter it here and {amount} is released to your bank ••{last4}.", { name: x.buyer, amount, last4: x.last4 })
+          : t("It's on {name}'s phone. Enter it here and {amount} is released to your bank.", { name: x.buyer, amount })}</p>
         <CodeInput name="code" autoFocus error={actionData?.error} />
-        <Info icon="info-circle">If {x.buyer} isn't happy with the item, they won't give you the code. Talk it through, or they can report a problem and a reviewer will decide.</Info>
-        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>Release {amount}</Button></BottomAction>
+        <Info icon="info-circle">{t("If {name} isn't happy with the item, they won't give you the code. Talk it through, or they can report a problem and a reviewer will decide.", { name: x.buyer })}</Info>
+        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{t("Release {amount}", { amount })}</Button></BottomAction>
       </main>
     </CheckedForm>
   );

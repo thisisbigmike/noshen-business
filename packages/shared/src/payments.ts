@@ -1,6 +1,7 @@
 // Ways to pay into a deal. Every deal is priced and held in naira. A buyer pays by bank transfer in naira, or
 // sends a dollar stablecoin (USDT or USDC) on one of four networks, which our crypto partner turns into naira for
 // the deal. Which ways come first depends on the country the buyer is in.
+import { msg } from "./i18n";
 
 export const COINS = [
   { id: "usdt", name: "USDT", issuer: "Tether" },
@@ -13,10 +14,10 @@ export const coinName = (c: Coin) => COINS.find((x) => x.id === c)!.name;
 
 // testnet: the test network NosHen uses there for now; explorer: where anyone can look a payment up.
 export const NETWORKS = [
-  { id: "solana", name: "Solana", standard: "SPL", fees: "Lowest network fees", evm: false, testnet: "Solana devnet", explorer: "Solana Explorer" },
-  { id: "bsc", name: "BNB Smart Chain", standard: "BEP-20", fees: "Low network fees", evm: true, testnet: "BNB Smart Chain testnet", explorer: "BscScan" },
-  { id: "base", name: "Base", standard: "", fees: "Low network fees", evm: true, testnet: "Base Sepolia", explorer: "BaseScan" },
-  { id: "ethereum", name: "Ethereum", standard: "ERC-20", fees: "Higher network fees", evm: true, testnet: "Ethereum Sepolia", explorer: "Etherscan" },
+  { id: "solana", name: "Solana", standard: "SPL", fees: msg("Lowest network fees"), evm: false, testnet: "Solana devnet", explorer: "Solana Explorer" },
+  { id: "bsc", name: "BNB Smart Chain", standard: "BEP-20", fees: msg("Low network fees"), evm: true, testnet: "BNB Smart Chain testnet", explorer: "BscScan" },
+  { id: "base", name: "Base", standard: "", fees: msg("Low network fees"), evm: true, testnet: "Base Sepolia", explorer: "BaseScan" },
+  { id: "ethereum", name: "Ethereum", standard: "ERC-20", fees: msg("Higher network fees"), evm: true, testnet: "Ethereum Sepolia", explorer: "Etherscan" },
 ] as const;
 
 export type Network = (typeof NETWORKS)[number]["id"];
@@ -127,13 +128,13 @@ export function payPlanFor(country: string | null, cryptoOn: boolean): PayPlan {
   if (country === "NG" || !cryptoOn) {
     return {
       country, countryName: name, bankFirst: true, crypto: cryptoOn,
-      bankDetail: country === "NG" || !country ? "From any Nigerian bank app. Usually shows in minutes." : "From a Nigerian bank account. Usually shows in minutes.",
+      bankDetail: country === "NG" || !country ? msg("From any Nigerian bank app. Usually shows in minutes.") : msg("From a Nigerian bank account. Usually shows in minutes."),
       soon: country && country !== "NG" && LOCAL_SOON[country] ? `${LOCAL_SOON[country]} is coming soon.` : null,
     };
   }
   return {
     country, countryName: name, bankFirst: false, crypto: true,
-    bankDetail: "Only if you have a Nigerian bank account.",
+    bankDetail: msg("Only if you have a Nigerian bank account."),
     soon: country && LOCAL_SOON[country] ? `${LOCAL_SOON[country]} is coming soon.` : `Cards and local ways to pay in ${name} are coming.`,
   };
 }

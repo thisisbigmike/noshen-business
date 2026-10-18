@@ -1,8 +1,9 @@
 import { Form, data, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/send";
-import { requireUser, withApp, messageOf } from "../../server/web";
+import { requireUser, withApp, messageOf, translatorFor } from "../../server/web";
 import { markSent } from "@noshen/engine/deals";
-import { storePhoto } from "@noshen/engine/photos";
+import { photosFrom, storePhoto } from "@noshen/engine/photos";
+import { useT } from "@noshen/ui/i18n";
 import { one } from "@noshen/engine/db";
 import { DealError, settingsOf } from "@noshen/engine/core";
 import { BottomAction, Button, ErrorText, Info, PhotoPicker, TextField, TopBar } from "@noshen/ui/ui";
@@ -37,7 +38,8 @@ export async function action({ request, params }: Route.ActionArgs) {
   const form = await request.formData();
   const courier = String(form.get("courier") ?? "");
   const trackingRef = String(form.get("tracking") ?? "");
-  const files = form.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  const files = photosFrom(form, "photos");
+  const t = await translatorFor(request);
   try {
     await withApp(async (d) => {
       const user = await requireUser(request, d);
@@ -45,12 +47,12 @@ export async function action({ request, params }: Route.ActionArgs) {
         "select dl.seller_id, dl.delivery_state, l.state as item_state from deals dl join listings l on l.id = dl.listing_id where dl.id = $1", [params.id]);
       if (!x || x.seller_id !== user.id) throw data("Not found", { status: 404 });
       // Check everything before storing the photos, so a missing tracking number doesn't leave photos behind.
-      const problem = sendingProblem(x.delivery_state ? deliveryZone(x.item_state, x.delivery_state) : "local", courier, trackingRef, files.length);
+      const problem = sendingProblem(x.delivery_state ? deliveryZone(x.item_state, x.delivery_state) : "local", courier, trackingRef, files.length, t);
       if (problem) throw new DealError("sending", problem);
       const keys: string[] = [];
-      for (const f of files) {
+      for (const p of files) {
         // A photo that isn't a JPEG, PNG, WebP or HEIC, or is too big: say which, rather than "something went wrong".
-        try { keys.push(await storePhoto(`packing/${params.id}`, f)); } catch (e) { throw new DealError("photo", (e as Error).message); }
+        try { keys.push(await storePhoto(`packing/${params.id}`, p.file, p.small)); } catch (e) { throw new DealError("photo", t((e as Error).message)); }
       }
       await markSent(d, user.id, params.id, { courier, trackingRef, photoKeys: keys });
     });
@@ -62,28 +64,29 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function Send({ loaderData: x, actionData }: Route.ComponentProps) {
+  const t = useT();
   const busy = useNavigation().state !== "idle";
   const other = x.zone === "other";
   return (
     <Form method="post" encType="multipart/form-data">
-      <TopBar title="Send it" back={`/d/${x.dealId}`} />
+      <TopBar title={t("Send it")} back={`/d/${x.dealId}`} />
       <main className="page narrow no-tabs stack-4">
         <div className="stack">
-          <h1 className="heading">Send it to {x.buyer}</h1>
-          <p className="body muted">{x.title}{x.to ? `, to ${x.to}` : ""}. Send it by {when(new Date(x.due))}.</p>
+          <h1 className="heading">{t("Send it to {name}", { name: x.buyer })}</h1>
+          <p className="body muted">{x.to ? t("{item}, to {place}. Send it by {time}.", { item: x.title, place: x.to, time: when(new Date(x.due)) }) : t("{item}. Send it by {time}.", { item: x.title, time: when(new Date(x.due)) })}</p>
         </div>
-        <Info icon="camera"><strong>Take photos as you pack it.</strong> {packingHint(x.category)} {x.buyer} sees them, and they're your proof if anyone says something else arrived.</Info>
-        <PhotoPicker name="photos" label="Packing photos" max={PACKING_PHOTOS_MAX}
-          hint={`At least ${PACKING_PHOTOS_MIN}, up to ${PACKING_PHOTOS_MAX}.`} />
-        <TextField label="Who is delivering it?" name="courier" list="couriers" placeholder="GIG Logistics, a dispatch rider…" maxLength={60} required
-          missing="Say who is delivering it, like GIG Logistics or a dispatch rider." autoComplete="off" />
+        <Info icon="camera">{t.rich("<b>Take photos as you pack it.</b> {hint} {name} sees them, and they're your proof if anyone says something else arrived.", { b: (s) => <strong>{s}</strong> }, { hint: packingHint(x.category, t), name: x.buyer })}</Info>
+        <PhotoPicker name="photos" label={t("Packing photos")} max={PACKING_PHOTOS_MAX}
+          hint={t("At least {min}, up to {max}.", { min: PACKING_PHOTOS_MIN, max: PACKING_PHOTOS_MAX })} />
+        <TextField label={t("Who is delivering it?")} name="courier" list="couriers" placeholder={t("GIG Logistics, a dispatch rider…")} maxLength={60} required
+          missing={t("Say who is delivering it, like GIG Logistics or a dispatch rider.")} autoComplete="off" />
         <datalist id="couriers">{COURIERS.map((c) => <option key={c} value={c} />)}</datalist>
-        <TextField label={other ? "Tracking or waybill number" : "Tracking or waybill number (optional)"} name="tracking" maxLength={60} required={other}
-          missing="Add the tracking or waybill number from your receipt." autoComplete="off" autoCapitalize="characters"
-          hint={other ? `It's on your receipt from the courier or park. ${x.buyer} uses it to follow the package.` : "If your rider or courier gave you one."} />
-        <Info icon="shield-check">Once it's sent, the deal can't be cancelled. You're paid when {x.buyer} confirms it arrived, or {x.confirmHours} hours after you mark it delivered if they say nothing.</Info>
+        <TextField label={other ? t("Tracking or waybill number") : t("Tracking or waybill number (optional)")} name="tracking" maxLength={60} required={other}
+          missing={t("Add the tracking or waybill number from your receipt.")} autoComplete="off" autoCapitalize="characters"
+          hint={other ? t("It's on your receipt from the courier or park. {name} uses it to follow the package.", { name: x.buyer }) : t("If your rider or courier gave you one.")} />
+        <Info icon="shield-check">{t("Once it's sent, the deal can't be cancelled. You're paid when {name} confirms it arrived, or {hours} hours after you mark it delivered if they say nothing.", { name: x.buyer, hours: x.confirmHours })}</Info>
         <ErrorText>{actionData?.error}</ErrorText>
-        <BottomAction><Button type="submit" variant="primary" size="lg" block icon="truck-delivery" disabled={busy}>{busy ? "Sending…" : "Mark as sent"}</Button></BottomAction>
+        <BottomAction><Button type="submit" variant="primary" size="lg" block icon="truck-delivery" disabled={busy}>{busy ? t("Sending…") : t("Mark as sent")}</Button></BottomAction>
       </main>
     </Form>
   );

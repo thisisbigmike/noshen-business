@@ -84,6 +84,11 @@ The live demo is at **https://noshen-web.usenoshen.workers.dev**. Sign in there 
 - Real-time chat, and notifications on the phone or computer (Web Push, with no third-party push service).
 - Naira and stablecoin payments.
 - Light and dark themes, and a layout that works from small phones to wide screens.
+- **English or Nigerian Pidgin.** Every screen of the customer site is in both; a switch in the header and in Account changes it, and works without JavaScript (Opera Mini). The Pidgin words load only for people who choose Pidgin. Legal pages stay in English, the version that counts.
+- **Built for small data plans.**
+  - Photos are made smaller on the phone before they're sent: a 5.6 MB camera photo uploads as about 220 KB, with a 13 KB copy for lists and grids.
+  - Lists and grids load the small copies, lazily.
+  - **Data saver** (in Account, or on by itself when the browser sends Save-Data) also skips the web fonts, shows small photos on listings (full size when tapped), and checks for updates less often.
 
 **Safety rules in the engine**
 - **Payments from someone else's account** (a different name) are held for review. The buyer is asked who paid and can cancel to get the money back.
@@ -172,6 +177,7 @@ SOLANA_LIVE=1 pnpm vitest run tests/solana.devnet.test.ts   # against real devne
 The engine tests cover:
 - Deals, fees, disputes, deadlines and refunds.
 - Delivery prices, sending with packing proof, and late deliveries.
+- Translations: every English string the customer site shows has a Pidgin line, each keeps its {values} and <tags>, and none is left over.
 - Bank and stablecoin payments, including second and wrong-name payments.
 - Units and sizes.
 - Staff actions and staff alerts.
@@ -206,6 +212,7 @@ The demo is deployed like this:
   - NIN/BVN checks;
   - email sending.
 - **Phone sign-in and SMS updates.**
+- **More of NosHen in Pidgin.** Emails, phone notifications and messages from the server (most error messages) are still in English. Hausa, Yoruba and Igbo would each be one more catalog like `packages/shared/src/i18n-pcm.ts`. The Pidgin should be read through by a native speaker before launch.
 - **Smaller pieces:**
   - Cloudflare Queues for webhook retries.
   - Analytics.

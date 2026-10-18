@@ -70,6 +70,17 @@ img { max-width: 100%; display: block; }
 .topbar > .title:first-child { padding-left: 12px; }
 .topbar .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .icon-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink); cursor: pointer; text-decoration: none; transition: background-color var(--dur-fast); }
+/* English | Pidgin: a small pill in page headers (a form button, so it works without JavaScript too). */
+.lang-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface); color: var(--ink); cursor: pointer; white-space: nowrap; transition: background-color var(--dur-fast), border-color var(--dur-fast); }
+@media (hover: hover) { .lang-toggle:hover { border-color: var(--primary); } }
+.lang-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
+/* Small phones: the toggle loses its globe, and header links marked hide-narrow step aside (each has a big button below). */
+.pill-bar .nh-btn, .desktop-nav .nh-btn { white-space: nowrap; }
+@media (max-width: 480px) {
+  .lang-toggle { padding: 0 10px; }
+  .lang-toggle .nh-icon { display: none; }
+  .hide-narrow { display: none !important; }
+}
 @media (hover: hover) { .icon-btn:hover { background: var(--tint); color: var(--ink); } }
 .icon-btn .dot-count { position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--radius-full); background: var(--dispute); color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--surface); }
 

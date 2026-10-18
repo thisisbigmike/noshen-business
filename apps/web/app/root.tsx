@@ -8,25 +8,33 @@ import { themeFromCookie, type Theme } from "@noshen/ui/theme";
 import { canRefresh, failureOf, useRecover } from "@noshen/ui/recover";
 import { Button } from "@noshen/ui/ui";
 import { pushFor } from "@noshen/engine/context";
+import { LANG_INFO, langFromRequest, loadCatalog, msg, type Lang } from "@noshen/shared/i18n";
+import { liteFromRequest } from "@noshen/shared/data-saver";
+import { PrefsProvider, useLite, useT } from "@noshen/ui/i18n";
 
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
   { rel: "manifest", href: "/manifest.webmanifest" },
   { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-  { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Sora:wght@600&family=Figtree:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap" },
 ];
 
-export function loader({ request }: Route.LoaderArgs) {
-  return { theme: themeFromCookie(request.headers.get("Cookie")), pushKey: pushFor()?.publicKey ?? null };
+export async function loader({ request }: Route.LoaderArgs) {
+  const cookie = request.headers.get("Cookie");
+  const lang = langFromRequest(cookie, request.headers.get("Accept-Language"));
+  await loadCatalog(lang);
+  return {
+    theme: themeFromCookie(cookie), pushKey: pushFor()?.publicKey ?? null,
+    lang, lite: liteFromRequest(cookie, request.headers.get("Save-Data")),
+  };
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const root = useRouteLoaderData("root") as { theme?: Theme } | undefined;
+  const root = useRouteLoaderData("root") as { theme?: Theme; lang?: Lang; lite?: boolean } | undefined;
   const theme: Theme = root?.theme ?? "light";
+  const lang: Lang = root?.lang ?? "en";
+  const lite = root?.lite ?? false;
   return (
-    <html lang="en-NG" data-theme={theme}>
+    <html lang={LANG_INFO[lang].html} data-lang={lang} data-theme={theme}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -34,11 +42,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="NosHen" />
         <meta name="color-scheme" content={theme} />
+        {/* Web fonts are left out with data saver on: the pages fall back to the phone's own fonts. */}
+        {lite ? null : <>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600&family=Figtree:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap" />
+        </>}
         <Meta />
         <Links />
       </head>
       <body>
-        {children}
+        <PrefsProvider lang={lang} lite={lite}>{children}</PrefsProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -58,6 +72,8 @@ export default function App() {
  */
 function useLiveUpdates() {
   const revalidator = useRevalidator();
+  // Data saver: check every 2 minutes instead of every 30 seconds (each check downloads the page's data again).
+  const every = useLite() ? 120_000 : 30_000;
   const r = useRef(revalidator);
   r.current = revalidator;
   useEffect(() => {
@@ -80,7 +96,7 @@ function useLiveUpdates() {
       window.dispatchEvent(new Event("noshen:installable"));
     };
     window.addEventListener("beforeinstallprompt", onInstallable);
-    const id = setInterval(refresh, 30_000);
+    const id = setInterval(refresh, every);
     document.addEventListener("visibilitychange", onShow);
     window.addEventListener("online", onShow);
     return () => {
@@ -88,7 +104,7 @@ function useLiveUpdates() {
       document.removeEventListener("visibilitychange", onShow); window.removeEventListener("online", onShow);
       sw?.removeEventListener("message", onMessage); window.removeEventListener("beforeinstallprompt", onInstallable);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [every]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /**
@@ -114,17 +130,18 @@ function NavProgress() {
 }
 
 const FAILURE_TEXT = {
-  offline: ["Can't reach NosHen", "Check your connection. This page comes back by itself as soon as you're online."],
-  update: ["NosHen has been updated", "Loading the new version…"],
-  missing: ["We can't find that page", "The link may be old, or the page may have moved. Try Browse, or go back to the NosHen home page."],
-  broken: ["Something went wrong", "Please try again. If it keeps happening, contact NosHen support."],
-} as const;
+  offline: [msg("Can't reach NosHen"), msg("Check your connection. This page comes back by itself as soon as you're online.")],
+  update: [msg("NosHen has been updated"), msg("Loading the new version…")],
+  missing: [msg("We can't find that page"), msg("The link may be old, or the page may have moved. Try Browse, or go back to the NosHen home page.")],
+  broken: [msg("Something went wrong"), msg("Please try again. If it keeps happening, contact NosHen support.")],
+};
 
 /** The error page. When the cause was the connection or an update, it puts itself right (see useRecover). */
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const t = useT();
   const failure = failureOf(error);
   const { retry, retrying } = useRecover(failure);
-  const [title, fallback] = FAILURE_TEXT[failure];
+  const [title, fallback] = FAILURE_TEXT[failure].map((x) => t(x));
   let details: string = fallback;
   if (failure === "broken" && isRouteErrorResponse(error) && error.statusText) details = error.statusText;
   else if (failure === "broken" && import.meta.env.DEV && error instanceof Error) details = error.message;
@@ -135,9 +152,9 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       <p className="body muted">{details}</p>
       <div className="row wrap" style={{ gap: 16, alignItems: "center", marginTop: 8 }}>
         {failure !== "missing" ? (
-          <Button variant="primary" onClick={failure === "update" ? () => location.reload() : retry} disabled={retrying}>{retrying ? "Trying again…" : "Try again"}</Button>
+          <Button variant="primary" onClick={failure === "update" ? () => location.reload() : retry} disabled={retrying}>{retrying ? t("Trying again…") : t("Try again")}</Button>
         ) : null}
-        <a href="/">Go to NosHen</a>
+        <a href="/">{t("Go to NosHen")}</a>
       </div>
     </main>
   );

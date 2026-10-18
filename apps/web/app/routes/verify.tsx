@@ -6,6 +6,7 @@ import { one } from "@noshen/engine/db";
 import { isDev } from "@noshen/engine/context";
 import { BottomAction, Button, CheckedForm, ErrorText, Info, Select, TextField, TopBar } from "@noshen/ui/ui";
 import { digitsProblem, nameProblem } from "@noshen/shared/validate";
+import { useT } from "@noshen/ui/i18n";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Verify · NosHen" }];
@@ -46,42 +47,43 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Verify({ loaderData: x, actionData }: Route.ComponentProps) {
+  const t = useT();
   const busy = useNavigation().state !== "idle";
   const err = (s: string) => (actionData && "error" in actionData && actionData.step === s ? actionData.error : undefined);
   const step = !x.name ? "name" : !x.ready.idOk ? "id" : "bank";
   return (
     <CheckedForm method="post">
-      <TopBar title="Verify to sell" back={x.next} />
+      <TopBar title={t("Verify to sell")} back={x.next} />
       <main className="page narrow no-tabs stack-4">
-        <h1 className="heading">{step === "bank" ? "Where should we pay you?" : step === "id" ? "Verify your ID" : "Your name"}</h1>
+        <h1 className="heading">{step === "bank" ? t("Where should we pay you?") : step === "id" ? t("Verify your ID") : t("Your name")}</h1>
         <p className="body muted">{step === "bank"
-          ? `Add a bank account in your own name (${x.idName}). Payouts go only to this account.`
-          : step === "id" ? "So buyers can trust you and we can pay you. We check your NIN or BVN with an identity provider, and keep only the result and your verified name, never the number."
-          : "Use the name on your bank account."}</p>
+          ? t("Add a bank account in your own name ({name}). Payouts go only to this account.", { name: x.idName ?? "" })
+          : step === "id" ? t("So buyers can trust you and we can pay you. We check your NIN or BVN with an identity provider, and keep only the result and your verified name, never the number.")
+          : t("Use the name on your bank account.")}</p>
         <input type="hidden" name="step" value={step} />
         <input type="hidden" name="next" value={x.next} />
-        {step === "name" ? <TextField label="Full name" name="name" autoComplete="name" required error={err("name")} missing="Enter your full name, as it is on your bank account." validate={nameProblem} /> : null}
+        {step === "name" ? <TextField label={t("Full name")} name="name" autoComplete="name" required error={err("name")} missing={t("Enter your full name, as it is on your bank account.")} validate={(v) => nameProblem(v, t)} /> : null}
         {step === "id" ? (
           <>
             <fieldset className="row" style={{ border: 0, padding: 0, margin: 0 }}>
-              <legend className="label" style={{ marginBottom: 8 }}>ID type</legend>
+              <legend className="label" style={{ marginBottom: 8 }}>{t("ID type")}</legend>
               <label className="choice grow"><input type="radio" name="type" value="nin" defaultChecked /><span className="body">NIN</span></label>
               <label className="choice grow"><input type="radio" name="type" value="bvn" /><span className="body">BVN</span></label>
             </fieldset>
-            <TextField label="Number" name="number" inputMode="numeric" maxLength={11} autoComplete="off" hint="11 digits" required error={err("id")} missing="Enter your NIN or BVN. It has 11 digits." validate={(v) => digitsProblem(v, 11, "NIN or BVN")} />
+            <TextField label={t("Number")} name="number" inputMode="numeric" maxLength={11} autoComplete="off" hint={t("{n} digits", { n: 11 })} required error={err("id")} missing={t("Enter your NIN or BVN. It has 11 digits.")} validate={(v) => digitsProblem(v, 11, "NIN or BVN", t)} />
             {x.dev ? <p className="dev caption">Test mode: the identity check is pretend. Type any 11 digits, never your real NIN or BVN.</p> : null}
           </>
         ) : null}
         {step === "bank" ? (
           <>
-            <Select name="bank" label="Bank" defaultValue="058" options={BANKS.map(([c, n]) => ({ value: c, label: n }))} />
-            <TextField label="Account number" name="account" inputMode="numeric" maxLength={10} autoComplete="off" hint="10 digits" required error={err("bank")} missing="Enter your account number. It has 10 digits." validate={(v) => digitsProblem(v, 10, "account number")} />
+            <Select name="bank" label={t("Bank")} defaultValue="058" options={BANKS.map(([c, n]) => ({ value: c, label: n }))} />
+            <TextField label={t("Account number")} name="account" inputMode="numeric" maxLength={10} autoComplete="off" hint={t("{n} digits", { n: 10 })} required error={err("bank")} missing={t("Enter your account number. It has 10 digits.")} validate={(v) => digitsProblem(v, 10, t("account number"), t)} />
             {x.dev ? <p className="dev caption">Test mode: the bank check is pretend and no money is ever paid out. Use a made-up 10-digit account number, never your real one.</p> : null}
           </>
         ) : null}
-        <Info icon="lock">NosHen staff can't change your bank details. Only you can, after a fresh sign-in code.</Info>
+        <Info icon="lock">{t("NosHen staff can't change your bank details. Only you can, after a fresh sign-in code.")}</Info>
         <ErrorText>{undefined}</ErrorText>
-        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? "Checking…" : step === "bank" ? "Check and save" : "Continue"}</Button></BottomAction>
+        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? t("Checking…") : step === "bank" ? t("Check and save") : t("Continue")}</Button></BottomAction>
       </main>
     </CheckedForm>
   );

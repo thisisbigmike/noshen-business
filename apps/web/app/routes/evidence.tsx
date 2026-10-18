@@ -3,7 +3,8 @@ import type { Route } from "./+types/evidence";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "@noshen/engine/queries";
 import { addEvidence } from "@noshen/engine/disputes";
-import { storePhoto } from "@noshen/engine/photos";
+import { photosFrom, storePhoto } from "@noshen/engine/photos";
+import { useT } from "@noshen/ui/i18n";
 import { BottomAction, Button, ErrorText, Info, TextArea, TopBar, PhotoPicker } from "@noshen/ui/ui";
 import { when } from "@noshen/shared/time";
 
@@ -25,10 +26,10 @@ export async function action({ request, params }: Route.ActionArgs) {
   try {
     await withApp(async (d) => {
       const user = await requireUser(request, d);
-      const files = form.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+      const files = photosFrom(form, "photos");
       const note = String(form.get("note") ?? "");
       if (!files.length) return addEvidence(d, user.id, params.id, { note });
-      for (const [i, f] of files.entries()) await addEvidence(d, user.id, params.id, { fileKey: await storePhoto(`evidence/${params.id}`, f), note: i === 0 ? note : undefined });
+      for (const [i, p] of files.entries()) await addEvidence(d, user.id, params.id, { fileKey: await storePhoto(`evidence/${params.id}`, p.file, p.small), note: i === 0 ? note : undefined });
     });
   } catch (e) {
     if (e instanceof Response) throw e;
@@ -38,17 +39,18 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function Evidence({ loaderData: x, actionData }: Route.ComponentProps) {
+  const t = useT();
   const busy = useNavigation().state !== "idle";
   return (
     <Form method="post" encType="multipart/form-data">
-      <TopBar title="Add photos or notes" back={`/d/${x.dealId}`} />
+      <TopBar title={t("Add photos or notes")} back={`/d/${x.dealId}`} />
       <main className="page narrow no-tabs stack-4">
-        <h1 className="heading desktop-only">Add photos or notes</h1>
-        <Info icon="clock">You can add evidence until {when(new Date(x.due))}. A reviewer decides by {when(new Date(x.decision))}.</Info>
-        <TextArea label="Note" name="note" maxLength={2000} placeholder="What happened, in your own words." />
-        <PhotoPicker name="photos" label="Photos" />
+        <h1 className="heading desktop-only">{t("Add photos or notes")}</h1>
+        <Info icon="clock">{t("You can add evidence until {due}. A reviewer decides by {decision}.", { due: when(new Date(x.due)), decision: when(new Date(x.decision)) })}</Info>
+        <TextArea label={t("Note")} name="note" maxLength={2000} placeholder={t("What happened, in your own words.")} />
+        <PhotoPicker name="photos" label={t("Photos")} />
         <ErrorText>{actionData?.error}</ErrorText>
-        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>Add evidence</Button></BottomAction>
+        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{t("Add evidence")}</Button></BottomAction>
       </main>
     </Form>
   );

@@ -114,7 +114,7 @@ api.get("/api/deals/:id/live", async (c) => {
   });
 });
 
-api.get("/photos/*", (c) => servePhoto(decodeURIComponent(c.req.path.slice("/photos/".length))));
+api.get("/photos/*", (c) => servePhoto(decodeURIComponent(c.req.path.slice("/photos/".length)), c.req.query("size") === "small"));
 
 api.get("/api/me", async (c) => {
   const u = await optionalUser(c.req.raw);

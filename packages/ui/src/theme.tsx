@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { useRouteLoaderData } from "react-router";
 import { Icon } from "./ui";
+import { useT } from "./i18n";
 
 export type Theme = "light" | "dark";
 export const THEME_COOKIE = "noshen-theme";
@@ -36,11 +37,12 @@ export function useTheme(): Theme {
 
 /** A round button: a moon in light mode, a sun in dark mode. */
 export function ThemeToggle({ className }: { className?: string }) {
+  const t = useT();
   const theme = useTheme();
   const dark = theme === "dark";
   return (
-    <button type="button" className={`icon-btn theme-toggle${className ? ` ${className}` : ""}`} aria-pressed={dark} aria-label="Dark theme"
-      title={dark ? "Switch to light theme" : "Switch to dark theme"} onClick={() => setTheme(dark ? "light" : "dark")}>
+    <button type="button" className={`icon-btn theme-toggle${className ? ` ${className}` : ""}`} aria-pressed={dark} aria-label={t("Dark theme")}
+      title={dark ? t("Switch to light theme") : t("Switch to dark theme")} onClick={() => setTheme(dark ? "light" : "dark")}>
       <span className="theme-icon" data-dark={dark}>
         <Icon name="moon" size={20} className="ti-moon" />
         <Icon name="sun" size={20} className="ti-sun" />
@@ -51,12 +53,13 @@ export function ThemeToggle({ className }: { className?: string }) {
 
 /** Light | Dark, as a two-way switch for settings pages. */
 export function ThemeSwitch() {
+  const t = useT();
   const theme = useTheme();
   return (
-    <div className="seg theme-seg" role="group" aria-label="Theme">
-      {(["light", "dark"] as const).map((t) => (
-        <button key={t} type="button" aria-pressed={theme === t} onClick={() => theme !== t && setTheme(t)}>
-          <Icon name={t === "light" ? "sun" : "moon"} size={16} />{t === "light" ? "Light" : "Dark"}
+    <div className="seg theme-seg" role="group" aria-label={t("Theme")}>
+      {(["light", "dark"] as const).map((mode) => (
+        <button key={mode} type="button" aria-pressed={theme === mode} onClick={() => theme !== mode && setTheme(mode)}>
+          <Icon name={mode === "light" ? "sun" : "moon"} size={16} />{mode === "light" ? t("Light") : t("Dark")}
         </button>
       ))}
     </div>

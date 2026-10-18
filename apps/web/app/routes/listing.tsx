@@ -12,8 +12,10 @@ import { ago } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
 import { sizeLabel, sizeRuleFor } from "@noshen/shared/sizes";
-import { overLimit, sellerLimit, sellerLimitText } from "@noshen/engine/deals";
+import { overLimit, sellerLimit } from "@noshen/engine/deals";
+import { sellerLimitText } from "@noshen/shared/limits";
 import { ShareButton } from "../lib/share";
+import { useLite, useT } from "@noshen/ui/i18n";
 import { DeliveryCard } from "../lib/delivery";
 import { deliverySummary } from "@noshen/shared/delivery";
 
@@ -29,8 +31,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const mine = user?.id === v.listing.seller_id;
     // Sellers who haven't verified can only take deals up to a limit. Say so here, before a buyer starts, not at the last step.
     const limit = await sellerLimit(d.db, v.listing.seller_id, s);
-    const limitText = overLimit(price, limit) ? sellerLimitText(limit, mine ? "seller" : "buyer") : null;
-    return { ...v, fee: feeFor(price, s.fee), mine, limitText, sendHours: s.handover_window_hours, origin: new URL(request.url).origin };
+    return { ...v, fee: feeFor(price, s.fee), mine, limit: overLimit(price, limit) ? limit : null, sendHours: s.handover_window_hours, origin: new URL(request.url).origin };
   });
 }
 
@@ -54,7 +55,10 @@ export const meta: Route.MetaFunction = ({ loaderData: d }) => {
 };
 
 export default function Listing({ loaderData }: Route.ComponentProps) {
-  const { listing: l, seller, fee, mine, limitText, sendHours } = loaderData;
+  const { listing: l, seller, fee, mine, limit, sendHours } = loaderData;
+  const t = useT();
+  // Data saver: the photos on the page are the small copies; tapping one still opens it full size.
+  const lite = useLite();
   const [photo, setPhoto] = useState(0);
   const photos: string[] = l.photo_keys ?? [];
   // Tapping a photo opens it full size; closing comes back to the photo they ended on.
@@ -62,46 +66,49 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const closeViewer = (at: number) => {
     setViewing(null);
-    const t = trackRef.current;
-    if (t) t.scrollTo({ left: at * t.clientWidth });
+    const el = trackRef.current;
+    if (el) el.scrollTo({ left: at * el.clientWidth });
   };
   const sellerName = firstName(seller.name);
   const condition = CONDITIONS.find(([k]) => k === l.condition);
+  const conditionWord = condition ? t(condition[1]) : "";
   const price = Number(l.price_kobo);
   const cat = categoryOf(l.category);
   const size = sizeLabel(l.category, l.size_system, l.size);
   const left = Math.max(0, Number(l.quantity ?? 1) - Number(l.sold_count ?? 0));
+  const limitText = limit ? sellerLimitText(limit, mine ? "seller" : "buyer", t) : null;
   // How many are left, when there was more than one; "Sold" once they've all gone.
-  const stock = l.status === "sold" ? <span className="nh-status nh-status-sold label">Sold</span>
-    : Number(l.quantity) > 1 && l.status === "live" ? <span className="nh-status nh-status-awaiting label">{left === 1 ? "Last one" : `${left} available`}</span> : null;
-  const status = l.status !== "live" ? (l.status === "sold" ? "This item has been sold." : "This listing is paused.") : null;
+  const stock = l.status === "sold" ? <span className="nh-status nh-status-sold label">{t("Sold")}</span>
+    : Number(l.quantity) > 1 && l.status === "live" ? <span className="nh-status nh-status-awaiting label">{left === 1 ? t("Last one") : t("{n} available", { n: left })}</span> : null;
+  const status = l.status !== "live" ? (l.status === "sold" ? t("This item has been sold.") : t("This listing is paused.")) : null;
+  const delivery = deliverySummary(l, t);
 
   const buy = mine ? (
-    <Button variant="secondary" size="lg" block to="/sell">This is your listing</Button>
+    <Button variant="secondary" size="lg" block to="/sell">{t("This is your listing")}</Button>
   ) : status || limitText ? (
-    <Button size="lg" block to="/browse">See more listings</Button>
+    <Button size="lg" block to="/browse">{t("See more listings")}</Button>
   ) : (
-    <Button variant="primary" size="lg" block icon="shield-check" to={`/l/${l.id}/buy`}>Buy with protection</Button>
+    <Button variant="primary" size="lg" block icon="shield-check" to={`/l/${l.id}/buy`}>{t("Buy with protection")}</Button>
   );
 
   // The same words as the share screen after publishing.
-  const shareText = `${l.title} · ${naira(price)}. ${placeLabel(l.area, l.state)}. Your money is held until you have it.`;
+  const shareText = t("{title} · {price}. {place}. Your money is held until you have it.", { title: l.title, price: naira(price), place: placeLabel(l.area, l.state) });
   const share = (kind: "button" | "icon") => <ShareButton kind={kind} path={`/l/${l.id}`} title={`${l.title} · ${naira(price)}`} text={shareText} />;
 
   return (
     <div className="listing-screen">
       <TopBar title={<Wordmark size="sm" />} back="/browse" right={share("icon")} />
       <main className="page flush no-tabs">
-        <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/browse">Browse</Link> / <Link to={`/browse?cat=${cat.key}`}>{cat.label}</Link> / {placeLabel(l.area, l.state)}</nav>
+        <nav className="desktop-only caption muted" aria-label={t("Breadcrumb")}><Link to="/browse">{t("Browse")}</Link> / <Link to={`/browse?cat=${cat.key}`}>{t(cat.label)}</Link> / {placeLabel(l.area, l.state)}</nav>
         <div className="two-col">
           <div className="stack-4">
             <div className="carousel bleed">
-              <div className="track" ref={trackRef} tabIndex={0} role="region" aria-label={`Photos, ${photos.length || 0} in all. Use the arrow keys to move between them, and Enter to see one full size.`} onScroll={(e) => setPhoto(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
+              <div className="track" ref={trackRef} tabIndex={0} role="region" aria-label={t("Photos, {n} in all. Use the arrow keys to move between them, and Enter to see one full size.", { n: photos.length || 0 })} onScroll={(e) => setPhoto(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
                 {photos.length ? photos.map((k, i) => (
-                  <button key={k} type="button" className="photo-open" aria-label={`Photo ${i + 1} of ${photos.length}. See it full size`} onClick={() => setViewing(i)}>
-                    <img src={photoUrl(k)} alt="" />
+                  <button key={k} type="button" className="photo-open" aria-label={t("Photo {n} of {total}. See it full size", { n: i + 1, total: photos.length })} onClick={() => setViewing(i)}>
+                    <img src={photoUrl(k, lite ? "small" : undefined)} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" />
                   </button>
-                )) : <div className="nh-listing-photo" style={{ width: "100%" }}><Icon name="camera" size={32} label="No photo yet" /></div>}
+                )) : <div className="nh-listing-photo" style={{ width: "100%" }}><Icon name="camera" size={32} label={t("No photo yet")} /></div>}
               </div>
               {photos.length ? <span className="count caption">{photo + 1} / {photos.length}</span> : null}
               {photos.length > 1 ? <span className="dots" aria-hidden="true">{photos.map((k, i) => <span key={k} className={i === photo ? "on" : undefined} />)}</span> : null}
@@ -109,7 +116,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             <div className="stack mobile-only">
               <h1 className="title">{l.title}</h1>
               <p className="big-amount">{naira(price)}</p>
-              <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted row"><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
+              <div className="row wrap"><span className="nh-status nh-status-awaiting label">{t("{condition} condition", { condition: conditionWord })}</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted row"><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
               <div className="row"><ProtectionBadge /></div>
             </div>
             {status ? <p className="info warn">{status}</p> : null}
@@ -117,45 +124,45 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             <SellerCard seller={seller} area={placeLabel(l.area, l.state)} />
             <DeliveryCard l={l} seller={sellerName} sendHours={sendHours} editTo={mine && ["live", "paused"].includes(l.status) ? `/sell/${l.id}/delivery` : undefined} />
             <section className="card stack-4" aria-labelledby="how">
-              <h2 id="how" className="title">How protection works</h2>
+              <h2 id="how" className="title">{t("How protection works")}</h2>
               <div className="steps4">
-                {["You pay NosHen", "Money is held", "You check the item", `${sellerName} is paid`].map((t, i) => (
-                  <div key={t} className="stack" style={{ alignItems: "center" }}><span className="step-n">{i + 1}</span><span className="caption">{t}</span></div>
+                {[t("You pay NosHen"), t("Money is held"), t("You check the item"), t("{seller} is paid", { seller: sellerName })].map((step, i) => (
+                  <div key={step} className="stack" style={{ alignItems: "center" }}><span className="step-n">{i + 1}</span><span className="caption">{step}</span></div>
                 ))}
               </div>
             </section>
             <section className="card stack">
-              <h2 className="title">About this {cat.noun === "pair" ? "pair" : cat.noun}</h2>
-              <Kv k="Category" v={cat.label} />
-              <Kv k="Condition" v={`${condition?.[1]}: ${condition?.[2]}`} />
-              {size ? <Kv k={sizeRuleFor(l.category)?.label ?? "Size"} v={size} /> : null}
-              {Number(l.quantity) > 1 ? <Kv k="Available" v={l.status === "sold" ? `All ${l.quantity} sold` : `${left} of ${l.quantity}`} /> : null}
-              <Kv k="Location" v={placeLabel(l.area, l.state)} />
-              {cat.id && l.imei_or_serial ? <Kv k={cat.id.label.replace(" (optional)", "")} v="Shown to you after you pay, so you can check it at the hand-over" /> : null}
-              {l.description ? <><p className="label" style={{ marginTop: 8 }}>From {sellerName}</p><p className="body">{l.description}</p></> : null}
+              <h2 className="title">{t("About this {thing}", { thing: cat.noun })}</h2>
+              <Kv k={t("Category")} v={t(cat.label)} />
+              <Kv k={t("Condition")} v={condition ? `${conditionWord}: ${t(condition[2])}` : ""} />
+              {size ? <Kv k={t(sizeRuleFor(l.category)?.label ?? "Size")} v={size} /> : null}
+              {Number(l.quantity) > 1 ? <Kv k={t("Available")} v={l.status === "sold" ? t("All {n} sold", { n: l.quantity }) : t("{left} of {n}", { left, n: l.quantity })} /> : null}
+              <Kv k={t("Location")} v={placeLabel(l.area, l.state)} />
+              {cat.id && l.imei_or_serial ? <Kv k={t(cat.id.label).replace(/ \(.*\)$/, "")} v={t("Shown to you after you pay, so you can check it at the hand-over")} /> : null}
+              {l.description ? <><p className="label" style={{ marginTop: 8 }}>{t("From {seller}", { seller: sellerName })}</p><p className="body">{l.description}</p></> : null}
             </section>
           </div>
           <aside className="side desktop-only card stack-4">
             <h1 className="heading">{l.title}</h1>
             <p className="big-amount">{naira(price)}</p>
-            <div className="row wrap"><span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted">{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
+            <div className="row wrap"><span className="nh-status nh-status-awaiting label">{t("{condition} condition", { condition: conditionWord })}</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted">{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
             <ProtectionBadge />
             {!status && limitText ? <Info icon="info-circle">{limitText}</Info> : null}
             {buy}
             {share("button")}
-            <div><Kv k="Price" v={naira(price)} /><Kv k="NosHen fee" v={naira(fee)} /><Kv k="Total" v={naira(price + fee)} total /></div>
-            <p className="caption muted row" style={{ gap: 6 }}><Icon name="truck-delivery" size={16} />{deliverySummary(l) ?? "Meet-up only"}{deliverySummary(l) ? ". Meet-up is free." : ""}</p>
-            {limitText ? null : <p className="caption muted">You pay nothing until {sellerName} accepts.</p>}
+            <div><Kv k={t("Price")} v={naira(price)} /><Kv k={t("NosHen fee")} v={naira(fee)} /><Kv k={t("Total")} v={naira(price + fee)} total /></div>
+            <p className="caption muted row" style={{ gap: 6 }}><Icon name="truck-delivery" size={16} />{delivery ? `${delivery}. ${t("Meet-up is free.")}` : t("Meet-up only")}</p>
+            {limitText ? null : <p className="caption muted">{t("You pay nothing until {seller} accepts.", { seller: sellerName })}</p>}
           </aside>
         </div>
       </main>
       {viewing !== null ? (
-        <PhotoViewer label={`Photos of ${l.title}`} start={viewing} onClose={closeViewer}
-          photos={photos.map((k, i) => ({ src: photoUrl(k), alt: `${l.title}, photo ${i + 1} of ${photos.length}` }))} />
+        <PhotoViewer label={t("Photos of {title}", { title: l.title })} start={viewing} onClose={closeViewer}
+          photos={photos.map((k, i) => ({ src: photoUrl(k), alt: t("{title}, photo {n} of {total}", { title: l.title, n: i + 1, total: photos.length }) }))} />
       ) : null}
-      <aside className="mobile-only" aria-label="Buy this item">
+      <aside className="mobile-only" aria-label={t("Buy this item")}>
         <BottomAction staticOnDesktop={false}>
-          {limitText ? null : <p className="caption muted" style={{ textAlign: "center" }}>You pay nothing until {sellerName} accepts.</p>}
+          {limitText ? null : <p className="caption muted" style={{ textAlign: "center" }}>{t("You pay nothing until {seller} accepts.", { seller: sellerName })}</p>}
           {buy}
         </BottomAction>
       </aside>
@@ -164,13 +171,14 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
 }
 
 function SellerCard({ seller, area }: { seller: { name: string; idVerified: boolean; rating: number | null; ratingCount: number; completedDeals: number }; area: string }) {
+  const t = useT();
   return (
-    <section className="card stack-4" aria-label="Seller">
-      <div className="row"><Avatar name={seller.name} /><div><p className="title">{firstName(seller.name)}</p><p className="caption muted">Seller in {area}</p></div></div>
+    <section className="card stack-4" aria-label={t("Seller")}>
+      <div className="row"><Avatar name={seller.name} /><div><p className="title">{firstName(seller.name)}</p><p className="caption muted">{t("Seller in {place}", { place: area })}</p></div></div>
       <div className="stats">
-        <div className="stat"><p className="label">{seller.idVerified ? "ID" : "—"}</p><p className="caption muted">{seller.idVerified ? "Verified" : "Not verified"}</p></div>
-        <div className="stat"><p className="label">{seller.rating ?? "New"}</p><p className="caption muted">Rating</p></div>
-        <div className="stat"><p className="label">{seller.completedDeals}</p><p className="caption muted">Completed deals</p></div>
+        <div className="stat"><p className="label">{seller.idVerified ? "ID" : "—"}</p><p className="caption muted">{seller.idVerified ? t("Verified") : t("Not verified")}</p></div>
+        <div className="stat"><p className="label">{seller.rating ?? t("New")}</p><p className="caption muted">{t("Rating")}</p></div>
+        <div className="stat"><p className="label">{seller.completedDeals}</p><p className="caption muted">{t("Completed deals")}</p></div>
       </div>
     </section>
   );

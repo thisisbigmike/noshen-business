@@ -4,6 +4,7 @@ import { requireUser, withApp } from "../../server/web";
 import { dealsFor, needsAction } from "@noshen/engine/queries";
 import { DealCard, Button } from "@noshen/ui/ui";
 import { dealText } from "../lib/deal-text";
+import { useT } from "@noshen/ui/i18n";
 
 export const meta = () => [{ title: "Deals · NosHen" }];
 
@@ -16,6 +17,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export default function Deals({ loaderData }: Route.ComponentProps) {
+  const t = useT();
   const [params] = useSearchParams();
   const all = loaderData.deals;
   const defaultTab = all.some((x) => x.role === "seller" && x.action) && !all.some((x) => x.role === "buyer" && x.action) ? "selling" : "buying";
@@ -24,27 +26,27 @@ export default function Deals({ loaderData }: Route.ComponentProps) {
   const now = new Date();
   const card = (x: (typeof list)[number]) => {
     const names = x.role === "buyer" ? { buyer: loaderData.me, seller: x.other } : { buyer: x.other, seller: loaderData.me };
-    const t = dealText(x, x.role, names, Number(x.amount_due_kobo), { decisionDue: x.decision_due_at, endedBy: x.ended_by }, now);
-    return <DealCard key={x.id} href={`/d/${x.id}`} state={t.chip.state} word={t.chip.word} amountKobo={t.amountKobo} item={x.title}
-      counterpart={x.other.split(" ")[0]} deadline={t.deadline} nextStep={x.action ? t.next : undefined} />;
+    const dt = dealText(x, x.role, names, Number(x.amount_due_kobo), { decisionDue: x.decision_due_at, endedBy: x.ended_by }, now, t);
+    return <DealCard key={x.id} href={`/d/${x.id}`} state={dt.chip.state} word={dt.chip.word} amountKobo={dt.amountKobo} item={x.title}
+      counterpart={x.other.split(" ")[0]} deadline={dt.deadline} nextStep={x.action ? dt.next : undefined} />;
   };
   const needs = list.filter((x) => x.action);
   const rest = list.filter((x) => !x.action);
   return (
     <main className="page narrow stack-4">
-      <h1 className="heading">Deals</h1>
+      <h1 className="heading">{t("Deals")}</h1>
       <div className="chips" role="tablist">
-        <Link to="?tab=buying" className="chip" role="tab" aria-current={tab === "buying" ? "true" : undefined}>Buying</Link>
-        <Link to="?tab=selling" className="chip" role="tab" aria-current={tab === "selling" ? "true" : undefined}>Selling</Link>
+        <Link to="?tab=buying" className="chip" role="tab" aria-current={tab === "buying" ? "true" : undefined}>{t("Buying")}</Link>
+        <Link to="?tab=selling" className="chip" role="tab" aria-current={tab === "selling" ? "true" : undefined}>{t("Selling")}</Link>
       </div>
       {list.length === 0 ? (
         <div className="card stack" style={{ alignItems: "flex-start" }}>
-          {tab === "selling" ? <><p className="body">You're not selling anything yet. List something and share the link.</p><Button variant="primary" to="/sell">Sell something</Button></>
-            : <><p className="body">You haven't bought anything with NosHen yet.</p><Button to="/browse">Browse listings</Button></>}
+          {tab === "selling" ? <><p className="body">{t("You're not selling anything yet. List something and share the link.")}</p><Button variant="primary" to="/sell">{t("Sell something")}</Button></>
+            : <><p className="body">{t("You haven't bought anything with NosHen yet.")}</p><Button to="/browse">{t("Browse listings")}</Button></>}
         </div>
       ) : null}
-      {needs.length ? <section className="stack"><h2 className="label muted">Needs you</h2>{needs.map(card)}</section> : null}
-      {rest.length ? <section className="stack"><h2 className="label muted">{needs.length ? "Earlier" : "Your deals"}</h2>{rest.map(card)}</section> : null}
+      {needs.length ? <section className="stack"><h2 className="label muted">{t("Needs you")}</h2>{needs.map(card)}</section> : null}
+      {rest.length ? <section className="stack"><h2 className="label muted">{needs.length ? t("Earlier") : t("Your deals")}</h2>{rest.map(card)}</section> : null}
     </main>
   );
 }

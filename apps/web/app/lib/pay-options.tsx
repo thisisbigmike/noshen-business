@@ -4,6 +4,7 @@ import { Icon } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { COINS, NETWORKS, QUOTE_MINUTES, coinAmount, coinName, payPlanFor, type Coin } from "@noshen/shared/payments";
 import { CoinLogo, CryptoLogo } from "./crypto-logo";
+import { useT } from "@noshen/ui/i18n";
 
 /** Roughly what the deal comes to in each coin (from cryptoQuotes), or null when there's no crypto partner. */
 export type Quotes = { usdt: { micro: number; rateKobo: number }; usdc: { micro: number; rateKobo: number }; test: boolean } | null;
@@ -14,17 +15,18 @@ export type Quotes = { usdt: { micro: number; rateKobo: number }; usdc: { micro:
  * buyer picks USDT or USDC, sees about how much that is, then picks the network.
  */
 export function PayOptions({ dealId, country, quotes }: { dealId: string; country: string; quotes: Quotes }) {
+  const t = useT();
   const plan = payPlanFor(country, !!quotes);
   const [coin, setCoin] = useState<Coin>("usdt");
 
   const bank = (
     <section className="stack" aria-labelledby="pay-naira">
-      <h3 id="pay-naira" className="label muted">Naira</h3>
+      <h3 id="pay-naira" className="label muted">{t("Naira")}</h3>
       <Link className="pay-option" to={`/d/${dealId}/pay/bank`}>
         <span className="pay-icon" aria-hidden="true"><Icon name="building-bank" size={22} /></span>
         <span className="grow stack" style={{ gap: 2 }}>
-          <span className="row wrap" style={{ gap: 8 }}><span className="title">Bank transfer</span>{plan.bankFirst ? <span className="pay-tag caption">Recommended</span> : null}</span>
-          <span className="caption muted">{plan.bankDetail}</span>
+          <span className="row wrap" style={{ gap: 8 }}><span className="title">{t("Bank transfer")}</span>{plan.bankFirst ? <span className="pay-tag caption">{t("Recommended")}</span> : null}</span>
+          <span className="caption muted">{t(plan.bankDetail)}</span>
         </span>
         <Icon name="chevron-right" size={20} />
       </Link>
@@ -35,8 +37,8 @@ export function PayOptions({ dealId, country, quotes }: { dealId: string; countr
   const crypto = quotes && q ? (
     <section className="stack" aria-labelledby="pay-crypto">
       <div className="row-between wrap" style={{ alignItems: "center", gap: 8 }}>
-        <h3 id="pay-crypto" className="label muted">Crypto</h3>
-        <div className="coin-switch" role="group" aria-label="Coin to pay with">
+        <h3 id="pay-crypto" className="label muted">{t("Crypto")}</h3>
+        <div className="coin-switch" role="group" aria-label={t("Coin to pay with")}>
           {COINS.map((c) => (
             <button key={c.id} type="button" aria-pressed={coin === c.id} onClick={() => setCoin(c.id)}>
               <CoinLogo coin={c.id} size={24} />{c.name}
@@ -45,16 +47,18 @@ export function PayOptions({ dealId, country, quotes }: { dealId: string; countr
         </div>
       </div>
       <p className="pay-quote" aria-live="polite">
-        <span className="title tabular">About {coinAmount(q.micro, coin)}</span>
-        <span className="caption muted">{naira(q.rateKobo)} per {coinName(coin)}{quotes.test ? " (test rate)" : ""}. The exact amount is fixed for {QUOTE_MINUTES} minutes when you pick a network.</span>
+        <span className="title tabular">{t("About {amount}", { amount: coinAmount(q.micro, coin) })}</span>
+        <span className="caption muted">{quotes.test
+          ? t("{rate} per {coin} (test rate). The exact amount is fixed for {minutes} minutes when you pick a network.", { rate: naira(q.rateKobo), coin: coinName(coin), minutes: QUOTE_MINUTES })
+          : t("{rate} per {coin}. The exact amount is fixed for {minutes} minutes when you pick a network.", { rate: naira(q.rateKobo), coin: coinName(coin), minutes: QUOTE_MINUTES })}</span>
       </p>
       <div className="pay-list">
         {NETWORKS.map((n) => (
           <Link key={n.id} className="pay-option" to={`/d/${dealId}/pay/${coin}/${n.id}`}>
             <CryptoLogo coin={coin} network={n.id} />
             <span className="grow stack" style={{ gap: 2 }}>
-              <span className="title">{coinName(coin)} on {n.name}</span>
-              <span className="caption muted">{n.standard ? `${n.standard} · ` : ""}{n.fees}</span>
+              <span className="title">{t("{coin} on {network}", { coin: coinName(coin), network: n.name })}</span>
+              <span className="caption muted">{n.standard ? `${n.standard} · ` : ""}{t(n.fees)}</span>
             </span>
             <Icon name="chevron-right" size={20} />
           </Link>

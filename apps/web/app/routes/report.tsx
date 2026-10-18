@@ -4,7 +4,8 @@ import type { Route } from "./+types/report";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "@noshen/engine/queries";
 import { reportProblem } from "@noshen/engine/disputes";
-import { storePhoto } from "@noshen/engine/photos";
+import { photosFrom, storePhoto } from "@noshen/engine/photos";
+import { useT } from "@noshen/ui/i18n";
 import { BottomAction, Button, ErrorText, Info, MoneyStatus, TextArea, TopBar, useEscape, PhotoPicker } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { disputeReasonLabel, firstName, type DisputeReason } from "@noshen/shared/deal";
@@ -31,7 +32,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     await withApp(async (d) => {
       const user = await requireUser(request, d);
       const keys: string[] = [];
-      for (const f of form.getAll("photos")) if (f instanceof File && f.size > 0) keys.push(await storePhoto(`evidence/${params.id}`, f));
+      for (const p of photosFrom(form, "photos")) keys.push(await storePhoto(`evidence/${params.id}`, p.file, p.small));
       await reportProblem(d, user.id, params.id, {
         reason: String(form.get("reason")) as DisputeReason, description: String(form.get("description") ?? ""), photoKeys: keys,
       });
@@ -44,39 +45,40 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function Report({ loaderData: x, actionData }: Route.ComponentProps) {
+  const t = useT();
   const busy = useNavigation().state !== "idle";
   const [reason, setReason] = useState<string>("");
   const [confirm, setConfirm] = useState(false);
   useEscape(confirm, () => setConfirm(false), busy);
-  const label = reason ? disputeReasonLabel(reason) : undefined;
+  const label = reason ? t(disputeReasonLabel(reason)) : undefined;
   const now = new Date();
   return (
     <Form method="post" encType="multipart/form-data">
-      <TopBar title="Report a problem" back={`/d/${x.dealId}`} />
+      <TopBar title={t("Report a problem")} back={`/d/${x.dealId}`} />
       <main className="page narrow no-tabs stack-4">
-        <h1 className="heading desktop-only">Report a problem</h1>
-        <div className="row"><MoneyStatus state="held">{naira(x.paid)} held</MoneyStatus></div>
-        <Info icon="lock">The money stays held while a reviewer looks at this. {x.seller} can't be paid until they decide.</Info>
+        <h1 className="heading desktop-only">{t("Report a problem")}</h1>
+        <div className="row"><MoneyStatus state="held">{t("{amount} held", { amount: naira(x.paid) })}</MoneyStatus></div>
+        <Info icon="lock">{t("The money stays held while a reviewer looks at this. {name} can't be paid until they decide.", { name: x.seller })}</Info>
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="label" style={{ marginBottom: 8 }}>What's wrong?</legend>
+          <legend className="label" style={{ marginBottom: 8 }}>{t("What's wrong?")}</legend>
           {reasonsFor(x.category).filter((k) => k !== "not_delivered" || x.handover === "delivery").map((k) => (
-            <label key={k} className="choice"><input type="radio" name="reason" value={k} checked={reason === k} onChange={() => setReason(k)} required /><span className="body">{disputeReasonLabel(k)}</span></label>
+            <label key={k} className="choice"><input type="radio" name="reason" value={k} checked={reason === k} onChange={() => setReason(k)} required /><span className="body">{t(disputeReasonLabel(k))}</span></label>
           ))}
         </fieldset>
-        <TextArea label="What happened" name="description" maxLength={2000} placeholder={reportExample(x.category)} />
-        <PhotoPicker name="photos" label="Photos (optional)" hint="A photo of the problem helps the reviewer decide faster." />
+        <TextArea label={t("What happened")} name="description" maxLength={2000} placeholder={reportExample(x.category, t)} />
+        <PhotoPicker name="photos" label={t("Photos (optional)")} hint={t("A photo of the problem helps the reviewer decide faster.")} />
         <ErrorText>{actionData?.error}</ErrorText>
-        <BottomAction><Button variant="danger" size="lg" block disabled={!reason} onClick={() => setConfirm(true)}>Report and freeze the money</Button></BottomAction>
+        <BottomAction><Button variant="danger" size="lg" block disabled={!reason} onClick={() => setConfirm(true)}>{t("Report and freeze the money")}</Button></BottomAction>
       </main>
       {confirm ? (
         <div className="sheet-backdrop" onClick={() => setConfirm(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="freeze-title">
-            <MoneyStatus state="dispute">Freeze {naira(x.paid)}</MoneyStatus>
-            <h2 id="freeze-title" className="heading">Freeze the money?</h2>
-            <p className="body">{x.seller} won't be paid while a reviewer looks at this. You both have until {when(addHours(now, 24), now)} to add photos or notes. A reviewer decides by {when(addHours(now, 72), now)}.</p>
-            <p className="body"><span className="muted">Reason:</span> {label}</p>
-            <Button type="submit" variant="danger" size="lg" block disabled={busy}>Report and freeze the money</Button>
-            <Button size="lg" block autoFocus disabled={busy} onClick={() => setConfirm(false)}>Go back</Button>
+            <MoneyStatus state="dispute">{t("Freeze {amount}", { amount: naira(x.paid) })}</MoneyStatus>
+            <h2 id="freeze-title" className="heading">{t("Freeze the money?")}</h2>
+            <p className="body">{t("{name} won't be paid while a reviewer looks at this. You both have until {evidence} to add photos or notes. A reviewer decides by {decision}.", { name: x.seller, evidence: when(addHours(now, 24), now), decision: when(addHours(now, 72), now) })}</p>
+            <p className="body"><span className="muted">{t("Reason:")}</span> {label}</p>
+            <Button type="submit" variant="danger" size="lg" block disabled={busy}>{t("Report and freeze the money")}</Button>
+            <Button size="lg" block autoFocus disabled={busy} onClick={() => setConfirm(false)}>{t("Go back")}</Button>
           </div>
         </div>
       ) : null}

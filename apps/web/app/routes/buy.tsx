@@ -12,6 +12,7 @@ import { photoUrl } from "@noshen/shared/photos";
 import { categoryOf } from "@noshen/shared/categories";
 import { NIGERIA_STATES, placeLabel, stateLabel } from "@noshen/shared/locations";
 import { deliveryFee, deliveryPriceLabel, deliveryZones, offersDelivery, sendWithin } from "@noshen/shared/delivery";
+import { useT } from "@noshen/ui/i18n";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Buy request · NosHen" }];
@@ -49,6 +50,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
   const { listing: l, seller, fee, sendHours } = loaderData;
+  const t = useT();
   const noun = categoryOf(l.category).noun;
   const busy = useNavigation().state !== "idle";
   const name = firstName(seller.name);
@@ -61,57 +63,57 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
   const cantDeliver = handover === "delivery" && (!to || delivery === null);
   return (
     <Form method="post">
-      <TopBar title="Buy request" back={`/l/${l.id}`} />
+      <TopBar title={t("Buy request")} back={`/l/${l.id}`} />
       <main className="page narrow no-tabs stack-4">
-        <h1 className="heading desktop-only">Buy request</h1>
+        <h1 className="heading desktop-only">{t("Buy request")}</h1>
         <div className="card row">
           <div style={{ width: 56, height: 56, borderRadius: 8, overflow: "hidden", background: "var(--canvas)", flex: "none" }}>
-            {l.photo_keys?.[0] ? <img src={photoUrl(l.photo_keys[0])} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Icon name="camera" />}
+            {l.photo_keys?.[0] ? <img src={photoUrl(l.photo_keys[0], "small")} alt="" width={56} height={56} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Icon name="camera" />}
           </div>
           <div className="grow"><p className="title">{l.title}</p><p className="caption muted">{name} · {placeLabel(l.area, l.state)}</p></div>
         </div>
 
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="label" style={{ marginBottom: 8 }}>How do you want to get it?</legend>
+          <legend className="label" style={{ marginBottom: 8 }}>{t("How do you want to get it?")}</legend>
           <label className="choice">
             <input type="radio" name="handover" value="meetup" checked={handover === "meetup"} onChange={() => setHandover("meetup")} />
-            <span className="stack"><span className="title row"><Icon name="map-pin" size={18} />Meet-up<span className="caption muted" style={{ marginLeft: "auto" }}>Free</span></span>
-              <span className="caption muted">Meet {name} in a public place in {l.area}. Check the {noun} before you give your code.</span></span>
+            <span className="stack"><span className="title row"><Icon name="map-pin" size={18} />{t("Meet-up")}<span className="caption muted" style={{ marginLeft: "auto" }}>{t("Free")}</span></span>
+              <span className="caption muted">{t("Meet {name} in a public place in {area}. Check the {thing} before you give your code.", { name, area: l.area, thing: noun })}</span></span>
           </label>
           <label className={`choice${delivers ? "" : " disabled"}`}>
             <input type="radio" name="handover" value="delivery" checked={handover === "delivery"} disabled={!delivers} onChange={() => setHandover("delivery")} />
-            <span className="stack"><span className="title row"><Icon name="truck-delivery" size={18} />Delivery</span>
+            <span className="stack"><span className="title row"><Icon name="truck-delivery" size={18} />{t("Delivery")}</span>
               <span className="caption muted">{delivers
-                ? `${name} sends it within ${sendWithin(sendHours)} of your payment, with photos of it packed. Check it when it arrives, before you confirm.`
-                : `${name} only does meet-ups for this ${noun}.`}</span>
-              {delivers ? <span className="caption">{deliveryZones(l).map((z) => `${z.label[0].toUpperCase()}${z.label.slice(1)}: ${deliveryPriceLabel(z.kobo)}`).join(" · ")}</span> : null}</span>
+                ? t("{name} sends it within {time} of your payment, with photos of it packed. Check it when it arrives, before you confirm.", { name, time: sendWithin(sendHours, t) })
+                : t("{name} only does meet-ups for this {thing}.", { name, thing: noun })}</span>
+              {delivers ? <span className="caption">{deliveryZones(l, t).map((z) => `${z.label}: ${deliveryPriceLabel(z.kobo, t)}`).join(" · ")}</span> : null}</span>
           </label>
         </fieldset>
 
         {handover === "delivery" ? (
           <div className="stack">
-            <Select name="delivery_state" label="Deliver to" value={to} onChange={setTo}
-              options={[...(to ? [] : [{ value: "", label: "Choose your state" }]), ...NIGERIA_STATES.map((st) => ({ value: st, label: stateLabel(st) }))]} />
-            {to && delivery === null ? <Info icon="alert-triangle" tone="warn">{name} doesn't deliver to {stateLabel(to)}. Choose meet-up instead.</Info>
-              : <p className="caption muted">You'll share your address with {name} in the deal chat once you've paid.</p>}
+            <Select name="delivery_state" label={t("Deliver to")} value={to} onChange={setTo}
+              options={[...(to ? [] : [{ value: "", label: t("Choose your state") }]), ...NIGERIA_STATES.map((st) => ({ value: st, label: stateLabel(st) }))]} />
+            {to && delivery === null ? <Info icon="alert-triangle" tone="warn">{t("{name} doesn't deliver to {state}. Choose meet-up instead.", { name, state: stateLabel(to) })}</Info>
+              : <p className="caption muted">{t("You'll share your address with {name} in the deal chat once you've paid.", { name })}</p>}
           </div>
         ) : null}
 
         <section className="card">
-          <p className="label">What you'll pay</p>
-          <Kv k="Price" v={naira(price)} />
-          {handover === "delivery" && delivery !== null ? <Kv k={`Delivery to ${stateLabel(to)}`} v={deliveryPriceLabel(delivery)} /> : null}
-          <Kv k="NosHen fee" v={naira(fee)} />
-          <Kv k="Total" v={naira(price + fee + (delivery ?? 0))} total />
-          {handover === "delivery" && delivery !== null ? <p className="caption muted">Delivery is paid with the price and held with it. If it never comes, you get it back. Don't pay a rider anything extra.</p> : null}
+          <p className="label">{t("What you'll pay")}</p>
+          <Kv k={t("Price")} v={naira(price)} />
+          {handover === "delivery" && delivery !== null ? <Kv k={t("Delivery to {state}", { state: stateLabel(to) })} v={deliveryPriceLabel(delivery, t)} /> : null}
+          <Kv k={t("NosHen fee")} v={naira(fee)} />
+          <Kv k={t("Total")} v={naira(price + fee + (delivery ?? 0))} total />
+          {handover === "delivery" && delivery !== null ? <p className="caption muted">{t("Delivery is paid with the price and held with it. If it never comes, you get it back. Don't pay a rider anything extra.")}</p> : null}
         </section>
 
-        <TextArea label={`Note to ${name} (optional)`} name="note" placeholder={handover === "delivery" ? "Anything they should know about the delivery?" : "When and where works for you?"} maxLength={500} />
-        <Info icon="shield-check">You pay nothing until {name} accepts. Then you pay NosHen, and we hold the money until you have the {noun}.</Info>
-        <p className="caption muted">Sending a request means you agree to the <Link to="/deal-terms">Protected Deal Terms</Link>.</p>
+        <TextArea label={t("Note to {name} (optional)", { name })} name="note" placeholder={handover === "delivery" ? t("Anything they should know about the delivery?") : t("When and where works for you?")} maxLength={500} />
+        <Info icon="shield-check">{t("You pay nothing until {name} accepts. Then you pay NosHen, and we hold the money until you have the {thing}.", { name, thing: noun })}</Info>
+        <p className="caption muted">{t.rich("Sending a request means you agree to the <terms>Protected Deal Terms</terms>.", { terms: (s) => <Link to="/deal-terms">{s}</Link> })}</p>
         <ErrorText>{actionData?.error}</ErrorText>
-        {actionData?.needsId ? <Link to={`/account/verify?next=/l/${l.id}/buy`}>Verify your ID</Link> : null}
-        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy || cantDeliver}>{busy ? "Sending…" : "Send request"}</Button></BottomAction>
+        {actionData?.needsId ? <Link to={`/account/verify?next=/l/${l.id}/buy`}>{t("Verify your ID")}</Link> : null}
+        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy || cantDeliver}>{busy ? t("Sending…") : t("Send request")}</Button></BottomAction>
       </main>
     </Form>
   );

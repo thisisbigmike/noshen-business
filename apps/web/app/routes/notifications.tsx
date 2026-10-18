@@ -5,6 +5,7 @@ import { notificationsFor } from "@noshen/engine/queries";
 import { Icon, TopBar } from "@noshen/ui/ui";
 import { when } from "@noshen/shared/time";
 import { PushCard } from "../lib/push";
+import { useT } from "@noshen/ui/i18n";
 
 export const meta = () => [{ title: "Notifications · NosHen" }];
 
@@ -13,17 +14,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export default function Notifications({ loaderData }: Route.ComponentProps) {
+  const t = useT();
   return (
     <div>
-      <TopBar title="Notifications" />
+      <TopBar title={t("Notifications")} />
       <main className="page narrow stack-4">
-        <h1 className="heading desktop-only">Notifications</h1>
+        <h1 className="heading desktop-only">{t("Notifications")}</h1>
         <PushCard />
         {loaderData.items.length === 0 ? (
           <div className="card stack empty" style={{ alignItems: "center", textAlign: "center" }}>
             <span className="empty-icon"><Icon name="bell" size={26} /></span>
-            <p className="title">Nothing yet</p>
-            <p className="body muted">Updates about your deals appear here as they happen.</p>
+            <p className="title">{t("Nothing yet")}</p>
+            <p className="body muted">{t("Updates about your deals appear here as they happen.")}</p>
           </div>
         ) : (
           <ul className="feed">
@@ -34,7 +36,7 @@ export default function Notifications({ loaderData }: Route.ComponentProps) {
                   <span className="feed-icon"><Icon name={n.deal_id ? "receipt" : "bell"} size={18} /></span>
                   <div className="stack" style={{ gap: 2, minWidth: 0 }}>
                     {text}
-                    <span className="caption muted">{when(new Date(n.created_at))}{n.read_at ? "" : " · New"}</span>
+                    <span className="caption muted">{when(new Date(n.created_at))}{n.read_at ? "" : ` · ${t("New")}`}</span>
                   </div>
                 </li>
               );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouteLoaderData } from "react-router";
 import { Button, Icon } from "@noshen/ui/ui";
+import { useT } from "@noshen/ui/i18n";
 
 type State = "loading" | "unsupported" | "install" | "denied" | "off" | "on";
 
@@ -15,6 +16,7 @@ const needsInstall = () =>
  * to send them) or off. The site's public key comes from the root loader; without it, notifications aren't offered.
  */
 export function usePush() {
+  const t = useT();
   const key = (useRouteLoaderData("root") as { pushKey?: string | null } | undefined)?.pushKey ?? null;
   const [state, setState] = useState<State>("loading");
   const [busy, setBusy] = useState(false);
@@ -44,12 +46,12 @@ export function usePush() {
       await navigator.serviceWorker.ready;
       const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(key) }));
       const r = await post("/api/push/subscribe", sub.toJSON());
-      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Couldn't turn notifications on.");
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? t("Couldn't turn notifications on."));
       // No notification straight away: a site that sends one the moment it's allowed looks like spam to the browser.
       setState("on");
-      setNote("Notifications are on for this device. Tap “Send a test” to see one.");
+      setNote(t("Notifications are on for this device. Tap “Send a test” to see one."));
     } catch (e) {
-      setNote(e instanceof Error ? e.message : "Couldn't turn notifications on. Try again.");
+      setNote(e instanceof Error ? t(e.message) : t("Couldn't turn notifications on. Try again."));
     } finally {
       setBusy(false);
     }
@@ -61,7 +63,7 @@ export function usePush() {
       const sub = await (await navigator.serviceWorker.getRegistration())?.pushManager.getSubscription();
       if (sub) { await post("/api/push/unsubscribe", { endpoint: sub.endpoint }); await sub.unsubscribe(); }
       setState("off");
-      setNote("Notifications are off for this device. Updates still appear in Alerts.");
+      setNote(t("Notifications are off for this device. Updates still appear in Alerts."));
     } finally {
       setBusy(false);
     }
@@ -70,7 +72,7 @@ export function usePush() {
   async function test() {
     setBusy(true);
     const r = await post("/api/push/test", {}).catch(() => null);
-    setNote(r?.ok ? "Sent. It should appear in a moment." : "Couldn't send a test. Try again.");
+    setNote(r?.ok ? t("Sent. It should appear in a moment.") : t("Couldn't send a test. Try again."));
     setBusy(false);
   }
 
@@ -89,7 +91,7 @@ export function usePush() {
     const { outcome } = await e.userChoice;
     (window as { __noshenInstall?: Event }).__noshenInstall = undefined;
     setInstallable(false);
-    if (outcome === "accepted") setNote("NosHen is on your Home Screen. Open it from there for the best notifications.");
+    if (outcome === "accepted") setNote(t("NosHen is on your Home Screen. Open it from there for the best notifications."));
   }
 
   return { available: !!key, state, busy, note, turnOn, turnOff, test, installable, install };
@@ -97,6 +99,7 @@ export function usePush() {
 
 /** The card for Alerts and Account: turn notifications on or off for this device, with help when it can't. */
 export function PushCard({ compact }: { compact?: boolean }) {
+  const t = useT();
   const p = usePush();
   if (!p.available || p.state === "loading") return null;
   if (compact && p.state !== "off") return null;
@@ -105,28 +108,28 @@ export function PushCard({ compact }: { compact?: boolean }) {
       <span className="push-icon" aria-hidden="true"><Icon name="bell" size={22} /></span>
       <div className="grow stack" style={{ gap: 6 }}>
         <p id="push-title" className="label">
-          {p.state === "on" ? "Notifications are on for this device" : compact ? "Hear the moment something changes" : "Get updates on this device"}
+          {p.state === "on" ? t("Notifications are on for this device") : compact ? t("Hear the moment something changes") : t("Get updates on this device")}
         </p>
         <p className="caption muted">
-          {p.state === "on" ? "You'll get a notification when your deals change, even when NosHen is closed."
-            : p.state === "denied" ? "Notifications are blocked for NosHen. Allow them in your browser's settings for this site, then come back."
-            : p.state === "install" ? "On iPhone and iPad: tap Share, then “Add to Home Screen”. Open NosHen from your Home Screen and turn notifications on there."
-            : p.state === "unsupported" ? "This browser can't show notifications. Your updates still appear in Alerts."
-            : "When a seller accepts, money is held, or anything else changes, your phone tells you straight away."}
+          {p.state === "on" ? t("You'll get a notification when your deals change, even when NosHen is closed.")
+            : p.state === "denied" ? t("Notifications are blocked for NosHen. Allow them in your browser's settings for this site, then come back.")
+            : p.state === "install" ? t("On iPhone and iPad: tap Share, then “Add to Home Screen”. Open NosHen from your Home Screen and turn notifications on there.")
+            : p.state === "unsupported" ? t("This browser can't show notifications. Your updates still appear in Alerts.")
+            : t("When a seller accepts, money is held, or anything else changes, your phone tells you straight away.")}
         </p>
         {p.note ? <p className="caption ok-note" role="status">{p.note}</p> : null}
         {p.state === "off" ? (
-          <div><Button variant="primary" size="sm" icon="bell" onClick={p.turnOn} disabled={p.busy}>{p.busy ? "Turning on…" : "Turn on notifications"}</Button></div>
+          <div><Button variant="primary" size="sm" icon="bell" onClick={p.turnOn} disabled={p.busy}>{p.busy ? t("Turning on…") : t("Turn on notifications")}</Button></div>
         ) : p.state === "on" && !compact ? (
           <div className="row wrap" style={{ gap: 8 }}>
-            <Button size="sm" onClick={p.test} disabled={p.busy}>Send a test</Button>
-            <Button size="sm" onClick={p.turnOff} disabled={p.busy}>Turn off</Button>
+            <Button size="sm" onClick={p.test} disabled={p.busy}>{t("Send a test")}</Button>
+            <Button size="sm" onClick={p.turnOff} disabled={p.busy}>{t("Turn off")}</Button>
           </div>
         ) : null}
         {p.installable && !compact ? (
           <div className="stack" style={{ gap: 4 }}>
-            <div><Button size="sm" icon="device-mobile" onClick={p.install}>Install the NosHen app</Button></div>
-            <p className="caption muted">Adds NosHen to your Home Screen. Notifications then come from the NosHen app, not a website.</p>
+            <div><Button size="sm" icon="device-mobile" onClick={p.install}>{t("Install the NosHen app")}</Button></div>
+            <p className="caption muted">{t("Adds NosHen to your Home Screen. Notifications then come from the NosHen app, not a website.")}</p>
           </div>
         ) : null}
       </div>

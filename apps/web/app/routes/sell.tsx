@@ -5,6 +5,7 @@ import { sellerReady, startListing } from "@noshen/engine/sellers";
 import { one } from "@noshen/engine/db";
 import { ErrorText, Icon, Info, TopBar } from "@noshen/ui/ui";
 import { CATEGORIES, categoryOf } from "@noshen/shared/categories";
+import { useT } from "@noshen/ui/i18n";
 
 export const meta = () => [{ title: "Sell · NosHen" }];
 
@@ -40,44 +41,45 @@ export async function action({ request }: Route.ActionArgs) {
 
 /** Step 1 of selling: what it is. One tap on a category moves on to the photos. */
 export default function SellStart({ loaderData: x, actionData }: Route.ComponentProps) {
+  const t = useT();
   const nav = useNavigation();
   const choosing = nav.state !== "idle" ? String(nav.formData?.get("category") ?? "") : "";
   const draftCat = x.draft ? categoryOf(x.draft.category) : null;
   return (
     <div>
-      <TopBar title={<span>Sell <span className="caption muted">Step 1 of 3</span></span>} back="/browse" />
+      <TopBar title={<span>{t("Sell")} <span className="caption muted">{t("Step {n} of {total}", { n: 1, total: 3 })}</span></span>} back="/browse" />
       <main className="page narrow stack-4">
         <div className="stack">
-          <h1 className="heading">What are you selling?</h1>
-          <p className="body muted">Pick one. Next you'll add photos, then the price and details.</p>
+          <h1 className="heading">{t("What are you selling?")}</h1>
+          <p className="body muted">{t("Pick one. Next you'll add photos, then the price and details.")}</p>
         </div>
 
         {x.draft && draftCat ? (
           <Link to={`/sell/${x.draft.id}/${x.draft.next}`} className="resume-card" prefetch="intent">
             <span className="cat-icon"><Icon name={draftCat.icon} size={22} /></span>
             <span className="grow stack" style={{ gap: 0 }}>
-              <span className="label">Carry on with your {x.draft.title ? `"${x.draft.title}"` : draftCat.label.toLowerCase()} listing</span>
-              <span className="caption muted">{x.draft.photos} photo{x.draft.photos === 1 ? "" : "s"} added. Pick a category below to change it.</span>
+              <span className="label">{t("Carry on with your {what} listing", { what: x.draft.title ? `“${x.draft.title}”` : t(draftCat.label).toLowerCase() })}</span>
+              <span className="caption muted">{x.draft.photos === 1 ? t("1 photo added. Pick a category below to change it.") : t("{n} photos added. Pick a category below to change it.", { n: x.draft.photos })}</span>
             </span>
             <Icon name="chevron-right" size={20} />
           </Link>
         ) : null}
 
-        <Form method="post" className="cat-grid cat-start" aria-label="Categories">
+        <Form method="post" className="cat-grid cat-start" aria-label={t("Categories")}>
           {CATEGORIES.map((c) => (
             <button key={c.key} type="submit" name="category" value={c.key} className="cat-choice" aria-busy={choosing === c.key || undefined}
               disabled={!!choosing} aria-pressed={x.draft?.category === c.key && !!x.draft ? true : undefined}>
               <span className="cat-icon"><Icon name={c.icon} size={22} /></span>
-              <span className="body">{c.label}</span>
+              <span className="body">{t(c.label)}</span>
             </button>
           ))}
         </Form>
         <ErrorText>{actionData?.error}</ErrorText>
 
         {!x.ready.ready ? (
-          <Info icon="shield-check">Before your listing goes live, <Link to="/account/verify?next=/sell">verify your ID and bank account</Link>. You can start your listing now.</Info>
+          <Info icon="shield-check">{t.rich("Before your listing goes live, <verify>verify your ID and bank account</verify>. You can start your listing now.", { verify: (s) => <Link to="/account/verify?next=/sell">{s}</Link> })}</Info>
         ) : null}
-        <p className="caption muted">Some things can't be sold on NosHen, such as anything stolen or fake. See the <Link to="/prohibited-items">prohibited items</Link>.</p>
+        <p className="caption muted">{t.rich("Some things can't be sold on NosHen, such as anything stolen or fake. See the <list>prohibited items</list>.", { list: (s) => <Link to="/prohibited-items">{s}</Link> })}</p>
       </main>
     </div>
   );

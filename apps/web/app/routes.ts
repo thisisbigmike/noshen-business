@@ -30,4 +30,6 @@ export default [
     // Legal and help pages: one module, one route per document.
     ...["terms", "deal-terms", "privacy", "cookies", "prohibited-items", "safety"].map((slug) => route(slug, "routes/legal.tsx", { id: `legal-${slug}` })),
   ]),
+  // Saves the language and data saver, then goes back (no page of its own).
+  route("prefs", "routes/prefs.tsx"),
 ] satisfies RouteConfig;

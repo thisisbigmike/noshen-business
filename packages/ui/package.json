@@ -8,7 +8,9 @@
     "./theme": "./src/theme.tsx",
     "./icons": "./src/icons.ts",
     "./styles/*": "./styles/*",
-    "./recover": "./src/recover.tsx"
+    "./recover": "./src/recover.tsx",
+    "./i18n": "./src/i18n.tsx",
+    "./shrink": "./src/shrink.ts"
   },
   "dependencies": {
     "@noshen/shared": "workspace:*"

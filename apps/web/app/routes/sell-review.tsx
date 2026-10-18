@@ -14,6 +14,8 @@ import { placeLabel } from "@noshen/shared/locations";
 import { overLimit, sellerLimitText } from "@noshen/shared/limits";
 import { sizeLabel, sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
 import { deliveryPriceLabel, deliveryZones, offersDelivery } from "@noshen/shared/delivery";
+import { useT } from "@noshen/ui/i18n";
+import { msg } from "@noshen/shared/i18n";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Review · Sell · NosHen" }];
@@ -32,7 +34,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const limit = await sellerLimit(d.db, user.id, s);
     return {
       listing: l, fee: feeFor(price, s.fee),
-      limitText: overLimit(price, limit) ? sellerLimitText(limit, "seller") : null,
+      limit: overLimit(price, limit) ? limit : null,
       ready: (await sellerReady(d, user.id)).ready,
     };
   });
@@ -40,7 +42,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export async function action({ request, params }: Route.ActionArgs) {
   const f = await request.formData();
-  if (f.get("confirm") !== "yes") return { error: "Tick the box to confirm the item is yours to sell and described honestly." };
+  if (f.get("confirm") !== "yes") return { error: msg("Tick the box to confirm the item is yours to sell and described honestly.") };
   try {
     await withApp(async (d) => {
       const user = await requireUser(request, d);
@@ -60,34 +62,37 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 /** Step 4 of selling: everything the buyer will see, with a way back to each part, before it goes live. */
-export default function SellReview({ loaderData: { listing: l, fee, limitText, ready }, actionData }: Route.ComponentProps) {
+export default function SellReview({ loaderData: { listing: l, fee, limit, ready }, actionData }: Route.ComponentProps) {
+  const t = useT();
   const busy = useNavigation().state !== "idle";
   const c = categoryOf(l.category);
   const photos: string[] = l.photo_keys ?? [];
   const price = Number(l.price_kobo);
   const condition = CONDITIONS.find(([v]) => v === l.condition);
-  const edit = (step: "photos" | "details", what: string) => <Link to={`/sell/${l.id}/${step}`} className="caption tap edit-link" aria-label={`Edit ${what}`}>Edit</Link>;
+  const size = sizeLabel(l.category, l.size_system, l.size);
+  const limitText = limit ? sellerLimitText(limit, "seller", t) : null;
+  const edit = (step: "photos" | "details", what: string) => <Link to={`/sell/${l.id}/${step}`} className="caption tap edit-link" aria-label={t("Edit {what}", { what })}>{t("Edit")}</Link>;
   return (
     <Form method="post">
-      <TopBar title={<span>Review <span className="caption muted">Step 4 of 4</span></span>} back={`/sell/${l.id}/details`} />
+      <TopBar title={<span>{t("Review")} <span className="caption muted">{t("Step {n} of {total}", { n: 4, total: 4 })}</span></span>} back={`/sell/${l.id}/details`} />
       <main className="page narrow stack-4">
         <div className="stack">
-          <h1 className="heading">Check your listing</h1>
-          <p className="body muted">This is what buyers will see. Tap Edit to change anything before it goes live.</p>
+          <h1 className="heading">{t("Check your listing")}</h1>
+          <p className="body muted">{t("This is what buyers will see. Tap Edit to change anything before it goes live.")}</p>
         </div>
 
-        <section className="card flat review-preview" aria-label="How buyers see it">
-          <div className="review-photos" tabIndex={0} role="region" aria-label={`${photos.length} photos (scrolls sideways)`}>
+        <section className="card flat review-preview" aria-label={t("How buyers see it")}>
+          <div className="review-photos" tabIndex={0} role="region" aria-label={t("{n} photos (scrolls sideways)", { n: photos.length })}>
             {photos.map((k, i) => (
-              <div key={k} className="review-photo"><img src={photoUrl(k)} alt={`Photo ${i + 1}`} />{i === 0 ? <span className="tag">Cover</span> : null}</div>
+              <div key={k} className="review-photo"><img src={photoUrl(k, "small")} alt={t("Photo {n}", { n: i + 1 })} />{i === 0 ? <span className="tag">{t("Cover")}</span> : null}</div>
             ))}
           </div>
           <div className="stack" style={{ padding: "var(--space-4)" }}>
             <p className="title">{l.title}</p>
             <p className="big-amount">{naira(price)}</p>
             <div className="row wrap" style={{ gap: 8 }}>
-              <span className="nh-status nh-status-awaiting label">{condition?.[1]} condition</span>
-              {sizeLabel(l.category, l.size_system, l.size) ? <span className="nh-status nh-status-awaiting label">{sizeLabel(l.category, l.size_system, l.size)}</span> : null}
+              <span className="nh-status nh-status-awaiting label">{t("{condition} condition", { condition: condition ? t(condition[1]) : "" })}</span>
+              {size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}
               <span className="caption muted row" style={{ gap: 4 }}><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)}</span>
             </div>
             <div className="row"><ProtectionBadge /></div>
@@ -95,61 +100,61 @@ export default function SellReview({ loaderData: { listing: l, fee, limitText, r
         </section>
 
         <section className="card stack" aria-labelledby="r-photos">
-          <div className="row-between"><h2 id="r-photos" className="label">Photos</h2>{edit("photos", "photos")}</div>
-          <p className="body">{photos.length} photos. The first is the cover.</p>
+          <div className="row-between"><h2 id="r-photos" className="label">{t("Photos")}</h2>{edit("photos", t("photos"))}</div>
+          <p className="body">{t("{n} photos. The first is the cover.", { n: photos.length })}</p>
         </section>
 
         <section className="card" aria-labelledby="r-item">
-          <div className="row-between"><h2 id="r-item" className="label">The item</h2>{edit("details", "the item")}</div>
-          <Kv k="Category" v={c.label} />
-          <Kv k="Title" v={l.title} />
-          <Kv k="Condition" v={condition ? `${condition[1]}: ${condition[2]}` : l.condition} />
-          {sizeRuleFor(l.category) ? <Kv k={sizeRuleFor(l.category)!.label} v={sizeLabel(l.category, l.size_system, l.size) ?? <span className="muted">Not given</span>} /> : null}
-          <Kv k="How many" v={Number(l.quantity) > 1 ? `${l.quantity} for sale, one per buyer` : "1"} />
-          {c.id && l.imei_or_serial ? <Kv k={c.id.label.replace(" (optional)", "")} v={<span>{l.imei_or_serial}<br /><span className="caption muted">Buyers see it only after they pay.</span></span>} /> : null}
+          <div className="row-between"><h2 id="r-item" className="label">{t("The item")}</h2>{edit("details", t("the item"))}</div>
+          <Kv k={t("Category")} v={t(c.label)} />
+          <Kv k={t("Title")} v={l.title} />
+          <Kv k={t("Condition")} v={condition ? `${t(condition[1])}: ${t(condition[2])}` : l.condition} />
+          {sizeRuleFor(l.category) ? <Kv k={t(sizeRuleFor(l.category)!.label)} v={size ?? <span className="muted">{t("Not given")}</span>} /> : null}
+          <Kv k={t("How many")} v={Number(l.quantity) > 1 ? t("{n} for sale, one per buyer", { n: l.quantity }) : "1"} />
+          {c.id && l.imei_or_serial ? <Kv k={t(c.id.label).replace(/ \(.*\)$/, "")} v={<span>{l.imei_or_serial}<br /><span className="caption muted">{t("Buyers see it only after they pay.")}</span></span>} /> : null}
         </section>
 
         <section className="card" aria-labelledby="r-price">
-          <div className="row-between"><h2 id="r-price" className="label">Price</h2>{edit("details", "the price")}</div>
-          <Kv k="Your price" v={naira(price)} />
-          <Kv k="NosHen fee, paid by the buyer" v={naira(fee)} />
-          <Kv k="Buyer pays" v={naira(price + fee)} />
-          <Kv k="You get" v={naira(price)} total />
+          <div className="row-between"><h2 id="r-price" className="label">{t("Price")}</h2>{edit("details", t("the price"))}</div>
+          <Kv k={t("Your price")} v={naira(price)} />
+          <Kv k={t("NosHen fee, paid by the buyer")} v={naira(fee)} />
+          <Kv k={t("Buyer pays")} v={naira(price + fee)} />
+          <Kv k={t("You get")} v={naira(price)} total />
         </section>
         {limitText ? <Info icon="alert-triangle" tone="warn">{limitText}</Info> : null}
 
         <section className="card" aria-labelledby="r-place">
-          <div className="row-between"><h2 id="r-place" className="label">Where it is</h2>{edit("details", "where it is")}</div>
-          <Kv k="Area" v={placeLabel(l.area, l.state)} />
-          <p className="caption muted">Buyers see the area, never your address.</p>
+          <div className="row-between"><h2 id="r-place" className="label">{t("Where it is")}</h2>{edit("details", t("where it is"))}</div>
+          <Kv k={t("Area")} v={placeLabel(l.area, l.state)} />
+          <p className="caption muted">{t("Buyers see the area, never your address.")}</p>
         </section>
 
         <section className="card" aria-labelledby="r-delivery">
-          <div className="row-between"><h2 id="r-delivery" className="label">Getting it</h2>{edit("details", "delivery")}</div>
-          <Kv k="Meet-up" v="Free" />
-          {deliveryZones(l).map((z) => <Kv key={z.zone} k={`Delivery ${z.label}`} v={deliveryPriceLabel(z.kobo)} />)}
+          <div className="row-between"><h2 id="r-delivery" className="label">{t("Getting it")}</h2>{edit("details", t("delivery"))}</div>
+          <Kv k={t("Meet-up")} v={t("Free")} />
+          {deliveryZones(l, t).map((z) => <Kv key={z.zone} k={z.label} v={deliveryPriceLabel(z.kobo, t)} />)}
           <p className="caption muted">{offersDelivery(l)
-            ? "The buyer pays delivery with the price. You get it when the deal closes, and you send the item with photos of it packed."
-            : "Meet-up only. You can add delivery prices later from your listing."}</p>
+            ? t("The buyer pays delivery with the price. You get it when the deal closes, and you send the item with photos of it packed.")
+            : t("Meet-up only. You can add delivery prices later from your listing.")}</p>
         </section>
 
         <section className="card stack" aria-labelledby="r-desc">
-          <div className="row-between"><h2 id="r-desc" className="label">Description</h2>{edit("details", "the description")}</div>
-          {l.description ? <p className="body" style={{ whiteSpace: "pre-line" }}>{l.description}</p> : <p className="body muted">None. A few words on its condition and what comes with it help it sell.</p>}
+          <div className="row-between"><h2 id="r-desc" className="label">{t("Description")}</h2>{edit("details", t("the description"))}</div>
+          {l.description ? <p className="body" style={{ whiteSpace: "pre-line" }}>{l.description}</p> : <p className="body muted">{t("None. A few words on its condition and what comes with it help it sell.")}</p>}
         </section>
 
         {!ready ? (
-          <Info icon="shield-check">Before it goes live, NosHen checks your ID and bank account. Tapping Publish takes you there, then straight back here.</Info>
+          <Info icon="shield-check">{t("Before it goes live, NosHen checks your ID and bank account. Tapping Publish takes you there, then straight back here.")}</Info>
         ) : null}
 
         <label className="check">
           <input type="checkbox" name="confirm" value="yes" required />
-          <span className="body">This is mine to sell, it's described honestly, and it isn't a <Link to="/prohibited-items">prohibited item</Link>.</span>
+          <span className="body">{t.rich("This is mine to sell, it's described honestly, and it isn't a <list>prohibited item</list>.", { list: (s) => <Link to="/prohibited-items">{s}</Link> })}</span>
         </label>
 
         <ErrorText>{actionData?.error}</ErrorText>
         <BottomAction>
-          <Button type="submit" variant="primary" size="lg" block icon="shield-check" disabled={busy}>{busy ? "Publishing…" : ready ? "Publish listing" : "Verify, then publish"}</Button>
+          <Button type="submit" variant="primary" size="lg" block icon="shield-check" disabled={busy}>{busy ? t("Publishing…") : ready ? t("Publish listing") : t("Verify, then publish")}</Button>
         </BottomAction>
       </main>
     </Form>

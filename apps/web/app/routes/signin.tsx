@@ -2,12 +2,15 @@ import { Form, Link, redirect, useNavigation, data } from "react-router";
 import type { Route } from "./+types/signin";
 import { createAuth, emailSignInEnabled, googleEnabled } from "../../server/auth";
 import { ConsoleEmail } from "@noshen/engine/email";
-import { optionalUser, withApp, messageOf } from "../../server/web";
+import { optionalUser, withApp, messageOf, translatorFor } from "../../server/web";
 import { setName } from "@noshen/engine/sellers";
 import { mailFor, isLocal } from "@noshen/engine/context";
 import { BottomAction, Button, CheckedForm, CodeInput, Icon, TextField, TopBar, Info, ErrorText, Wordmark } from "@noshen/ui/ui";
 import { emailProblem, nameProblem } from "@noshen/shared/validate";
 import type { IconName } from "@noshen/ui/icons";
+import { useT } from "@noshen/ui/i18n";
+import { msg } from "@noshen/shared/i18n";
+import { LanguageToggle } from "../lib/prefs";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Sign in · NosHen" }];
@@ -35,25 +38,25 @@ export async function action({ request }: Route.ActionArgs) {
   const back = `/signin?next=${encodeURIComponent(next)}`;
 
   if (step === "google") {
-    if (!googleEnabled()) return { step: "email" as const, error: "Google sign-in isn't set up yet." };
+    if (!googleEnabled()) return { step: "email" as const, error: msg("Google sign-in isn't set up yet.") };
     const res = await (await createAuth(mailFor())).api.signInSocial({
       body: { provider: "google", callbackURL: back, errorCallbackURL: `${back}&error=google` }, headers: request.headers, asResponse: true,
     });
     const body = (await res.clone().json().catch(() => ({}))) as { url?: string };
-    if (!res.ok || !body.url) return { step: "email" as const, error: "We couldn't reach Google just now. Please try again." };
+    if (!res.ok || !body.url) return { step: "email" as const, error: msg("We couldn't reach Google just now. Please try again.") };
     return redirect(body.url, { headers: forwardCookies(res) });
   }
 
   if (step === "email") {
-    if (!emailSignInEnabled()) return { step: "email" as const, error: "Sign-in by email code isn't available here. Continue with Google." };
+    if (!emailSignInEnabled()) return { step: "email" as const, error: msg("Sign-in by email code isn't available here. Continue with Google.") };
     const email = String(form.get("email") ?? "").trim().toLowerCase();
-    const problem = emailProblem(email);
+    const problem = emailProblem(email, await translatorFor(request));
     if (problem) return { step: "email" as const, error: problem };
     const mail = mailFor();
     try {
       await (await createAuth(mail)).api.sendVerificationOTP({ body: { email, type: "sign-in" } });
     } catch {
-      return { step: "email" as const, error: "We couldn't send a code just now. Wait a minute and try again." };
+      return { step: "email" as const, error: msg("We couldn't send a code just now. Wait a minute and try again.") };
     }
     // Only on this computer: the console "email" shows the code on screen.
     const devCode = isLocal() && mail instanceof ConsoleEmail ? mail.sent.at(-1)?.text.match(/\b\d{6}\b/)?.[0] : undefined;
@@ -64,9 +67,9 @@ export async function action({ request }: Route.ActionArgs) {
     if (!emailSignInEnabled()) return redirect(back);
     const email = String(form.get("email"));
     const otp = String(form.get("code") ?? "").replace(/\D/g, "");
-    if (otp.length !== 6) return { step: "code" as const, email, error: "Enter all 6 digits." };
+    if (otp.length !== 6) return { step: "code" as const, email, error: msg("Enter all 6 digits.") };
     const res = await (await createAuth(mailFor())).api.signInEmailOTP({ body: { email, otp }, headers: request.headers, asResponse: true }).catch(() => null);
-    if (!res?.ok) return { step: "code" as const, email, error: "That code doesn’t match or has expired. Check it, or ask for a new one." };
+    if (!res?.ok) return { step: "code" as const, email, error: msg("That code doesn’t match or has expired. Check it, or ask for a new one.") };
     return redirect(back, { headers: forwardCookies(res) });
   }
 
@@ -95,10 +98,12 @@ function GoogleMark() {
 }
 
 /** Sign-in steps sit in one card; on wide screens a panel beside it repeats the promise. */
-function AuthFrame({ title, back, icon, heading, sub, children }: { title: string; back?: string; icon: IconName; heading: string; sub: React.ReactNode; children: React.ReactNode }) {
+function AuthFrame({ title, back, icon, heading, sub, langToggle, children }: { title: string; back?: string; icon: IconName; heading: string; sub: React.ReactNode; langToggle?: boolean; children: React.ReactNode }) {
+  const t = useT();
   return (
     <div>
-      <TopBar title={title} back={back} />
+      {/* The language switch is a form of its own, so it can't sit inside the code and name steps (they're forms). */}
+      <TopBar title={title} back={back} right={langToggle ? <LanguageToggle className="mobile-only" /> : undefined} />
       <main className="auth-wrap">
         <div className="auth-box stack-4">
           <span className="auth-icon"><Icon name={icon} size={26} /></span>
@@ -110,11 +115,11 @@ function AuthFrame({ title, back, icon, heading, sub, children }: { title: strin
         </div>
         <aside className="auth-aside" aria-hidden="true">
           <Wordmark size="md" />
-          <p className="auth-aside-title">Your money is held until you have the item.</p>
+          <p className="auth-aside-title">{t("Your money is held until you have the item.")}</p>
           <ul>
-            <li><Icon name="building-bank" size={18} />A licensed partner bank holds every payment.</li>
-            <li><Icon name="shield-lock" size={18} />Your release code lives only in the app.</li>
-            <li><Icon name="scale" size={18} />A real person decides any problem within 72 hours.</li>
+            <li><Icon name="building-bank" size={18} />{t("A licensed partner bank holds every payment.")}</li>
+            <li><Icon name="shield-lock" size={18} />{t("Your release code lives only in the app.")}</li>
+            <li><Icon name="scale" size={18} />{t("A real person decides any problem within 72 hours.")}</li>
           </ul>
         </aside>
       </main>
@@ -123,6 +128,7 @@ function AuthFrame({ title, back, icon, heading, sub, children }: { title: strin
 }
 
 export default function SignIn({ loaderData, actionData }: Route.ComponentProps) {
+  const t = useT();
   const nav = useNavigation();
   const busy = nav.state !== "idle";
   const a = actionData as any;
@@ -132,12 +138,12 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
   if (step === "name") {
     return (
       <CheckedForm method="post" action={formAction}>
-        <AuthFrame title="Your name" icon="user" heading="What's your name?" sub="Use the name on your bank account. Payments are checked against it, and the other person in a deal sees your first name.">
+        <AuthFrame title={t("Your name")} icon="user" heading={t("What's your name?")} sub={t("Use the name on your bank account. Payments are checked against it, and the other person in a deal sees your first name.")}>
           <input type="hidden" name="step" value="name" />
           <input type="hidden" name="next" value={loaderData.next} />
-          <TextField label="Full name" name="name" autoComplete="name" placeholder="Chioma Obi" required error={a?.error} autoFocus
-            missing="Enter your full name, as it is on your bank account." validate={nameProblem} />
-          <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>Continue</Button></BottomAction>
+          <TextField label={t("Full name")} name="name" autoComplete="name" placeholder="Chioma Obi" required error={a?.error} autoFocus
+            missing={t("Enter your full name, as it is on your bank account.")} validate={(v) => nameProblem(v, t)} />
+          <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{t("Continue")}</Button></BottomAction>
         </AuthFrame>
       </CheckedForm>
     );
@@ -146,43 +152,45 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
   if (step === "code") {
     return (
       <CheckedForm method="post" action={formAction}>
-        <AuthFrame title="Sign in" back={formAction} icon="message-circle" heading="Check your email" sub={<>We sent a 6-digit code to <strong className="ink">{a.email}</strong>. It expires in 5 minutes.</>}>
+        <AuthFrame title={t("Sign in")} back={formAction} icon="message-circle" heading={t("Check your email")} sub={t.rich("We sent a 6-digit code to <b>{email}</b>. It expires in 5 minutes.", { b: (s) => <strong className="ink">{s}</strong> }, { email: a.email })}>
           <input type="hidden" name="step" value="code" />
           <input type="hidden" name="email" value={a.email} />
           <input type="hidden" name="next" value={loaderData.next} />
-          <CodeInput name="code" label="Sign-in code" autoFocus error={a?.error} hint="Not there? Check your spam folder, or go back and ask for a new code." />
+          <CodeInput name="code" label={t("Sign-in code")} autoFocus error={a?.error} hint={t("Not there? Check your spam folder, or go back and ask for a new code.")} />
           {a?.devCode ? <p className="dev caption">Development: no email is sent. Your code is <strong className="tabular">{a.devCode}</strong>.</p> : null}
-          <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>Continue</Button></BottomAction>
+          <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{t("Continue")}</Button></BottomAction>
         </AuthFrame>
       </CheckedForm>
     );
   }
 
   return (
-    <AuthFrame title="Sign in" back="/" icon="shield-check" heading="Sign in to NosHen" sub="New here? The same steps create your account.">
-      {loaderData.googleError ? <ErrorText>{loaderData.email ? "Google sign-in didn't finish. Try again, or use your email." : "Google sign-in didn't finish. Please try again."} If you used a NosHen staff email, choose a different Google account: staff accounts can't buy or sell.</ErrorText> : null}
+    <AuthFrame title={t("Sign in")} back="/" icon="shield-check" heading={t("Sign in to NosHen")} sub={t("New here? The same steps create your account.")} langToggle>
+      {loaderData.googleError ? <ErrorText>{`${loaderData.email ? t("Google sign-in didn't finish. Try again, or use your email.") : t("Google sign-in didn't finish. Please try again.")} ${t("If you used a NosHen staff email, choose a different Google account: staff accounts can't buy or sell.")}`}</ErrorText> : null}
       {loaderData.google ? (
         <Form method="post" action={formAction}>
           <input type="hidden" name="step" value="google" />
           <input type="hidden" name="next" value={loaderData.next} />
-          <button type="submit" className="nh-btn nh-btn-secondary nh-btn-lg nh-btn-block" disabled={busy}><GoogleMark />Continue with Google</button>
+          <button type="submit" className="nh-btn nh-btn-secondary nh-btn-lg nh-btn-block" disabled={busy}><GoogleMark />{t("Continue with Google")}</button>
         </Form>
       ) : loaderData.local ? (
         <p className="dev caption">Development: Google sign-in appears here once GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in apps/web/.dev.vars.</p>
       ) : null}
-      {!loaderData.google && !loaderData.email ? <Info icon="info-circle">Sign-in isn't switched on yet. You can still browse everything for sale.</Info> : null}
-      {loaderData.google && loaderData.email ? <div className="or-rule"><span className="caption muted">or</span></div> : null}
+      {!loaderData.google && !loaderData.email ? <Info icon="info-circle">{t("Sign-in isn't switched on yet. You can still browse everything for sale.")}</Info> : null}
+      {loaderData.google && loaderData.email ? <div className="or-rule"><span className="caption muted">{t("or")}</span></div> : null}
       {loaderData.email ? <CheckedForm method="post" action={formAction} className="stack-4">
         <input type="hidden" name="step" value="email" />
         <input type="hidden" name="next" value={loaderData.next} />
-        <TextField label="Email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="chioma@gmail.com"
-          hint="We'll email you a 6-digit code. No password needed." error={a?.step === "email" ? a.error : undefined} required autoFocus={!loaderData.google}
-          missing="Enter your email address, so we can send you a code." validate={emailProblem} />
-        <Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight={busy ? undefined : "arrow-right"}>{busy && nav.formData?.get("step") === "email" ? "Sending…" : "Email me a code"}</Button>
+        <TextField label={t("Email")} name="email" type="email" inputMode="email" autoComplete="email" placeholder="chioma@gmail.com"
+          hint={t("We'll email you a 6-digit code. No password needed.")} error={a?.step === "email" ? a.error : undefined} required autoFocus={!loaderData.google}
+          missing={t("Enter your email address, so we can send you a code.")} validate={(v) => emailProblem(v, t)} />
+        <Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight={busy ? undefined : "arrow-right"}>{busy && nav.formData?.get("step") === "email" ? t("Sending…") : t("Email me a code")}</Button>
       </CheckedForm> : null}
       {a?.step === "email" && a.error && !loaderData.email ? <ErrorText>{a.error}</ErrorText> : null}
-      <Info icon="shield-check">We never show your email to the other person. You talk in the deal chat.</Info>
-      <p className="caption muted consent">By continuing, you agree to NosHen's <Link to="/terms">Terms of Use</Link> and <Link to="/deal-terms">Protected Deal Terms</Link>, and you've read our <Link to="/privacy">Privacy Policy</Link>.</p>
+      <Info icon="shield-check">{t("We never show your email to the other person. You talk in the deal chat.")}</Info>
+      <p className="caption muted consent">{t.rich("By continuing, you agree to NosHen's <terms>Terms of Use</terms> and <deal>Protected Deal Terms</deal>, and you've read our <privacy>Privacy Policy</privacy>.", {
+        terms: (s) => <Link to="/terms">{s}</Link>, deal: (s) => <Link to="/deal-terms">{s}</Link>, privacy: (s) => <Link to="/privacy">{s}</Link>,
+      })}</p>
     </AuthFrame>
   );
 }

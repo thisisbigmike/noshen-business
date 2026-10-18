@@ -3,7 +3,7 @@ import { Form, Link, useLocation, useSearchParams } from "react-router";
 import type { Route } from "./+types/browse";
 import { withApp } from "../../server/web";
 import { browse, statesWithListings } from "@noshen/engine/queries";
-import { Button, Icon, ListingCard, ProtectionBadge, Select, Wordmark, useEscape } from "@noshen/ui/ui";
+import { Button, Icon, ListingCard, Select, Wordmark, useEscape } from "@noshen/ui/ui";
 import { sizeLabel, sizeRuleFor } from "@noshen/shared/sizes";
 import { CONDITIONS } from "@noshen/shared/deal";
 import { naira } from "@noshen/shared/money";
@@ -12,6 +12,9 @@ import { CATEGORIES, categoryOf, isCategory } from "@noshen/shared/categories";
 import { photoUrl } from "@noshen/shared/photos";
 import { ThemeToggle } from "@noshen/ui/theme";
 import { NIGERIA_STATES, comingSoonList, isState, placeLabel, stateLabel } from "@noshen/shared/locations";
+import { useT } from "@noshen/ui/i18n";
+import { msg } from "@noshen/shared/i18n";
+import { LanguageToggle } from "../lib/prefs";
 
 export const meta: Route.MetaFunction = () => [
   { title: "NosHen: buy and sell anything in Nigeria, protected" },
@@ -42,6 +45,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function Browse({ loaderData }: Route.ComponentProps) {
   const { listings, states, f, more } = loaderData;
+  const t = useT();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const location = useLocation();
   useEffect(() => { setFiltersOpen(false); }, [location.search]);
@@ -49,13 +53,13 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
   // What's on, as chips you can tap to take off.
   const rule = sizeRuleFor(f.cat);
   const active: { label: string; drop: (p: URLSearchParams) => void }[] = [
-    ...(more.min || more.max ? [{ label: more.min && more.max ? `${naira(more.min * 100)} to ${naira(more.max * 100)}` : more.min ? `From ${naira(more.min * 100)}` : `Up to ${naira(more.max! * 100)}`, drop: (p: URLSearchParams) => { p.delete("min"); p.delete("max"); } }] : []),
-    ...more.cond.map((c) => ({ label: CONDITIONS.find(([k]) => k === c)?.[1] ?? c, drop: (p: URLSearchParams) => { const keep = p.getAll("cond").filter((x) => x !== c); p.delete("cond"); keep.forEach((x) => p.append("cond", x)); } })),
+    ...(more.min || more.max ? [{ label: more.min && more.max ? t("{min} to {max}", { min: naira(more.min * 100), max: naira(more.max * 100) }) : more.min ? t("From {min}", { min: naira(more.min * 100) }) : t("Up to {max}", { max: naira(more.max! * 100) }), drop: (p: URLSearchParams) => { p.delete("min"); p.delete("max"); } }] : []),
+    ...more.cond.map((c) => ({ label: t(CONDITIONS.find(([k]) => k === c)?.[1] ?? c), drop: (p: URLSearchParams) => { const keep = p.getAll("cond").filter((x) => x !== c); p.delete("cond"); keep.forEach((x) => p.append("cond", x)); } })),
     ...more.size.map((v) => ({ label: sizeLabel(f.cat, more.sk, v) ?? v, drop: (p: URLSearchParams) => { const keep = p.getAll("size").filter((x) => x !== v); p.delete("size"); keep.forEach((x) => p.append("size", x)); if (!keep.length) p.delete("sk"); } })),
-    ...(more.verified ? [{ label: "Verified sellers", drop: (p: URLSearchParams) => p.delete("verified") }] : []),
+    ...(more.verified ? [{ label: t("Verified sellers"), drop: (p: URLSearchParams) => p.delete("verified") }] : []),
   ];
   const counts = new Map(states.map((s) => [s.state, s.n]));
-  const where = f.state ? stateLabel(f.state) : "Nigeria";
+  const where = f.state ? stateLabel(f.state) : t("Nigeria");
   const [params] = useSearchParams();
   const link = (k: string, v: string) => {
     const p = new URLSearchParams(params);
@@ -66,21 +70,21 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
   const filters = (
     <div className="stack-4">
       <div className="stack">
-        <p className="label">Category</p>
+        <p className="label">{t("Category")}</p>
         <div className="chips cat-chips">
-          <Link to={link("cat", "")} className="chip" aria-current={!f.cat ? "true" : undefined}><Icon name="layout-grid" size={16} />All</Link>
-          {CATEGORIES.map((c) => <Link key={c.key} to={link("cat", c.key)} className="chip" aria-current={f.cat === c.key ? "true" : undefined}><Icon name={c.icon} size={16} />{c.label}</Link>)}
+          <Link to={link("cat", "")} className="chip" aria-current={!f.cat ? "true" : undefined}><Icon name="layout-grid" size={16} />{t("All")}</Link>
+          {CATEGORIES.map((c) => <Link key={c.key} to={link("cat", c.key)} className="chip" aria-current={f.cat === c.key ? "true" : undefined}><Icon name={c.icon} size={16} />{t(c.label)}</Link>)}
         </div>
       </div>
       <Form method="get" className="stack">
         {f.cat ? <input type="hidden" name="cat" value={f.cat} /> : null}
         {f.q ? <input type="hidden" name="q" value={f.q} /> : null}
         {f.sort ? <input type="hidden" name="sort" value={f.sort} /> : null}
-        <Select name="state" label="Location" submitOnChange defaultValue={f.state} options={[
-          { value: "", label: "All of Nigeria" },
+        <Select name="state" label={t("Location")} submitOnChange defaultValue={f.state} options={[
+          { value: "", label: t("All of Nigeria") },
           ...NIGERIA_STATES.map((st) => ({ value: st, label: counts.get(st) ? `${stateLabel(st)} (${counts.get(st)})` : stateLabel(st) })),
         ]} />
-        <p className="caption muted">{comingSoonList()} are coming soon.</p>
+        <p className="caption muted">{t("{countries} are coming soon.", { countries: comingSoonList() })}</p>
       </Form>
 
     </div>
@@ -91,16 +95,16 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
       {f.state ? <input type="hidden" name="state" value={f.state} /> : null}
       {f.sort ? <input type="hidden" name="sort" value={f.sort} /> : null}
       <Icon name="search" size={20} />
-      <label className="sr-only" htmlFor="q">Search listings</label>
-      <input id="q" name="q" type="search" defaultValue={f.q} placeholder="Search phones, cars, hair… or a town" autoComplete="off" />
-      {f.q ? <Link to={link("q", "")} className="search-clear" aria-label="Clear search"><Icon name="x" size={16} /></Link> : null}
+      <label className="sr-only" htmlFor="q">{t("Search listings")}</label>
+      <input id="q" name="q" type="search" defaultValue={f.q} placeholder={t("Search phones, cars, hair… or a town")} autoComplete="off" />
+      {f.q ? <Link to={link("q", "")} className="search-clear" aria-label={t("Clear search")}><Icon name="x" size={16} /></Link> : null}
     </Form>
   );
   return (
     <>
       <header className="pill-bar browse-top mobile-only">
-        <Link to="/" aria-label="NosHen home" style={{ textDecoration: "none" }}><Wordmark size="sm" /></Link>
-        <span className="row" style={{ gap: 4 }}><ProtectionBadge>Every deal protected</ProtectionBadge><ThemeToggle /></span>
+        <Link to="/" aria-label={t("NosHen home")} style={{ textDecoration: "none" }}><Wordmark size="sm" /></Link>
+        <span className="row" style={{ gap: 4 }}><LanguageToggle /><ThemeToggle /></span>
       </header>
       <main className="page">
         <div className="browse-layout">
@@ -108,47 +112,47 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
           <div className="stack-4">
             <div className="browse-head">
               <div className="stack">
-                <h1 className="heading">{f.q ? `Results for “${f.q}”` : isCategory(f.cat) ? `${categoryOf(f.cat).label} in ${where}` : f.state ? `For sale in ${where}` : "For sale across Nigeria"}</h1>
-                <p className="caption muted">{(() => { const live = listings.filter((l: any) => l.status !== "sold").length; const sold = listings.length - live; return `${live} for sale${sold ? `, ${sold} sold recently` : ""}.`; })()} Every deal is protected: your money is held until you have the item.</p>
+                <h1 className="heading">{f.q ? t("Results for “{q}”", { q: f.q }) : isCategory(f.cat) ? t("{category} in {place}", { category: t(categoryOf(f.cat).label), place: where }) : f.state ? t("For sale in {place}", { place: where }) : t("For sale across Nigeria")}</h1>
+                <p className="caption muted">{(() => { const live = listings.filter((l: any) => l.status !== "sold").length; const sold = listings.length - live; return sold ? t("{live} for sale, {sold} sold recently.", { live, sold }) : t("{live} for sale.", { live }); })()} {t("Every deal is protected: your money is held until you have the item.")}</p>
               </div>
               <div className="row browse-tools">
                 {search}
                 <button type="button" className="nh-btn nh-btn-secondary nh-btn-md nh-btn-pill filter-btn" onClick={() => setFiltersOpen(true)} aria-haspopup="dialog">
-                  <Icon name="adjustments-horizontal" size={18} />Filters{active.length ? <span className="filter-count" aria-label={`, ${active.length} on`}>{active.length}</span> : null}
+                  <Icon name="adjustments-horizontal" size={18} />{t("Filters")}{active.length ? <span className="filter-count" aria-label={t(", {n} on", { n: active.length })}>{active.length}</span> : null}
                 </button>
                 <Form method="get" className="row">
                   {[...params.entries()].filter(([k]) => k !== "sort").map(([k, v], i) => <input key={`${k}${i}`} type="hidden" name={k} value={v} />)}
-                  <Select name="sort" label="Sort" hideLabel pill submitOnChange defaultValue={f.sort} options={[
-                    { value: "", label: "Newest first" },
-                    { value: "price_asc", label: "Price: low to high" },
-                    { value: "price_desc", label: "Price: high to low" },
+                  <Select name="sort" label={t("Sort")} hideLabel pill submitOnChange defaultValue={f.sort} options={[
+                    { value: "", label: t("Newest first") },
+                    { value: "price_asc", label: t("Price: low to high") },
+                    { value: "price_desc", label: t("Price: high to low") },
                   ]} />
                 </Form>
               </div>
             </div>
             <div className="mobile-only">{filters}</div>
             {active.length ? (
-              <div className="active-filters" aria-label="Filters on">
+              <div className="active-filters" aria-label={t("Filters on")}>
                 {active.map((a) => {
                   const p = new URLSearchParams(params);
                   a.drop(p);
-                  return <Link key={a.label} to={`?${p.toString()}`} className="chip active-chip" replace aria-label={`Remove filter: ${a.label}`}>{a.label}<Icon name="x" size={14} /></Link>;
+                  return <Link key={a.label} to={`?${p.toString()}`} className="chip active-chip" replace aria-label={t("Remove filter: {filter}", { filter: a.label })}>{a.label}<Icon name="x" size={14} /></Link>;
                 })}
-                <Link to={`?${clearedParams(params).toString()}`} className="caption tap" replace>Clear all</Link>
+                <Link to={`?${clearedParams(params).toString()}`} className="caption tap" replace>{t("Clear all")}</Link>
               </div>
             ) : null}
             {listings.length === 0 ? (
               <div className="card stack empty" style={{ alignItems: "center", textAlign: "center" }}>
                 <span className="empty-icon"><Icon name="search" size={26} /></span>
-                <p className="title">Nothing here yet</p>
-                <p className="body muted">{active.length ? "Nothing matches these filters. Try taking one off." : f.state ? `Nothing in ${where} yet. Try all of Nigeria, another search, or list something yourself.` : "Try another search, or list something yourself."}</p>
-                <Button variant="primary" pill to="/sell" icon="plus">Sell something</Button>
+                <p className="title">{t("Nothing here yet")}</p>
+                <p className="body muted">{active.length ? t("Nothing matches these filters. Try taking one off.") : f.state ? t("Nothing in {place} yet. Try all of Nigeria, another search, or list something yourself.", { place: where }) : t("Try another search, or list something yourself.")}</p>
+                <Button variant="primary" pill to="/sell" icon="plus">{t("Sell something")}</Button>
               </div>
             ) : (
               <div className="grid-cards">
                 {listings.map((l: any) => (
                   <ListingCard key={l.id} href={`/l/${l.id}`} title={l.title} priceKobo={l.price_kobo} area={[sizeLabel(l.category, l.size_system, l.size), placeLabel(l.area, l.state)].filter(Boolean).join(" · ")}
-                    posted={ago(l.published_at)} imageUrl={l.photo_keys?.[0] ? photoUrl(l.photo_keys[0]) : undefined}
+                    posted={ago(l.published_at)} imageUrl={l.photo_keys?.[0] ? photoUrl(l.photo_keys[0], "small") : undefined}
                     sold={l.status === "sold"} left={l.quantity > 1 ? l.quantity - l.sold_count : null} />
                 ))}
               </div>
@@ -169,13 +173,14 @@ function clearedParams(params: URLSearchParams) {
 }
 
 const PRICE_PRESETS: [string, number | null, number | null][] = [
-  ["Under ₦50,000", null, 50_000], ["₦50,000 to ₦200,000", 50_000, 200_000], ["₦200,000 to ₦1M", 200_000, 1_000_000], ["Over ₦1M", 1_000_000, null],
+  [msg("Under ₦50,000"), null, 50_000], [msg("₦50,000 to ₦200,000"), 50_000, 200_000], [msg("₦200,000 to ₦1M"), 200_000, 1_000_000], [msg("Over ₦1M"), 1_000_000, null],
 ];
 
 type BrowseData = Route.ComponentProps["loaderData"];
 
 /** The Filters panel: a bottom sheet on phones, a dialog on wider screens. Applying it reloads Browse with the choices. */
 function FiltersSheet({ f, more, rule, onClose }: { f: BrowseData["f"]; more: BrowseData["more"]; rule: ReturnType<typeof sizeRuleFor>; onClose: () => void }) {
+  const t = useT();
   const [min, setMin] = useState(more.min ? String(more.min) : "");
   const [max, setMax] = useState(more.max ? String(more.max) : "");
   const [kind, setKind] = useState(more.sk || rule?.systems[0]?.id || "");
@@ -193,41 +198,41 @@ function FiltersSheet({ f, more, rule, onClose }: { f: BrowseData["f"]; more: Br
         }}>
         {Object.entries(keep).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
         <div className="row-between">
-          <h2 id="filters-title" className="heading">Filters</h2>
-          <button type="button" className="icon-btn" aria-label="Close" autoFocus onClick={onClose}><Icon name="x" size={20} /></button>
+          <h2 id="filters-title" className="heading">{t("Filters")}</h2>
+          <button type="button" className="icon-btn" aria-label={t("Close")} autoFocus onClick={onClose}><Icon name="x" size={20} /></button>
         </div>
 
         <fieldset className="filter-section">
-          <legend className="label">Price (₦)</legend>
+          <legend className="label">{t("Price (₦)")}</legend>
           <div className="price-row">
-            <label className="price-input"><span className="caption muted">Min</span><input name="min" inputMode="numeric" placeholder="0" value={min} onChange={(e) => setMin(e.target.value.replace(/[^\d]/g, ""))} /></label>
-            <span className="muted" aria-hidden="true">to</span>
-            <label className="price-input"><span className="caption muted">Max</span><input name="max" inputMode="numeric" placeholder="Any" value={max} onChange={(e) => setMax(e.target.value.replace(/[^\d]/g, ""))} /></label>
+            <label className="price-input"><span className="caption muted">{t("Min")}</span><input name="min" inputMode="numeric" placeholder="0" value={min} onChange={(e) => setMin(e.target.value.replace(/[^\d]/g, ""))} /></label>
+            <span className="muted" aria-hidden="true">{t("to")}</span>
+            <label className="price-input"><span className="caption muted">{t("Max")}</span><input name="max" inputMode="numeric" placeholder={t("Any")} value={max} onChange={(e) => setMax(e.target.value.replace(/[^\d]/g, ""))} /></label>
           </div>
           <div className="size-kinds">
             {PRICE_PRESETS.map(([label, lo, hi]) => (
               <button key={label} type="button" className="chip" aria-pressed={min === (lo ? String(lo) : "") && max === (hi ? String(hi) : "")}
-                onClick={() => { setMin(lo ? String(lo) : ""); setMax(hi ? String(hi) : ""); }}>{label}</button>
+                onClick={() => { setMin(lo ? String(lo) : ""); setMax(hi ? String(hi) : ""); }}>{t(label)}</button>
             ))}
           </div>
         </fieldset>
 
         <fieldset className="filter-section">
-          <legend className="label">Condition</legend>
+          <legend className="label">{t("Condition")}</legend>
           <div className="size-kinds">
             {CONDITIONS.map(([k, label]) => (
-              <label key={k} className="chip"><input type="checkbox" name="cond" value={k} defaultChecked={more.cond.includes(k)} className="sr-only" />{label}</label>
+              <label key={k} className="chip"><input type="checkbox" name="cond" value={k} defaultChecked={more.cond.includes(k)} className="sr-only" />{t(label)}</label>
             ))}
           </div>
         </fieldset>
 
         {rule && sizes ? (
           <fieldset className="filter-section">
-            <legend className="label">{rule.label}</legend>
+            <legend className="label">{t(rule.label)}</legend>
             {rule.systems.length > 1 ? (
-              <div className="size-kinds" role="radiogroup" aria-label={`Kind of ${rule.label.toLowerCase()}`}>
+              <div className="size-kinds" role="radiogroup" aria-label={t("Kind of {what}", { what: t(rule.label).toLowerCase() })}>
                 {rule.systems.map((x) => (
-                  <label key={x.id} className="chip kind-chip"><input type="radio" name="sk" value={x.id} checked={kind === x.id} onChange={() => setKind(x.id)} className="sr-only" />{x.label}</label>
+                  <label key={x.id} className="chip kind-chip"><input type="radio" name="sk" value={x.id} checked={kind === x.id} onChange={() => setKind(x.id)} className="sr-only" />{t(x.label)}</label>
                 ))}
               </div>
             ) : <input type="hidden" name="sk" value={sizes.id} />}
@@ -238,20 +243,20 @@ function FiltersSheet({ f, more, rule, onClose }: { f: BrowseData["f"]; more: Br
             </div>
           </fieldset>
         ) : !f.cat ? (
-          <p className="caption muted">Choose a category like Shoes or Clothes to filter by size.</p>
+          <p className="caption muted">{t("Choose a category like Shoes or Clothes to filter by size.")}</p>
         ) : null}
 
         <fieldset className="filter-section">
-          <legend className="label">Seller</legend>
+          <legend className="label">{t("Seller")}</legend>
           <label className="choice">
             <input type="checkbox" name="verified" value="1" defaultChecked={more.verified} />
-            <span className="stack" style={{ gap: 0 }}><span className="body">Verified sellers only</span><span className="caption muted">Sellers whose ID and bank account NosHen has checked.</span></span>
+            <span className="stack" style={{ gap: 0 }}><span className="body">{t("Verified sellers only")}</span><span className="caption muted">{t("Sellers whose ID and bank account NosHen has checked.")}</span></span>
           </label>
         </fieldset>
 
         <div className="filter-actions">
-          <Link to={clear} className="nh-btn nh-btn-secondary nh-btn-lg" replace>Clear all</Link>
-          <Button type="submit" variant="primary" size="lg">Show results</Button>
+          <Link to={clear} className="nh-btn nh-btn-secondary nh-btn-lg" replace>{t("Clear all")}</Link>
+          <Button type="submit" variant="primary" size="lg">{t("Show results")}</Button>
         </div>
       </Form>
     </div>

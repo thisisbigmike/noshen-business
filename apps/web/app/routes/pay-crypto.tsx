@@ -15,6 +15,7 @@ import { QUOTE_MINUTES, coinAmount, coinName, cryptoLabel, groupAddress, isCoin,
 import { CryptoLogo } from "../lib/crypto-logo";
 import { RefundAddressForm } from "../lib/refund-address";
 import { CopyButton } from "../lib/copy-button";
+import { useLite, useT } from "@noshen/ui/i18n";
 
 export const handle = { tabs: false };
 export const meta: Route.MetaFunction = ({ params }) =>
@@ -83,6 +84,8 @@ function useSecondsLeft(until: Date | string | null | undefined, serverNow: numb
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
 export default function PayCrypto({ loaderData: x, actionData }: Route.ComponentProps) {
+  const t = useT();
+  const lite = useLite();
   const n = networkOf(x.network);
   const c = coinName(x.coin);
   const [params] = useSearchParams();
@@ -93,13 +96,14 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
   const expired = !!p && left <= 0;
   const [devMsg, setDevMsg] = useState<string | null>(null);
 
-  // "This page updates when the network confirms your payment": check every 5 seconds once there's an address.
+  // "This page updates when the network confirms your payment": check every 5 seconds once there's an address
+  // (15 with data saver on).
   const revalidator = useRevalidator();
   useEffect(() => {
     if (!p) return;
-    const id = setInterval(() => { if (document.visibilityState === "visible") revalidator.revalidate(); }, 5000);
+    const id = setInterval(() => { if (document.visibilityState === "visible") revalidator.revalidate(); }, lite ? 15_000 : 5000);
     return () => clearInterval(id);
-  }, [!!p]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [!!p, lite]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = async (short: boolean) => {
     setDevMsg("Sending…");
@@ -112,79 +116,80 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
   };
   const [devTx, setDevTx] = useState<string | null>(null);
   const onChain = x.mode !== "pretend";
+  const untilReleased = x.deal.handover === "meetup" ? t("until you give your release code") : t("until you confirm you received the item");
 
   return (
     <div>
-      <TopBar title={`Pay with ${c}`} back={`/d/${x.deal.id}/pay`} />
+      <TopBar title={t("Pay with {coin}", { coin: c })} back={`/d/${x.deal.id}/pay`} />
       <main className="page narrow no-tabs stack-4">
-        <h1 className="heading desktop-only">Pay with {c} on {n.name}</h1>
-        <nav className="desktop-only caption muted" aria-label="Breadcrumb"><Link to="/deals">Deals</Link> / <Link to={`/d/${x.deal.id}`}>{x.title}</Link> / <Link to={`/d/${x.deal.id}/pay`}>Pay</Link> / {c} on {n.name}</nav>
+        <h1 className="heading desktop-only">{t("Pay with {coin} on {network}", { coin: c, network: n.name })}</h1>
+        <nav className="desktop-only caption muted" aria-label={t("Breadcrumb")}><Link to="/deals">{t("Deals")}</Link> / <Link to={`/d/${x.deal.id}`}>{x.title}</Link> / <Link to={`/d/${x.deal.id}/pay`}>{t("Pay")}</Link> / {t("{coin} on {network}", { coin: c, network: n.name })}</nav>
 
         <section className="card stack">
-          <div className="row-between wrap"><MoneyStatus state="awaiting" />{x.deal.payBy ? <span className="caption muted">Pay by {when(new Date(x.deal.payBy))}</span> : null}</div>
+          <div className="row-between wrap"><MoneyStatus state="awaiting" />{x.deal.payBy ? <span className="caption muted">{t("Pay by {time}", { time: when(new Date(x.deal.payBy)) })}</span> : null}</div>
           <p className="big-amount tabular">{p && !expired ? coinAmount(p.micro, x.coin) : naira(x.deal.due)}</p>
-          <p className="body muted">{p && !expired ? `${naira(x.deal.due)} · ` : ""}{x.title} · {x.seller} accepted</p>
-          <p className="row" style={{ gap: 10 }}><CryptoLogo coin={x.coin} network={x.network} size={28} lead="coin" /><span className="body">{c} on {networkLabel(n)}</span></p>
+          <p className="body muted">{p && !expired ? `${naira(x.deal.due)} · ` : ""}{t("{item} · {name} accepted", { item: x.title, name: x.seller })}</p>
+          <p className="row" style={{ gap: 10 }}><CryptoLogo coin={x.coin} network={x.network} size={28} lead="coin" /><span className="body">{t("{coin} on {network}", { coin: c, network: networkLabel(n) })}</span></p>
         </section>
 
         {!p ? null : expired ? (
           <section className="card stack-4">
-            <Info icon="clock"><strong>This amount has run out.</strong> {c} prices move against the naira, so we fix the amount for {QUOTE_MINUTES} minutes at a time.</Info>
-            <p className="body">Already sent it? Don't send it again. When it arrives, we'll check it and email you.</p>
+            <Info icon="clock">{t.rich("<b>This amount has run out.</b> {coin} prices move against the naira, so we fix the amount for {minutes} minutes at a time.", { b: (s) => <strong>{s}</strong> }, { coin: c, minutes: QUOTE_MINUTES })}</Info>
+            <p className="body">{t("Already sent it? Don't send it again. When it arrives, we'll check it and email you.")}</p>
             <Form method="post" replace>
               <input type="hidden" name="intent" value="refresh" />
-              <Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? "Getting a new amount…" : "Get a new amount"}</Button>
+              <Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? t("Getting a new amount…") : t("Get a new amount")}</Button>
             </Form>
             <ErrorText>{actionData?.intent === "refresh" ? actionData.error : null}</ErrorText>
           </section>
         ) : (
           <>
             {/* Read before sending: these come first, above the address. */}
-            {x.mode === "pretend" ? <Info icon="alert-triangle" tone="warn"><strong>Test mode: don't send real {c}.</strong> This address is pretend, so wallets won't accept it. Use the test buttons below instead.</Info> : null}
-            {x.mode === "devnet" ? <Info icon="alert-triangle" tone="warn"><strong>{n.testnet}: test tokens, not real money.</strong> This is a real {n.name} address on the test network. Pay from a wallet set to {n.testnet}, or with NosHen's demo wallet below. Never send real {c} here.</Info> : null}
-            <Info icon="alert-triangle" tone="warn"><strong>Send only {c} on {n.name}.</strong> Another coin, or {c} on another network, can't be recovered.</Info>
-            <Info icon="coin">Make sure exactly {coinAmount(p!.micro, x.coin)} arrives. If your exchange takes its fee out of what you send, add the fee on top.</Info>
-            <section className="card stack-4" aria-label="Where to send">
+            {x.mode === "pretend" ? <Info icon="alert-triangle" tone="warn">{t.rich("<b>Test mode: don't send real {coin}.</b> This address is pretend, so wallets won't accept it. Use the test buttons below instead.", { b: (s) => <strong>{s}</strong> }, { coin: c })}</Info> : null}
+            {x.mode === "devnet" ? <Info icon="alert-triangle" tone="warn">{t.rich("<b>{testnet}: test tokens, not real money.</b> This is a real {network} address on the test network. Pay from a wallet set to {testnet}, or with NosHen's demo wallet below. Never send real {coin} here.", { b: (s) => <strong>{s}</strong> }, { testnet: n.testnet, network: n.name, coin: c })}</Info> : null}
+            <Info icon="alert-triangle" tone="warn">{t.rich("<b>Send only {coin} on {network}.</b> Another coin, or {coin} on another network, can't be recovered.", { b: (s) => <strong>{s}</strong> }, { coin: c, network: n.name })}</Info>
+            <Info icon="coin">{t("Make sure exactly {amount} arrives. If your exchange takes its fee out of what you send, add the fee on top.", { amount: coinAmount(p!.micro, x.coin) })}</Info>
+            <section className="card stack-4" aria-label={t("Where to send")}>
               <div className="stack">
-                <span className="label muted">Send to this address</span>
+                <span className="label muted">{t("Send to this address")}</span>
                 <div className="pay-address">
-                  {x.qr ? <span className="pay-qr" role="img" aria-label="QR code of the address" dangerouslySetInnerHTML={{ __html: x.qr }} /> : null}
+                  {x.qr ? <span className="pay-qr" role="img" aria-label={t("QR code of the address")} dangerouslySetInnerHTML={{ __html: x.qr }} /> : null}
                   <code className="pay-addr">{groupAddress(p!.address)}</code>
                 </div>
                 <div className="row wrap" style={{ gap: 12, alignItems: "center" }}>
-                  <CopyButton text={p!.address} label="Copy address" />
-                  {x.addressUrl ? <a className="caption" href={x.addressUrl} target="_blank" rel="noreferrer">See it on {n.explorer}</a> : null}
+                  <CopyButton text={p!.address} label={t("Copy address")} />
+                  {x.addressUrl ? <a className="caption" href={x.addressUrl} target="_blank" rel="noreferrer">{t("See it on {explorer}", { explorer: n.explorer })}</a> : null}
                 </div>
               </div>
               <div>
-                <div className="kv" style={{ alignItems: "center" }}><span className="stack"><span className="muted">Exact amount</span><span className="title tabular">{coinAmount(p!.micro, x.coin)}</span></span><CopyButton text={plainAmount(p!.micro)} /></div>
-                <Kv k="Network" v={networkLabel(n)} />
-                <Kv k="Rate" v={`${naira(p!.rateKobo)} per ${c}${x.test ? " (test rate)" : ""}`} />
-                <Kv k="This amount holds for" v={<span className="tabular" aria-live="off">{mmss(left)}</span>} />
+                <div className="kv" style={{ alignItems: "center" }}><span className="stack"><span className="muted">{t("Exact amount")}</span><span className="title tabular">{coinAmount(p!.micro, x.coin)}</span></span><CopyButton text={plainAmount(p!.micro)} /></div>
+                <Kv k={t("Network")} v={networkLabel(n)} />
+                <Kv k={t("Rate")} v={x.test ? t("{rate} per {coin} (test rate)", { rate: naira(p!.rateKobo), coin: c }) : t("{rate} per {coin}", { rate: naira(p!.rateKobo), coin: c })} />
+                <Kv k={t("This amount holds for")} v={<span className="tabular" aria-live="off">{mmss(left)}</span>} />
               </div>
             </section>
             <section className="card stack" aria-labelledby="refunds">
-              <h2 id="refunds" className="title">Refunds</h2>
+              <h2 id="refunds" className="title">{t("Refunds")}</h2>
               {addingRefund ? (
                 <>
-                  <p className="body muted">If the deal is cancelled, or a problem is decided in your favour, we send your money back as {c} on {n.name} to this address.</p>
-                  <RefundAddressForm coin={x.coin} network={x.network} defaultValue={x.refundAddress} submitLabel="Save address"
+                  <p className="body muted">{t("If the deal is cancelled, or a problem is decided in your favour, we send your money back as {coin} on {network} to this address.", { coin: c, network: n.name })}</p>
+                  <RefundAddressForm coin={x.coin} network={x.network} defaultValue={x.refundAddress} submitLabel={t("Save address")}
                     error={actionData?.intent === "refund" ? actionData.error : null} busy={busy} />
-                  <Button block to={`/d/${x.deal.id}/pay/${x.coin}/${n.id}`}>{p!.refundLast4 ? `Keep the address ending ${p!.refundLast4}` : "Not now"}</Button>
+                  <Button block to={`/d/${x.deal.id}/pay/${x.coin}/${n.id}`}>{p!.refundLast4 ? t("Keep the address ending {last4}", { last4: p!.refundLast4 }) : t("Not now")}</Button>
                 </>
               ) : p!.refundLast4 ? (
-                <Kv k="Refunds go to" v={<span>Your address ending {p!.refundLast4} · <Link to="?refund=1" replace>Change</Link></span>} />
+                <Kv k={t("Refunds go to")} v={<span>{t("Your address ending {last4}", { last4: p!.refundLast4 })} · <Link to="?refund=1" replace>{t("Change")}</Link></span>} />
               ) : (
                 <>
-                  <p className="body muted">If the deal is cancelled, we send your money back as {c} to your own address on {n.name}. Add it now, or later if a refund is ever due.</p>
-                  <div><Button to="?refund=1">Add my address</Button></div>
+                  <p className="body muted">{t("If the deal is cancelled, we send your money back as {coin} to your own address on {network}. Add it now, or later if a refund is ever due.", { coin: c, network: n.name })}</p>
+                  <div><Button to="?refund=1">{t("Add my address")}</Button></div>
                 </>
               )}
             </section>
             {onChain ? (
-              <p className="caption muted">The {c} stays at this deal's own address, and {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}. Then it moves to NosHen, which pays {x.seller}.</p>
+              <p className="caption muted">{t("The {coin} stays at this deal's own address, and {name} can't touch it {until}. Then it moves to NosHen, which pays {name}.", { coin: c, name: x.seller, until: untilReleased })}</p>
             ) : (
-              <p className="caption muted">Our crypto partner turns the {c} into {naira(x.deal.due)} for this deal, and our licensed partner holds it. {x.seller} can't touch it until you {x.deal.handover === "meetup" ? "give your release code" : "confirm you received the item"}.</p>
+              <p className="caption muted">{t("Our crypto partner turns the {coin} into {amount} for this deal, and our licensed partner holds it. {name} can't touch it {until}.", { coin: c, amount: naira(x.deal.due), name: x.seller, until: untilReleased })}</p>
             )}
             {x.dev ? (
               <div className="dev stack">
@@ -197,8 +202,8 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
               </div>
             ) : null}
             <BottomAction>
-              <CopyButton text={p!.address} label="Copy address" />
-              <p className="caption muted" style={{ textAlign: "center" }}>This page updates when the network confirms your payment. <Link to={`/d/${x.deal.id}/pay`}>Pay another way</Link></p>
+              <CopyButton text={p!.address} label={t("Copy address")} />
+              <p className="caption muted" style={{ textAlign: "center" }}>{t("This page updates when the network confirms your payment.")} <Link to={`/d/${x.deal.id}/pay`}>{t("Pay another way")}</Link></p>
             </BottomAction>
           </>
         )}

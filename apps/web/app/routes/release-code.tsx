@@ -8,6 +8,7 @@ import { Info, ReleaseCode, TopBar, MoneyStatus } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { firstName } from "@noshen/shared/deal";
 import { categoryOf, checksFor } from "@noshen/shared/categories";
+import { useT } from "@noshen/ui/i18n";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Release code · NosHen" }];
@@ -27,18 +28,19 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export default function ReleaseCodePage({ loaderData: x }: Route.ComponentProps) {
-  const items = checksFor(x.category, x.seller, x.imei);
+  const t = useT();
+  const items = checksFor(x.category, x.seller, x.imei, t);
   const [checks, setChecks] = useState<boolean[]>(items.map(() => false));
   const all = checks.every(Boolean);
   const noun = categoryOf(x.category).noun;
   return (
     <div>
-      <TopBar title="Release code" back={`/d/${x.dealId}`} />
+      <TopBar title={t("Release code")} back={`/d/${x.dealId}`} />
       <main className="page narrow no-tabs stack-4">
-        <h1 className="heading desktop-only">Release code</h1>
-        <div className="row"><MoneyStatus state="held">{naira(x.paid)} held</MoneyStatus></div>
+        <h1 className="heading desktop-only">{t("Release code")}</h1>
+        <div className="row"><MoneyStatus state="held">{t("{amount} held", { amount: naira(x.paid) })}</MoneyStatus></div>
         <section className="card">
-          <p className="label" style={{ marginBottom: 4 }}>Check the {noun} first</p>
+          <p className="label" style={{ marginBottom: 4 }}>{t("Check the {thing} first", { thing: noun })}</p>
           {items.map(([label, hint], i) => (
             <label key={label} className="check">
               <input type="checkbox" checked={checks[i]} onChange={() => setChecks(checks.map((c, j) => (j === i ? !c : c)))} />
@@ -47,11 +49,11 @@ export default function ReleaseCodePage({ loaderData: x }: Route.ComponentProps)
           ))}
         </section>
         {all ? (
-          <ReleaseCode code={x.code} help={`${x.seller} types this code into their phone. Never send it by chat, SMS or a call.`} />
+          <ReleaseCode code={x.code} help={t("{name} types this code into their phone. Never send it by chat, SMS or a call.", { name: x.seller })} />
         ) : (
-          <Info icon="lock">Tick all three checks to see your code. Giving it releases your money to {x.seller}.</Info>
+          <Info icon="lock">{t("Tick all three checks to see your code. Giving it releases your money to {name}.", { name: x.seller })}</Info>
         )}
-        <p className="body">Something's wrong? <Link to={`/d/${x.dealId}/report`}>Report a problem</Link>. The money stays held.</p>
+        <p className="body">{t.rich("Something's wrong? <report>Report a problem</report>. The money stays held.", { report: (s) => <Link to={`/d/${x.dealId}/report`}>{s}</Link> })}</p>
       </main>
     </div>
   );

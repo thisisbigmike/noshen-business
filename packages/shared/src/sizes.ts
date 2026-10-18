@@ -2,6 +2,7 @@
 // UK, EU, US, waist or one size for clothes), then the size. Buyers see it as "EU 42", "UK 12" or "M".
 
 import type { CategoryKey } from "./categories";
+import { en, type T } from "./i18n";
 
 export interface SizeSystem {
   id: string;
@@ -70,12 +71,13 @@ export function sizeLabel(category: string | null | undefined, system: string | 
 }
 
 /** Why a size won't do for a category, or null. */
-export function sizeProblem(category: string, system: string | null | undefined, size: string | null | undefined): string | null {
+export function sizeProblem(category: string, system: string | null | undefined, size: string | null | undefined, t: T = en): string | null {
   const rule = sizeRuleFor(category);
   if (!rule) return null;
-  if (!size) return rule.required ? `Choose the ${rule.label.toLowerCase()}, so buyers know it fits.` : null;
+  const what = t(rule.label).toLowerCase();
+  if (!size) return rule.required ? t("Choose the {what}, so buyers know it fits.", { what }) : null;
   const s = rule.systems.find((x) => x.id === system);
-  if (!s) return `Choose the kind of ${rule.label.toLowerCase()} first.`;
-  if (!s.values.includes(size)) return `Choose a ${rule.label.toLowerCase()} from the list.`;
+  if (!s) return t("Choose the kind of {what} first.", { what });
+  if (!s.values.includes(size)) return t("Choose a {what} from the list.", { what });
   return null;
 }
