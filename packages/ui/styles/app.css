@@ -16,7 +16,8 @@ img { max-width: 100%; display: block; }
    fields show focus with their own border and glow (components.css). */
 :focus { outline: none; }
 :focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
-.search-pill input:focus-visible, .nh-select-pop ul:focus-visible, .choice input:focus-visible { box-shadow: none; }
+/* Inputs inside a box that shows its own focus ring: no second ring around the text itself. */
+.search-pill input:focus-visible, .nh-select-pop ul:focus-visible, .choice input:focus-visible, .price-input input:focus-visible { box-shadow: none; }
 .choice:has(input:focus-visible) { box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent); }
 /* Scrollbars: a slim rounded thumb in the theme's colours on a clear track, with no arrow buttons. It widens a
    little under the pointer and turns brand green while dragged. Phones and tablets keep their own overlay
