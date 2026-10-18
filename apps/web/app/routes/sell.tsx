@@ -5,7 +5,8 @@ import { sellerReady, startListing } from "@noshen/engine/sellers";
 import { one } from "@noshen/engine/db";
 import { ErrorText, Icon, Info, TopBar } from "@noshen/ui/ui";
 import { CATEGORIES, categoryOf } from "@noshen/shared/categories";
-import { useT } from "@noshen/ui/i18n";
+import { useMarket, useT } from "@noshen/ui/i18n";
+import { marketOf } from "@noshen/shared/locations";
 
 export const meta = () => [{ title: "Sell · NosHen" }];
 
@@ -42,6 +43,7 @@ export async function action({ request }: Route.ActionArgs) {
 /** Step 1 of selling: what it is. One tap on a category moves on to the photos. */
 export default function SellStart({ loaderData: x, actionData }: Route.ComponentProps) {
   const t = useT();
+  const market = useMarket();
   const nav = useNavigation();
   const choosing = nav.state !== "idle" ? String(nav.formData?.get("category") ?? "") : "";
   const draftCat = x.draft ? categoryOf(x.draft.category) : null;
@@ -53,6 +55,8 @@ export default function SellStart({ loaderData: x, actionData }: Route.Component
           <h1 className="heading">{t("What are you selling?")}</h1>
           <p className="body muted">{t("Pick one. Next you'll add photos, then the price and details.")}</p>
         </div>
+
+        {market !== "NG" ? <Info icon="world">{t("NosHen works in Nigeria for now: you can sell an item that's in Nigeria. {country} is coming soon.", { country: t(marketOf(market).name) })}</Info> : null}
 
         {x.draft && draftCat ? (
           <Link to={`/sell/${x.draft.id}/${x.draft.next}`} className="resume-card" prefetch="intent">

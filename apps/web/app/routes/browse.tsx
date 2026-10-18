@@ -15,6 +15,9 @@ import { NIGERIA_STATES, comingSoonList, isState, placeLabel, stateLabel } from 
 import { useT } from "@noshen/ui/i18n";
 import { msg } from "@noshen/shared/i18n";
 import { LanguageToggle } from "../lib/prefs";
+import { AbroadNote, ComingSoon, CountrySwitch } from "../lib/country";
+import { marketOf } from "@noshen/shared/locations";
+import { useMarket } from "@noshen/ui/i18n";
 
 export const meta: Route.MetaFunction = () => [
   { title: "NosHen: buy and sell anything in Nigeria, protected" },
@@ -46,6 +49,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 export default function Browse({ loaderData }: Route.ComponentProps) {
   const { listings, states, f, more } = loaderData;
   const t = useT();
+  const market = marketOf(useMarket());
   const [filtersOpen, setFiltersOpen] = useState(false);
   const location = useLocation();
   useEffect(() => { setFiltersOpen(false); }, [location.search]);
@@ -100,12 +104,26 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
       {f.q ? <Link to={link("q", "")} className="search-clear" aria-label={t("Clear search")}><Icon name="x" size={16} /></Link> : null}
     </Form>
   );
+  const mobileTop = (
+    <header className="pill-bar browse-top mobile-only">
+      <Link to="/" aria-label={t("NosHen home")} style={{ textDecoration: "none" }}><Wordmark size="sm" /></Link>
+      <span className="row" style={{ gap: 4 }}><LanguageToggle /><ThemeToggle /></span>
+    </header>
+  );
+  // A NosHen country that isn't open yet has nothing to browse: its coming-soon page instead.
+  if (!market.live) {
+    return (
+      <>
+        {mobileTop}
+        <main className="page narrow stack-4">
+          <ComingSoon />
+        </main>
+      </>
+    );
+  }
   return (
     <>
-      <header className="pill-bar browse-top mobile-only">
-        <Link to="/" aria-label={t("NosHen home")} style={{ textDecoration: "none" }}><Wordmark size="sm" /></Link>
-        <span className="row" style={{ gap: 4 }}><LanguageToggle /><ThemeToggle /></span>
-      </header>
+      {mobileTop}
       <main className="page">
         <div className="browse-layout">
           <aside className="desktop-only card filter-card">{filters}</aside>
@@ -113,6 +131,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
             <div className="browse-head">
               <div className="stack">
                 <h1 className="heading">{f.q ? t("Results for “{q}”", { q: f.q }) : isCategory(f.cat) ? t("{category} in {place}", { category: t(categoryOf(f.cat).label), place: where }) : f.state ? t("For sale in {place}", { place: where }) : t("For sale across Nigeria")}</h1>
+                <div className="row wrap" style={{ gap: 8 }}><CountrySwitch /></div>
                 <p className="caption muted">{(() => { const live = listings.filter((l: any) => l.status !== "sold").length; const sold = listings.length - live; return sold ? t("{live} for sale, {sold} sold recently.", { live, sold }) : t("{live} for sale.", { live }); })()} {t("Every deal is protected: your money is held until you have the item.")}</p>
               </div>
               <div className="row browse-tools">
@@ -130,6 +149,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
                 </Form>
               </div>
             </div>
+            <AbroadNote />
             <div className="mobile-only">{filters}</div>
             {active.length ? (
               <div className="active-filters" aria-label={t("Filters on")}>

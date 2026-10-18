@@ -1,18 +1,25 @@
-// The chosen language and data saver, for every screen: useT() translates, useLite() says whether to save data.
+// The chosen language, data saver and country, for every screen: useT() translates, useLite() says whether to save
+// data, useMarket() is the NosHen country being shown.
 // See @noshen/shared/i18n for how translation works. Without a provider (the staff site), it's English, data saver off.
 import { createContext, Fragment, useContext, useMemo, type ReactNode } from "react";
 import { richParts, translator, type Lang, type T as PlainT, type Vars } from "@noshen/shared/i18n";
 
-interface Prefs { lang: Lang; lite: boolean }
-const PrefsContext = createContext<Prefs>({ lang: "en", lite: false });
+/**
+ * market: the NosHen country being shown (NG, GH, KE, ZA). from: the country the visitor is in, when known (any
+ * two-letter code), for "visiting from abroad" notes.
+ */
+interface Prefs { lang: Lang; lite: boolean; market?: string; from?: string | null }
+const PrefsContext = createContext<Prefs>({ lang: "en", lite: false, market: "NG", from: null });
 
-export function PrefsProvider({ lang, lite, children }: Prefs & { children: ReactNode }) {
-  const value = useMemo(() => ({ lang, lite }), [lang, lite]);
+export function PrefsProvider({ lang, lite, market = "NG", from = null, children }: Prefs & { children: ReactNode }) {
+  const value = useMemo(() => ({ lang, lite, market, from }), [lang, lite, market, from]);
   return <PrefsContext.Provider value={value}>{children}</PrefsContext.Provider>;
 }
 
 export const useLang = () => useContext(PrefsContext).lang;
 export const useLite = () => useContext(PrefsContext).lite;
+export const useMarket = () => useContext(PrefsContext).market ?? "NG";
+export const useVisitorCountry = () => useContext(PrefsContext).from ?? null;
 
 /** Each tag in rich text becomes what this says: { b: (text) => <strong>{text}</strong> }. */
 export type Tags = Record<string, (text: string) => ReactNode>;

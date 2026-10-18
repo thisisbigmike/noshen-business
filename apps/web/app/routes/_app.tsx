@@ -8,6 +8,7 @@ import { ThemeToggle } from "@noshen/ui/theme";
 import { useT } from "@noshen/ui/i18n";
 import { msg } from "@noshen/shared/i18n";
 import { LanguageToggle } from "../lib/prefs";
+import { CountrySwitch } from "../lib/country";
 
 export async function loader({ request }: Route.LoaderArgs) {
   return withApp(async (d) => {
@@ -44,6 +45,7 @@ export default function AppShell({ loaderData }: Route.ComponentProps) {
           ))}
         </nav>
         <div className="end">
+          <CountrySwitch />
           <LanguageToggle />
           <ThemeToggle />
           {loaderData.user ? (

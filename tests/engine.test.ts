@@ -900,3 +900,18 @@ describe("staff alerts", () => {
     }
   });
 });
+
+describe("waitlist", () => {
+  it("takes an email for a country NosHen hasn't opened in, once, and counts it", async () => {
+    const { joinWaitlist, waitlistCounts } = await import("@noshen/engine/waitlist");
+    const email = `wait${Date.now()}@example.com`;
+    await joinWaitlist(w.d, email, "KE", "pcm");
+    await joinWaitlist(w.d, ` ${email.toUpperCase()} `, "KE"); // the same person again: nothing changes
+    await expect(joinWaitlist(w.d, email, "NG")).rejects.toThrow(/coming to/);
+    await expect(joinWaitlist(w.d, email, "US")).rejects.toThrow(/coming to/);
+    await expect(joinWaitlist(w.d, "not-an-email", "GH")).rejects.toThrow(/@/);
+    const rows = (await w.db.query("select country, lang from waitlist where email = $1", [email])).rows;
+    expect(rows).toEqual([{ country: "KE", lang: "pcm" }]);
+    expect((await waitlistCounts(w.db)).find((c) => c.country === "KE")!.n).toBeGreaterThanOrEqual(1);
+  });
+});

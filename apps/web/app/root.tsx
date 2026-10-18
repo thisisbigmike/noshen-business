@@ -10,6 +10,8 @@ import { Button } from "@noshen/ui/ui";
 import { pushFor } from "@noshen/engine/context";
 import { LANG_INFO, langFromRequest, loadCatalog, msg, type Lang } from "@noshen/shared/i18n";
 import { liteFromRequest } from "@noshen/shared/data-saver";
+import { marketFromRequest } from "@noshen/shared/locations";
+import { cleanCountry } from "@noshen/shared/payments";
 import { PrefsProvider, useLite, useT } from "@noshen/ui/i18n";
 
 export const links: Route.LinksFunction = () => [
@@ -22,14 +24,17 @@ export async function loader({ request }: Route.LoaderArgs) {
   const cookie = request.headers.get("Cookie");
   const lang = langFromRequest(cookie, request.headers.get("Accept-Language"));
   await loadCatalog(lang);
+  // Where the visitor is, from Cloudflare (workers/app.ts). ?from=KE pretends, to try another country's view.
+  const from = cleanCountry(new URL(request.url).searchParams.get("from")) ?? cleanCountry(request.headers.get("x-noshen-country"));
   return {
     theme: themeFromCookie(cookie), pushKey: pushFor()?.publicKey ?? null,
     lang, lite: liteFromRequest(cookie, request.headers.get("Save-Data")),
+    from, market: marketFromRequest(cookie, from),
   };
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const root = useRouteLoaderData("root") as { theme?: Theme; lang?: Lang; lite?: boolean } | undefined;
+  const root = useRouteLoaderData("root") as { theme?: Theme; lang?: Lang; lite?: boolean; market?: string; from?: string | null } | undefined;
   const theme: Theme = root?.theme ?? "light";
   const lang: Lang = root?.lang ?? "en";
   const lite = root?.lite ?? false;
@@ -52,7 +57,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        <PrefsProvider lang={lang} lite={lite}>{children}</PrefsProvider>
+        <PrefsProvider lang={lang} lite={lite} market={root?.market ?? "NG"} from={root?.from ?? null}>{children}</PrefsProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

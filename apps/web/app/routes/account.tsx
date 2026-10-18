@@ -13,6 +13,7 @@ import { PushCard } from "../lib/push";
 import { useLang, useT } from "@noshen/ui/i18n";
 import { msg } from "@noshen/shared/i18n";
 import { DataSaverSwitch, LanguageSwitch } from "../lib/prefs";
+import { CountrySwitch } from "../lib/country";
 
 export const meta = () => [{ title: "Account · NosHen" }];
 
@@ -92,6 +93,11 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
           <p className="title" id="language">{t("Language")}</p>
           <p className="caption muted">{t("NosHen in English or Pidgin. Your choice is saved on this device.")}</p>
           <LanguageSwitch />
+        </section>
+        <section className="card stack" aria-labelledby="country">
+          <p className="title" id="country">{t("Country")}</p>
+          <p className="caption muted">{t("NosHen shows the country you're in first. Nigeria is open; Ghana, Kenya and South Africa are coming.")}</p>
+          <div className="row"><CountrySwitch /></div>
         </section>
         <section className="card stack" aria-labelledby="data-saver">
           <p className="title" id="data-saver">{t("Data saver")}</p>

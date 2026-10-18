@@ -615,3 +615,27 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 @media (hover: hover) { .share-menu a:hover, .share-menu button:hover { background: var(--tint); color: var(--ink); } }
 @keyframes share-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .share-menu { animation: none; } }
+
+/* Country switch: the flag and name, opening a list of NosHen's countries. A <details>, so it opens without JavaScript. */
+.country-switch { position: relative; z-index: 6; display: inline-flex; }
+.country-switch > summary { list-style: none; }
+.country-switch > summary::-webkit-details-marker { display: none; }
+.country-switch[open] > summary { border-color: var(--primary); }
+.country-menu { position: absolute; z-index: 40; top: calc(100% + 8px); left: 0; min-width: 240px; padding: 6px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); animation: share-in var(--dur-fast) var(--ease-out); }
+.desktop-nav .country-menu { left: auto; right: 0; }
+.country-switch.up .country-menu { top: auto; bottom: calc(100% + 8px); }
+.country-menu > p { padding: 6px 12px 2px; }
+.country-menu button { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.country-menu button[aria-pressed="true"] { background: var(--tint); font-weight: 600; }
+@media (hover: hover) { .country-menu button:hover { background: var(--tint); } }
+@media (max-width: 480px) { .country-switch .country-name { display: none; } }
+.hero-country { margin-bottom: var(--space-2); }
+.hero-country .country-switch .country-name { display: inline; }
+
+/* A NosHen country that isn't open yet. */
+.lp-inner.soon-wrap { padding-top: var(--space-10); padding-bottom: var(--space-10); }
+.coming-soon .country-switch .country-name { display: inline; }
+.coming-soon { max-width: 640px; margin: 0 auto; }
+.soon-flag { font-size: 44px; line-height: 1; }
+.soon-form { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.soon-form .nh-input { min-width: 200px; }

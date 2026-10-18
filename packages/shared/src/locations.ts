@@ -26,15 +26,31 @@ export function placeLabel(area: string | null | undefined, state: string | null
   return a || s || "Nigeria";
 }
 
-export interface Country { code: string; name: string; live: boolean }
+export interface Country { code: string; name: string; flag: string; live: boolean }
 
 /** Nigeria is live. The others are on the way and shown as "coming soon". */
 export const COUNTRIES: Country[] = [
-  { code: "NG", name: "Nigeria", live: true },
-  { code: "GH", name: "Ghana", live: false },
-  { code: "KE", name: "Kenya", live: false },
-  { code: "ZA", name: "South Africa", live: false },
+  { code: "NG", name: "Nigeria", flag: "🇳🇬", live: true },
+  { code: "GH", name: "Ghana", flag: "🇬🇭", live: false },
+  { code: "KE", name: "Kenya", flag: "🇰🇪", live: false },
+  { code: "ZA", name: "South Africa", flag: "🇿🇦", live: false },
 ];
+
+/** One of NosHen's countries (live or coming soon), by its two-letter code. */
+export const isMarket = (code: unknown): code is string => typeof code === "string" && COUNTRIES.some((c) => c.code === code);
+export const marketOf = (code: string): Country => COUNTRIES.find((c) => c.code === code) ?? COUNTRIES[0];
+
+export const COUNTRY_COOKIE = "noshen-country";
+
+/**
+ * Which NosHen country a visitor sees: the one they chose (a cookie), else the one they're in if NosHen has it (from
+ * Cloudflare), else Nigeria. Someone in the USA or the UK sees Nigeria, with a note about buying from abroad.
+ */
+export function marketFromRequest(cookie: string | null, visitorCountry: string | null): string {
+  const saved = (cookie ?? "").match(/(?:^|;\s*)noshen-country=([A-Z]{2})/)?.[1];
+  if (isMarket(saved)) return saved;
+  return isMarket(visitorCountry) ? visitorCountry : "NG";
+}
 
 export const COMING_SOON = COUNTRIES.filter((c) => !c.live).map((c) => c.name);
 

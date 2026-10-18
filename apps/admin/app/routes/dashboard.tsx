@@ -8,23 +8,25 @@ import { naira } from "@noshen/shared/money";
 import { disputeReasonLabel, firstName } from "@noshen/shared/deal";
 import { categoryOf } from "@noshen/shared/categories";
 import { left, when } from "@noshen/shared/time";
+import { waitlistCounts } from "@noshen/engine/waitlist";
+import { marketOf } from "@noshen/shared/locations";
 
 export const meta = () => [{ title: "Dashboard · NosHen staff" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   const staff = await requireStaff(request);
-  const [q, o] = await withApp((d) => Promise.all([staffQueues(d.db), adminOverview(d.db)]));
+  const [q, o, waiting] = await withApp((d) => Promise.all([staffQueues(d.db), adminOverview(d.db), waitlistCounts(d.db)]));
   // Worked out here, in Nigeria time (WAT), so the page reads the same on the server and in the browser.
   const now = new Date();
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Lagos" }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const today = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Lagos" }).format(now);
-  return { q, o, greeting: `${greeting}, ${firstName(staff.name)}`, today };
+  return { q, o, waiting, greeting: `${greeting}, ${firstName(staff.name)}`, today };
 }
 
 const dayLabel = (day: string, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
 
-export default function Dashboard({ loaderData: { q, o, greeting, today } }: Route.ComponentProps) {
+export default function Dashboard({ loaderData: { q, o, waiting, greeting, today } }: Route.ComponentProps) {
   const [params] = useSearchParams();
   const decided = params.get("decided");
   const total = q.disputes.length + q.holds.length + q.locked.length + q.stuck.length + q.failed.length;
@@ -113,6 +115,9 @@ export default function Dashboard({ loaderData: { q, o, greeting, today } }: Rou
               })}
             </ul>
           )}
+          {waiting.length ? (
+            <p className="caption muted">Waiting for NosHen in their country: {waiting.map((w) => `${marketOf(w.country).flag} ${marketOf(w.country).name} ${w.n}`).join(" · ")}</p>
+          ) : null}
         </section>
       </div>
 

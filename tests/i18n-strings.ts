@@ -7,11 +7,12 @@ import { CATEGORIES } from "@noshen/shared/categories";
 import { CONDITIONS, DISPUTE_REASONS, STATUS } from "@noshen/shared/deal";
 import { SIZES } from "@noshen/shared/sizes";
 import { LEGAL_NAV } from "@noshen/shared/legal-pages";
+import { COUNTRIES } from "@noshen/shared/locations";
 
 const root = new URL("..", import.meta.url).pathname;
 
 /** Where the customer site's words are written. The staff site stays in English. */
-const PLACES = ["apps/web/app", "apps/web/server", "packages/ui/src", "packages/shared/src", "packages/engine/src/photos.ts"];
+const PLACES = ["apps/web/app", "apps/web/server", "packages/ui/src", "packages/shared/src", "packages/engine/src/photos.ts", "packages/engine/src/waitlist.ts"];
 
 function filesIn(path: string): string[] {
   const full = join(root, path);
@@ -49,6 +50,7 @@ export function tableStrings(): string[] {
     out.push(rule.label, rule.hint, ...rule.systems.map((x) => x.label));
   }
   for (const p of LEGAL_NAV) out.push(p.title);
+  for (const c of COUNTRIES) out.push(c.name);
   return out;
 }
 

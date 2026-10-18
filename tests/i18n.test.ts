@@ -52,3 +52,14 @@ describe("translation", () => {
     expect(liteFromRequest(null, null)).toBe(false);
   });
 });
+
+describe("countries", () => {
+  it("shows the chosen country, else the visitor's if NosHen has it, else Nigeria", async () => {
+    const { marketFromRequest } = await import("@noshen/shared/locations");
+    expect(marketFromRequest("noshen-country=GH", "KE")).toBe("GH");
+    expect(marketFromRequest(null, "KE")).toBe("KE");
+    expect(marketFromRequest(null, "US")).toBe("NG");
+    expect(marketFromRequest("noshen-country=US", null)).toBe("NG");
+    expect(marketFromRequest(null, null)).toBe("NG");
+  });
+});

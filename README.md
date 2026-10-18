@@ -84,6 +84,7 @@ The live demo is at **https://noshen-web.usenoshen.workers.dev**. Sign in there 
 - Real-time chat, and notifications on the phone or computer (Web Push, with no third-party push service).
 - Naira and stablecoin payments.
 - Light and dark themes, and a layout that works from small phones to wide screens.
+- **Countries.** The site sees which country a visitor is in (from Cloudflare) and shows that NosHen country first, with a switcher (Nigeria, Ghana, Kenya, South Africa). Nigeria is open; the others show a coming-soon page with a waitlist (counts on the staff dashboard) and a way to shop Nigeria meanwhile. Visitors from elsewhere (the USA, the UK…) see Nigeria, with a note on buying from abroad with USDT or USDC. Try another country's view with `?from=KE`.
 - **English or Nigerian Pidgin.** Every screen of the customer site is in both; a switch in the header and in Account changes it, and works without JavaScript (Opera Mini). The Pidgin words load only for people who choose Pidgin. Legal pages stay in English, the version that counts.
 - **Built for small data plans.**
   - Photos are made smaller on the phone before they're sent: a 5.6 MB camera photo uploads as about 220 KB, with a 13 KB copy for lists and grids.

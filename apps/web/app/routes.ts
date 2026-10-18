@@ -32,4 +32,6 @@ export default [
   ]),
   // Saves the language and data saver, then goes back (no page of its own).
   route("prefs", "routes/prefs.tsx"),
+  // Joins the waitlist for a country NosHen hasn't opened in yet, then goes back.
+  route("waitlist", "routes/waitlist.tsx"),
 ] satisfies RouteConfig;

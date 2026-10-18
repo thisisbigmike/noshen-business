@@ -15,6 +15,9 @@ import { comingSoonList, placeLabel } from "@noshen/shared/locations";
 import { useT, type T } from "@noshen/ui/i18n";
 import { msg } from "@noshen/shared/i18n";
 import { LanguageToggle } from "../lib/prefs";
+import { AbroadNote, ComingSoon, CountrySwitch } from "../lib/country";
+import { marketOf } from "@noshen/shared/locations";
+import { useMarket } from "@noshen/ui/i18n";
 
 export const handle = { tabs: false };
 
@@ -73,18 +76,64 @@ const faq = (t: T, min: number, max: number | null): [string, string][] => [
 export default function Landing({ loaderData: x }: Route.ComponentProps) {
   const t = useT();
   const b = (s: string) => <strong>{s}</strong>;
+  const market = marketOf(useMarket());
+  const header = (
+    <header className="pill-bar landing-top mobile-only">
+      <Link to="/" aria-label={t("NosHen home")} style={{ textDecoration: "none" }}><Wordmark size="sm" /></Link>
+      <nav className="row">
+        <LanguageToggle />
+        <ThemeToggle />
+        <Link to="/browse" className="label tap hide-narrow">{t("Browse")}</Link>
+        <Button variant="primary" pill to={x.signedIn ? "/deals" : "/signin"}>{x.signedIn ? t("Deals") : t("Sign in")}</Button>
+      </nav>
+    </header>
+  );
+  const footer = (
+    <footer className="landing-footer">
+      <div className="lp-inner footer-grid">
+        <div className="stack footer-brand"><Wordmark size="sm" /><p className="caption muted">{t("Your money is held until you have the item. Across Nigeria. {countries} coming soon.", { countries: comingSoonList() })}</p><div className="row wrap" style={{ gap: 8 }}><CountrySwitch className="up" /><LanguageToggle /></div></div>
+        <nav className="stack" aria-label={t("Use NosHen")}>
+          <p className="label">{t("Use NosHen")}</p>
+          <Link to="/browse" className="caption">{t("Browse")}</Link>
+          <Link to="/sell" className="caption">{t("Sell")}</Link>
+          <Link to={x.signedIn ? "/account" : "/signin"} className="caption">{x.signedIn ? t("Account") : t("Sign in")}</Link>
+        </nav>
+        <nav className="stack" aria-label={t("Help")}>
+          <p className="label">{t("Help")}</p>
+          <a href="#how-title" className="caption">{t("How it works")}</a>
+          <a href="#faq-title" className="caption">{t("Questions")}</a>
+          <Link to="/safety" className="caption">{t("Safety tips")}</Link>
+          <Link to="/prohibited-items" className="caption">{t("Prohibited items")}</Link>
+        </nav>
+        <nav className="stack" aria-label={t("Legal")}>
+          <p className="label">{t("Legal")}</p>
+          <Link to="/terms" className="caption">{t("Terms of Use")}</Link>
+          <Link to="/deal-terms" className="caption">{t("Protected Deal Terms")}</Link>
+          <Link to="/privacy" className="caption">{t("Privacy Policy")}</Link>
+          <Link to="/cookies" className="caption">{t("Cookie Policy")}</Link>
+        </nav>
+        <div className="footer-bottom">
+          <p className="caption muted">{t("© {year} NosHen. Money is held by a licensed partner bank; NosHen is not a bank.", { year: new Date().getFullYear() })}</p>
+        </div>
+      </div>
+    </footer>
+  );
+  // A NosHen country that isn't open yet: its coming-soon page, then how NosHen works.
+  if (!market.live) {
+    return (
+      <div className="landing">
+        {header}
+        <main id="main" className="landing-main">
+          <div className="lp-inner soon-wrap"><ComingSoon /></div>
+          <FollowTheMoney />
+        </main>
+        {footer}
+      </div>
+    );
+  }
   return (
     <div className="landing">
-      <header className="pill-bar landing-top mobile-only">
-        <Link to="/" aria-label={t("NosHen home")} style={{ textDecoration: "none" }}><Wordmark size="sm" /></Link>
-        <nav className="row">
-          <LanguageToggle />
-          <ThemeToggle />
-          <Link to="/browse" className="label tap hide-narrow">{t("Browse")}</Link>
-          <Button variant="primary" pill to={x.signedIn ? "/deals" : "/signin"}>{x.signedIn ? t("Deals") : t("Sign in")}</Button>
-        </nav>
-      </header>
-
+      {header}
       <main id="main" className="landing-main">
       <Hero live={x.live} />
       <LiveStrip items={x.recent} />
@@ -221,34 +270,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
 
       </main>
 
-      <footer className="landing-footer">
-        <div className="lp-inner footer-grid">
-          <div className="stack footer-brand"><Wordmark size="sm" /><p className="caption muted">{t("Your money is held until you have the item. Across Nigeria. {countries} coming soon.", { countries: comingSoonList() })}</p><LanguageToggle /></div>
-          <nav className="stack" aria-label={t("Use NosHen")}>
-            <p className="label">{t("Use NosHen")}</p>
-            <Link to="/browse" className="caption">{t("Browse")}</Link>
-            <Link to="/sell" className="caption">{t("Sell")}</Link>
-            <Link to={x.signedIn ? "/account" : "/signin"} className="caption">{x.signedIn ? t("Account") : t("Sign in")}</Link>
-          </nav>
-          <nav className="stack" aria-label={t("Help")}>
-            <p className="label">{t("Help")}</p>
-            <a href="#how-title" className="caption">{t("How it works")}</a>
-            <a href="#faq-title" className="caption">{t("Questions")}</a>
-            <Link to="/safety" className="caption">{t("Safety tips")}</Link>
-            <Link to="/prohibited-items" className="caption">{t("Prohibited items")}</Link>
-          </nav>
-          <nav className="stack" aria-label={t("Legal")}>
-            <p className="label">{t("Legal")}</p>
-            <Link to="/terms" className="caption">{t("Terms of Use")}</Link>
-            <Link to="/deal-terms" className="caption">{t("Protected Deal Terms")}</Link>
-            <Link to="/privacy" className="caption">{t("Privacy Policy")}</Link>
-            <Link to="/cookies" className="caption">{t("Cookie Policy")}</Link>
-          </nav>
-          <div className="footer-bottom">
-            <p className="caption muted">{t("© {year} NosHen. Money is held by a licensed partner bank; NosHen is not a bank.", { year: new Date().getFullYear() })}</p>
-          </div>
-        </div>
-      </footer>
+      {footer}
     </div>
   );
 }
@@ -259,6 +281,7 @@ function Hero({ live }: { live: number }) {
     <section className="lp-hero" aria-labelledby="hero-title">
       <div className="lp-inner hero-layout">
         <div className="hero-copy">
+          <div className="row wrap hero-country"><CountrySwitch /></div>
           <p className="live-pill"><span className="live-dot" aria-hidden="true" />{live ? t("{n} items for sale across Nigeria now", { n: live }) : t("Buy and sell anything in Nigeria")}</p>
           <h1 id="hero-title" className="hero-title">{t.rich("Your money is <mark>held</mark> until you have the item.", {
             mark: (s) => <span className="mark">{s}<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 14 C 50 4, 120 4, 197 10" /></svg></span>,
@@ -273,6 +296,7 @@ function Hero({ live }: { live: number }) {
             <li><Icon name="id" size={18} />{t("Sellers ID-checked")}</li>
             <li><Icon name="scale" size={18} />{t("Problems decided in 72 hours")}</li>
           </ul>
+          <AbroadNote />
         </div>
 
         <div className="hero-stage" aria-label={t("Example: a deal with the money held")}>
