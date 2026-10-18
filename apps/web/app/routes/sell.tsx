@@ -1,5 +1,6 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/sell";
+import { SellSteps } from "../lib/sell-steps";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { sellerReady, startListing } from "@noshen/engine/sellers";
 import { one } from "@noshen/engine/db";
@@ -49,8 +50,9 @@ export default function SellStart({ loaderData: x, actionData }: Route.Component
   const draftCat = x.draft ? categoryOf(x.draft.category) : null;
   return (
     <div>
-      <TopBar title={<span>{t("Sell")} <span className="caption muted">{t("Step {n} of {total}", { n: 1, total: 3 })}</span></span>} back="/browse" />
+      <TopBar title={t("Sell")} back="/browse" />
       <main className="page narrow stack-4">
+        <SellSteps at={1} id={x.draft?.id} />
         <div className="stack">
           <h1 className="heading">{t("What are you selling?")}</h1>
           <p className="body muted">{t("Pick one. Next you'll add photos, then the price and details.")}</p>

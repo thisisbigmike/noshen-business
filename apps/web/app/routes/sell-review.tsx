@@ -1,5 +1,6 @@
 import { Form, Link, data, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/sell-review";
+import { SellSteps } from "../lib/sell-steps";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { publish, sellerReady } from "@noshen/engine/sellers";
 import { DealError, settingsOf } from "@noshen/engine/core";
@@ -78,8 +79,9 @@ export default function SellReview({ loaderData: { listing: l, fee, limit, ready
   const edit = (step: "photos" | "details", what: string) => <Link to={`/sell/${l.id}/${step}`} className="caption tap edit-link" aria-label={t("Edit {what}", { what })}>{t("Edit")}</Link>;
   return (
     <Form method="post">
-      <TopBar title={<span>{t("Review")} <span className="caption muted">{t("Step {n} of {total}", { n: 4, total: 4 })}</span></span>} back={`/sell/${l.id}/details`} />
+      <TopBar title={t("Publish")} back={`/sell/${l.id}/details`} />
       <main className="page narrow stack-4">
+        <SellSteps at={4} id={l.id} />
         <div className="stack">
           <h1 className="heading">{t("Check your listing")}</h1>
           <p className="body muted">{t("This is what buyers will see. Tap Edit to change anything before it goes live.")}</p>

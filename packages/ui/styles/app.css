@@ -659,3 +659,37 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 .stage-remove { width: 40px; height: 40px; margin-top: 28px; }
 .stage-n { display: inline-flex; width: 22px; height: 22px; flex: none; align-items: center; justify-content: center; border-radius: var(--radius-full); background: var(--canvas); color: var(--ink); font-weight: 600; font-size: 12px; }
 .stage-add { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; text-decoration: none; font-weight: 600; }
+
+/* Selling: where the seller is (What → Photos → Details → Publish). */
+.sell-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sell-steps li > a, .sell-steps li > span { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 8px; border-top: 3px solid var(--border); color: var(--ink-muted); text-decoration: none; font-size: 12px; font-weight: 600; text-align: center; }
+.sell-steps li.done > a { border-top-color: var(--primary); color: var(--ink); }
+.sell-steps li.now > span { border-top-color: var(--primary); color: var(--primary); }
+.sell-step-n { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: var(--radius-full); background: var(--canvas); border: 1px solid var(--border); font-size: 12px; }
+.sell-steps li.done .sell-step-n { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.sell-steps li.now .sell-step-n { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.sell-step-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+/* Selling, photos: the three photos to take, one at a time, as a checklist. */
+.shot-list { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.shot { position: relative; display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.shot.next { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent); }
+.shot:not(.done):not(.next) { opacity: 0.6; }
+.shot-photo { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 88px; height: 88px; overflow: hidden; border-radius: var(--radius-md); background: var(--canvas); color: var(--ink-muted); }
+.shot-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.shot-photo .tag { position: absolute; left: 4px; bottom: 4px; padding: 0 6px; border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-size: 11px; }
+.shot-photo.add { border: 1.5px dashed var(--primary); background: var(--tint); color: var(--primary); cursor: pointer; font-weight: 600; }
+.shot-photo.waiting { border: 1px dashed var(--border); }
+.shot-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.shot-n { display: inline-flex; flex: none; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: var(--radius-full); background: var(--canvas); border: 1px solid var(--border); font-size: 12px; }
+.shot.done .shot-n { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.shot.next .shot-n { border-color: var(--primary); color: var(--primary); }
+.shot-remove .icon-btn { width: 36px; height: 36px; }
+.photo-slot .shot-remove { position: absolute; top: 4px; right: 4px; }
+.photo-slot .shot-remove .icon-btn { width: 32px; height: 32px; background: var(--surface); }
+/* The file input is hidden; keyboard users still reach it, and the boxes and button that open it show the focus. */
+.sell-photos:has(#photo-pick:focus-visible) label[for="photo-pick"] { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 45%, transparent); }
+label[for="photo-pick"][aria-disabled="true"] { opacity: 0.6; pointer-events: none; }
+.photo-tips { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; padding: 0; list-style: none; color: var(--ink-muted); font-size: 14px; }
+.photo-tips li { display: inline-flex; align-items: center; gap: 6px; }
+.photo-tips li svg { color: var(--primary); }

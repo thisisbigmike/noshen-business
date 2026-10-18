@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, data, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/sell-details";
+import { SellSteps } from "../lib/sell-steps";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { saveDraft } from "@noshen/engine/sellers";
 import { one } from "@noshen/engine/db";
@@ -85,6 +86,7 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
   const p = Number(price.replace(/[^\d]/g, "")) * 100;
   const c = categoryOf(l.category);
   const job = isService(l.category);
+  const priceOk = p >= min && (max === null || p <= max) && Number.isSafeInteger(p);
   const [stagesError, setStagesError] = useState<string | null>(null);
   return (
     <CheckedForm method="post" onSubmit={(e) => {
@@ -95,20 +97,21 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
       setStagesError(wrong);
       if (wrong) { e.preventDefault(); document.getElementById("stages-field")?.scrollIntoView({ block: "center", behavior: "smooth" }); }
     }} onChange={() => stagesError && setStagesError(null)}>
-      <TopBar title={<span>{t("Details")} <span className="caption muted">{t("Step {n} of {total}", { n: 3, total: 4 })}</span></span>} back={`/sell/${l.id}/photos`} />
+      <TopBar title={t("Details")} back={`/sell/${l.id}/photos`} />
       <main className="page narrow stack-4">
-        <h1 className="heading desktop-only">{t("Details")} <span className="caption muted">{t("Step {n} of {total}", { n: 3, total: 4 })}</span></h1>
+        <SellSteps at={3} id={l.id} />
+        <h1 className="heading desktop-only">{t("Details")}</h1>
         <input type="hidden" name="category" value={l.category} />
         <div className="chosen-cat">
           <span className="cat-icon"><Icon name={c.icon} size={22} /></span>
           <span className="grow stack" style={{ gap: 0 }}><span className="caption muted">{t("Selling")}</span><span className="label">{t(c.label)}</span></span>
           <Link to="/sell" className="caption tap" style={{ padding: "0 8px" }}>{t("Change")}</Link>
         </div>
-        <TextField label={t("Title")} name="title" defaultValue={untouched ? "" : l.title} placeholder={c.titleExample} maxLength={80} required
+        <TextField label={job ? t("Title (what's the job called?)") : t("Title (what is it called?)")} name="title" defaultValue={untouched ? "" : l.title} placeholder={c.titleExample} maxLength={80} required
           missing={t("Give it a title, like “{example}”.", { example: c.titleExample })} validate={(v) => (v.trim().length < 3 ? t("Make the title a little longer: at least 3 characters, like “{example}”.", { example: c.titleExample }) : null)} />
         {job ? null : (
           <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-            <legend className="label" style={{ marginBottom: 8 }}>{t("Condition")}</legend>
+            <legend className="label" style={{ marginBottom: 8 }}>{t("Condition (is it new or used?)")}</legend>
             {CONDITIONS.map(([v, label, hint]) => (
               <label key={v} className="choice"><input type="radio" name="condition" value={v} checked={cond === v} onChange={() => setCond(v)} /><span className="stack" style={{ gap: 0 }}><span className="body">{t(label)}</span><span className="caption muted">{t(hint)}</span></span></label>
             ))}
@@ -147,9 +150,9 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
             ? (qty > 1 ? t("Each buyer books one job. It shows as booked when all {n} are taken.", { n: qty }) : t("Can you take on more than one of these at a time? Set how many, and each buyer books one."))
             : qty > 1 ? t("Each buyer gets one. Buyers see how many are left, and it shows as sold when all {n} have gone.", { n: qty }) : t("Selling more than one of the same thing? Set how many, and buyers can each buy one.")}</p>
         </fieldset>
-        <TextField label={t("Price (₦)")} name="price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d,]/g, ""))} placeholder="45,000" required missing={t("Enter a price in naira, like 45,000.")}
+        <TextField label={priceOk ? t("Price in ₦ (you get {amount})", { amount: naira(p) }) : t("Price in ₦ (what you get)")} name="price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d,]/g, ""))} placeholder="45,000" required missing={t("Enter a price in naira, like 45,000.")}
           validate={(v) => { const k = Number(v.replace(/[^\d]/g, "")) * 100; return k < min ? t("The lowest price on NosHen is {min}. You've entered {price}.", { min: naira(min), price: naira(k) }) : max !== null && k > max ? t("The highest price on NosHen is {max}. You've entered {price}.", { max: naira(max), price: naira(k) }) : !Number.isSafeInteger(k) ? t("That price is too large. Check the number of zeros.") : null; }}
-          hint={p >= min && (max === null || p <= max) && Number.isSafeInteger(p) ? t("The buyer pays {total} with NosHen's fee. You get {price}.", { total: naira(p + feeFor(p, fee)), price: naira(p) }) : max === null ? t("From {min}. There's no top price.", { min: naira(min) }) : t("From {min} to {max}.", { min: naira(min), max: naira(max) })} />
+          hint={priceOk ? t("The buyer pays {total}, with NosHen's fee.", { total: naira(p + feeFor(p, fee)) }) : max === null ? t("From {min}. There's no top price.", { min: naira(min) }) : t("From {min} to {max}.", { min: naira(min), max: naira(max) })} />
         {overLimit(p, limit) && (max === null || p <= max) ? <Info icon="alert-triangle" tone="warn">{sellerLimitText(limit, "seller", t)}</Info> : null}
         {job ? <StageFields stages={Array.isArray(l.stages) ? (l.stages as Stage[]) : null} priceKobo={p} confirmHours={confirmHours} error={stagesError} /> : null}
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>

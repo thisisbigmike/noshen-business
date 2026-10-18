@@ -5,12 +5,14 @@ import { requireUser, withApp, messageOf } from "../../server/web";
 import { saveDraft } from "@noshen/engine/sellers";
 import { storePhoto } from "@noshen/engine/photos";
 import { one } from "@noshen/engine/db";
-import { BottomAction, Button, ErrorText, Icon, Info, TopBar } from "@noshen/ui/ui";
+import { BottomAction, Button, ErrorText, Icon, TopBar } from "@noshen/ui/ui";
 import { categoryOf } from "@noshen/shared/categories";
 import { photoUrl } from "@noshen/shared/photos";
 import { useT } from "@noshen/ui/i18n";
 import { msg } from "@noshen/shared/i18n";
 import { shrinkPhotos } from "@noshen/ui/shrink";
+import { MAX_PHOTOS, MIN_PHOTOS, photoShots } from "@noshen/shared/photo-shots";
+import { SellSteps } from "../lib/sell-steps";
 import { photosFrom } from "@noshen/engine/photos";
 
 export const handle = { tabs: false };
@@ -33,23 +35,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   });
 }
 
-/** What a buyer will want to see in the photos, by category. */
-const PHOTO_HINT: Record<string, string> = {
-  phone: msg("Show the IMEI screen (dial *#06#), the screen switched on, and the back and sides."),
-  laptop: msg("Show it switched on, the keyboard, the screen, and the label with the serial number underneath."),
-  electronics: msg("Show it switched on and working, the model label, and any remote or cables that come with it."),
-  fashion: msg("Show the size label, the front and back, and close-ups of the fabric and any marks."),
-  shoes: msg("Show the size label inside, both shoes from the side, and the soles."),
-  hair: msg("Show the length laid out, the lace or closure, and the colour in daylight."),
-  beauty: msg("Show the seal or batch number, and how full it is. Sealed items sell faster."),
-  jewellery: msg("Show any hallmark or brand mark, the clasp, and the item on a plain background."),
-  home: msg("Show the whole item, close-ups of any wear, and a tape measure for the size."),
-  vehicle: msg("Show all four sides, the dashboard with the mileage, the engine, and the papers (cover your personal details)."),
-  baby: msg("Show the whole item, any safety labels, and where it folds or clips."),
-  sports: msg("Show the whole item, the size or weight, and any wear."),
-  other: msg("Show the whole item from a few sides, and any marks or damage."),
-};
-
 export async function action({ request, params }: Route.ActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent"));
@@ -60,7 +45,7 @@ export async function action({ request, params }: Route.ActionArgs) {
       let keys: string[] = draft.photo_keys ?? [];
       if (intent === "upload") {
         for (const p of photosFrom(form, "photos")) {
-          if (keys.length < 8) keys.push(await storePhoto(`listings/${user.id}`, p.file, p.small));
+          if (keys.length < MAX_PHOTOS) keys.push(await storePhoto(`listings/${user.id}`, p.file, p.small));
         }
         await saveDraft(d, user.id, draft.id, keys, null);
         return { ok: true };
@@ -71,7 +56,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         return { ok: true };
       }
       if (intent === "next") {
-        if (keys.length < 3) return { error: msg("Add at least 3 photos.") };
+        if (keys.length < MIN_PHOTOS) return { error: msg("Add at least 3 photos.") };
         throw redirect(`/sell/${draft.id}/details`);
       }
       return null;
@@ -82,60 +67,103 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 }
 
+/** The file input every "take a photo" control opens (the boxes and the bottom button are labels for it). */
+const PICK = "photo-pick";
+
+/**
+ * Step 2 of selling: the three photos a buyer will want for this kind of item, one at a time, then up to five
+ * more. Each is made smaller on the phone first (see @noshen/ui/shrink), then sent.
+ */
 export default function SellPhotos({ loaderData: x, actionData }: Route.ComponentProps) {
   const t = useT();
   const nav = useNavigation();
   const [shrinking, setShrinking] = useState(false);
   const busy = nav.state !== "idle" || shrinking;
   const n = x.photos.length;
+  const shots = photoShots(x.category);
+  const remove = (k: string, i: number) => (
+    <Form method="post" className="shot-remove">
+      <input type="hidden" name="intent" value="remove" /><input type="hidden" name="key" value={k} />
+      <button className="icon-btn" aria-label={t("Remove photo {n}", { n: i + 1 })}><Icon name="x" size={16} /></button>
+    </Form>
+  );
   return (
-    <div>
-      <TopBar title={<span>{t("Photos")} <span className="caption muted">{t("Step {n} of {total}", { n: 2, total: 3 })}</span></span>} back="/sell" />
+    <div className="sell-photos">
+      <TopBar title={t("Photos")} back="/sell" />
       <main className="page narrow stack-4">
+        <SellSteps at={2} id={x.draftId} />
         <div className="stack">
           <h1 className="heading">{t("Add photos")}</h1>
-          <p className="body muted">{t("Add at least 3. Clear, honest photos sell faster.")}</p>
+          <p className="body muted">{n < MIN_PHOTOS ? t("Take these 3 photos. You can add more after.") : t("All 3 done. Add more if you like, or go on to the details.")}</p>
           <p className="caption muted row" style={{ gap: 6 }}><Icon name={categoryOf(x.category).icon} size={16} />{t(categoryOf(x.category).label)} · <Link to="/sell">{t("Change")}</Link></p>
         </div>
-        <div className="photo-grid">
-          {x.photos.map((k, i) => (
-            <div key={k} className="photo-slot">
-              <img src={photoUrl(k, "small")} alt={t("Photo {n}", { n: i + 1 })} />
-              {i === 0 ? <span className="tag">{t("Cover")}</span> : null}
-              <Form method="post" style={{ position: "absolute", top: 4, right: 4 }}>
-                <input type="hidden" name="intent" value="remove" /><input type="hidden" name="key" value={k} />
-                <button className="icon-btn" style={{ width: 32, height: 32, background: "var(--surface)" }} aria-label={t("Remove photo {n}", { n: i + 1 })}><Icon name="x" size={16} /></button>
-              </Form>
+
+        <Form method="post" encType="multipart/form-data" className="sr-only">
+          <input type="hidden" name="intent" value="upload" />
+          <input id={PICK} type="file" name="photos" accept="image/*" multiple disabled={n >= MAX_PHOTOS} aria-label={t("Add photos")} onChange={async (e) => {
+            // Not disabled while busy: a disabled input isn't sent with the form. The controls that open it are.
+            const input = e.currentTarget;
+            if (shrinking) return;
+            const small = input.form?.querySelector<HTMLInputElement>("input[name=photos_small]") ?? null;
+            setShrinking(true);
+            await shrinkPhotos(input, small).finally(() => setShrinking(false));
+            input.form?.requestSubmit();
+          }} />
+          <input type="file" name="photos_small" multiple hidden tabIndex={-1} aria-hidden="true" />
+        </Form>
+
+        <ol className="shot-list">
+          {shots.map((shot, i) => {
+            const key = x.photos[i];
+            const next = !key && i === n;
+            return (
+              <li key={i} className={`shot${key ? " done" : next ? " next" : ""}`}>
+                {key ? (
+                  <div className="shot-photo"><img src={photoUrl(key, "small")} alt={t(shot.title)} />{i === 0 ? <span className="tag">{t("Cover")}</span> : null}</div>
+                ) : next ? (
+                  <label htmlFor={PICK} className="shot-photo add" aria-disabled={busy || undefined}><Icon name="camera" size={24} /><span className="caption">{busy ? t("Adding…") : t("Take it")}</span></label>
+                ) : (
+                  <div className="shot-photo waiting" aria-hidden="true"><Icon name="camera" size={22} /></div>
+                )}
+                <div className="shot-text">
+                  <p className="label row" style={{ gap: 8 }}><span className="shot-n" aria-hidden="true">{key ? <Icon name="check" size={14} /> : i + 1}</span>{t(shot.title)}</p>
+                  <p className="caption muted">{t(shot.hint)}</p>
+                </div>
+                {key ? remove(key, i) : null}
+              </li>
+            );
+          })}
+        </ol>
+
+        {n >= MIN_PHOTOS ? (
+          <section className="stack" aria-labelledby="more-photos">
+            <p id="more-photos" className="label">{t("More photos (optional)")}</p>
+            <div className="photo-grid">
+              {x.photos.slice(MIN_PHOTOS).map((k, j) => (
+                <div key={k} className="photo-slot"><img src={photoUrl(k, "small")} alt={t("Photo {n}", { n: MIN_PHOTOS + j + 1 })} />{remove(k, MIN_PHOTOS + j)}</div>
+              ))}
+              {n < MAX_PHOTOS ? (
+                <label htmlFor={PICK} className="photo-slot add" aria-disabled={busy || undefined}><Icon name="plus" size={22} /><span>{busy ? t("Adding…") : t("Add photo")}</span></label>
+              ) : null}
             </div>
-          ))}
-          {n < 8 ? (
-            <Form method="post" encType="multipart/form-data" className="photo-slot add">
-              <input type="hidden" name="intent" value="upload" />
-              <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", width: "100%", height: "100%", justifyContent: "center" }}>
-                <Icon name="camera" size={24} />
-                <span>{busy ? t("Adding…") : t("Add photo")}</span>
-                {/* Made smaller on the phone first (see @noshen/ui/shrink), then sent. */}
-                <input type="file" name="photos" accept="image/*" multiple className="sr-only" onChange={async (e) => {
-                  const input = e.currentTarget;
-                  const small = input.form?.querySelector<HTMLInputElement>("input[name=photos_small]") ?? null;
-                  setShrinking(true);
-                  await shrinkPhotos(input, small).finally(() => setShrinking(false));
-                  input.form?.requestSubmit();
-                }} />
-                <input type="file" name="photos_small" multiple hidden tabIndex={-1} aria-hidden="true" />
-              </label>
-            </Form>
-          ) : null}
-        </div>
-        <p className="caption muted">{t("{n} added. You can add up to 8.", { n })}</p>
-        <Info icon="info-circle">{t.rich("<b>Show what a buyer will check.</b> {hint} It builds trust.", { b: (s) => <strong>{s}</strong> }, { hint: t(PHOTO_HINT[x.category] ?? PHOTO_HINT.other) })}</Info>
-        <section className="card stack">
-          <p className="label">{t("Photo tips")}</p>
-          <p className="body muted">{t("Use daylight. No filters or stickers. Show the front, back and sides, and any marks or damage. Honest photos mean fewer problems later.")}</p>
-        </section>
+            <p className="caption muted">{n < MAX_PHOTOS ? t("You can add {n} more.", { n: MAX_PHOTOS - n }) : t("That's the most: {n} photos.", { n: MAX_PHOTOS })}</p>
+          </section>
+        ) : null}
+
+        <ul className="photo-tips" aria-label={t("Photo tips")}>
+          <li><Icon name="sun" size={18} />{t("Daylight, no filters")}</li>
+          <li><Icon name="photo" size={18} />{t("Front, back and sides")}</li>
+          <li><Icon name="eye" size={18} />{t("Show any damage")}</li>
+        </ul>
         <ErrorText>{(actionData as any)?.error}</ErrorText>
         <BottomAction>
-          <Form method="post"><input type="hidden" name="intent" value="next" /><Button type="submit" variant="primary" size="lg" block disabled={n < 3 || busy}>{n < 3 ? (3 - n === 1 ? t("Add 1 more photo") : t("Add {n} more photos", { n: 3 - n })) : t("Next: details")}</Button></Form>
+          {n < MIN_PHOTOS ? (
+            <label htmlFor={PICK} className="nh-btn nh-btn-primary nh-btn-lg nh-btn-block" aria-disabled={busy || undefined}>
+              <Icon name="camera" size={18} />{busy ? t("Adding…") : t("Take photo {n} of 3", { n: n + 1 })}
+            </label>
+          ) : (
+            <Form method="post"><input type="hidden" name="intent" value="next" /><Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight="arrow-right">{t("Next: details")}</Button></Form>
+          )}
         </BottomAction>
       </main>
     </div>
