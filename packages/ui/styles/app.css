@@ -309,6 +309,8 @@ textarea.nh-input { min-height: 96px; padding: 10px 12px; resize: vertical; line
   .grid-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
   .carousel { border-radius: var(--radius-xl); border: 1px solid var(--border); box-shadow: var(--shadow-md); }
   .carousel.bleed { margin: 0; }
+  /* A listing on a computer: the usual space under the header, and room between the breadcrumb and the photo. */
+  .listing-screen .page.flush { padding-top: var(--space-6); gap: var(--space-6); }
   .mobile-only { display: none !important; }
 }
 @media (max-width: 1023px) {
