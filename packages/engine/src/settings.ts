@@ -12,6 +12,8 @@ export interface Settings {
   delivery_confirm_hours: number;
   /** How long a delivery may be on its way, by zone, before both people are asked whether it has arrived. */
   delivery_transit_hours: { local: number; other: number };
+  /** How long a buyer has to release a stage of a job the seller marked done, before it's released by itself. */
+  stage_confirm_hours: number;
   evidence_window_hours: number;
   dispute_decision_hours: number;
   release_code: { digits: number; max_attempts: number; lock_minutes: number };
@@ -29,6 +31,7 @@ const DEFAULTS: Settings = {
   handover_window_hours: 72,
   delivery_confirm_hours: 24,
   delivery_transit_hours: { local: 48, other: 120 },
+  stage_confirm_hours: 72,
   evidence_window_hours: 24,
   dispute_decision_hours: 72,
   release_code: { digits: 6, max_attempts: 5, lock_minutes: 30 },

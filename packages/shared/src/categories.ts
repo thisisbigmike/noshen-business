@@ -6,7 +6,7 @@ import type { DisputeReason } from "./deal";
 import { digitsProblem } from "./validate";
 import { en, type T } from "./i18n";
 
-export type CategoryKey = "phone" | "laptop" | "electronics" | "fashion" | "shoes" | "hair" | "beauty" | "jewellery" | "home" | "vehicle" | "baby" | "sports" | "other";
+export type CategoryKey = "phone" | "laptop" | "electronics" | "fashion" | "shoes" | "hair" | "beauty" | "jewellery" | "home" | "vehicle" | "baby" | "sports" | "services" | "other";
 
 /** The number a buyer matches at the hand-over. Shown to the buyer only after they pay. */
 export interface IdField {
@@ -24,7 +24,7 @@ export interface Category {
   label: string;
   /** Lower-case word for sentences: "Check the phone first". */
   noun: string;
-  icon: "device-mobile" | "device-laptop" | "device-tv" | "shirt" | "shoe" | "scissors" | "perfume" | "diamond" | "car" | "sofa" | "baby-carriage" | "ball-football" | "package";
+  icon: "device-mobile" | "device-laptop" | "device-tv" | "shirt" | "shoe" | "scissors" | "perfume" | "diamond" | "car" | "sofa" | "baby-carriage" | "ball-football" | "tool" | "package";
   titleExample: string;
   describeHint: string;
   id?: IdField;
@@ -97,6 +97,12 @@ export const CATEGORIES: Category[] = [
     reasons: ["not_as_described", "not_working", "counterfeit", "not_delivered", "other"],
   },
   {
+    // A job, not an item: paid in stages (see stages.ts), with no condition, size or delivery.
+    key: "services", label: "Services & repairs", noun: "job", icon: "tool",
+    titleExample: "Phone screen repair, same day", describeHint: "What you do, how long it takes, what's included, and where you work.",
+    reasons: ["not_as_described", "not_working", "other"],
+  },
+  {
     key: "other", label: "Everything else", noun: "item", icon: "package",
     titleExample: "Yamaha keyboard with stand", describeHint: "What it is, its condition, and what comes with it.",
     reasons: ["not_as_described", "not_working", "counterfeit", "not_delivered", "other"],
@@ -107,6 +113,8 @@ export const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
 export const isCategory = (k: unknown): k is CategoryKey => typeof k === "string" && (CATEGORY_KEYS as string[]).includes(k);
 export const categoryOf = (k: string | null | undefined): Category => CATEGORIES.find((c) => c.key === k) ?? CATEGORIES[CATEGORIES.length - 1];
 export const reasonsFor = (k: string | null | undefined): DisputeReason[] => categoryOf(k).reasons;
+/** Services are paid in stages, and have no condition, size, IMEI or delivery. */
+export const isService = (k: string | null | undefined) => k === "services";
 
 /** IMEI, serial or chassis number as stored: no spaces, upper case. */
 export const normaliseId = (v: string) => v.replace(/\s/g, "").toUpperCase();
@@ -133,17 +141,23 @@ export function idProblem(k: string | null | undefined, value: string, t: T = en
   return null;
 }
 
-/** The three checks before the buyer sees their release code. */
-export function checksFor(k: string | null | undefined, seller: string, id: string | null, t: T = en): [string, string][] {
+/**
+ * The three checks before the buyer gives their release code, or confirms a delivery (`delivered`: the seller isn't
+ * there, so they can't sign out in front of the buyer).
+ */
+export function checksFor(k: string | null | undefined, seller: string, id: string | null, t: T = en, delivered = false): [string, string][] {
+  const signOut = (lock: string) => delivered
+    ? t("{lock} If there is one, don't confirm: report it, and the money stays held.", { lock })
+    : t("{lock} Ask {seller} to sign out in front of you.", { lock, seller });
   switch (categoryOf(k).key) {
     case "phone": return [
       [t("It switches on and works"), t("Make a call. Try the camera, the screen and charging.")],
-      [t("It isn’t locked to someone else’s account"), t("Settings should show no other Apple ID or Google account. Ask {seller} to sign out in front of you.", { seller })],
+      [t("It isn’t locked to someone else’s account"), signOut(t("Settings should show no other Apple ID or Google account."))],
       [t("The IMEI matches the listing"), (id ? t("Dial *#06#. It should show {id}.", { id }) : t("Dial *#06#. It should show the IMEI on the listing."))],
     ];
     case "laptop": return [
       [t("It switches on and works"), t("Open a few apps. Check the keyboard, screen and charging.")],
-      [t("It isn’t locked to someone else’s account"), t("No other user account or activation lock. Ask {seller} to sign out in front of you.", { seller })],
+      [t("It isn’t locked to someone else’s account"), signOut(t("No other user account or activation lock."))],
       [id ? t("The serial number matches the listing") : t("It’s the model in the listing"), id ? t("It should be {id}.", { id }) : t("Check the model on the sticker underneath or in System settings.")],
     ];
     case "electronics": return [
@@ -191,6 +205,11 @@ export function checksFor(k: string | null | undefined, seller: string, id: stri
       [t("It starts, drives and stops well"), t("Take a test drive. Check the brakes, gears, AC and dashboard lights.")],
       [t("It’s in the condition described"), t("Check the body, tyres and inside. Bring a mechanic if you can.")],
     ];
+    case "services": return [
+      [t("This stage of the work is done"), t("Check it yourself, not from a photo or a promise.")],
+      [t("It's what you agreed"), t("The work, the materials and the finish match what you agreed in the chat.")],
+      [t("It works, or looks right"), t("Try it, wear it or use it the way you would. Ask for it to be put right first if it isn't.")],
+    ];
     case "home": return [
       [t("It’s the item in the photos"), t("Same model, size and colour as the listing.")],
       [t("It works, if it’s an appliance"), t("Plug it in and turn it on. For furniture, check it’s solid and every part is there.")],
@@ -213,6 +232,7 @@ export function reportExample(k: string | null | undefined, t: T = en): string {
     case "hair": return t("For example: the listing says 22 inches of human hair; it's 18 inches and synthetic.");
     case "beauty": return t("For example: the seal was broken and the batch code is scratched off.");
     case "vehicle": return t("For example: the chassis number on the papers is different from the one on the car.");
+    case "services": return t("For example: the screen still flickers after the repair, and the seller won't fix it.");
     default: return t("For example: it has a crack that isn't in the photos.");
   }
 }

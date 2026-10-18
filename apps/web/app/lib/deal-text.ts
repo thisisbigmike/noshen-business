@@ -6,6 +6,7 @@ import { naira } from "@noshen/shared/money";
 import { when } from "@noshen/shared/time";
 import { en, type T } from "@noshen/shared/i18n";
 import type { MoneyState, Step } from "@noshen/ui/ui";
+import { nextStage, stageAmount, type DealStage } from "./stages";
 
 export interface DealLike {
   state: DealState;
@@ -23,6 +24,9 @@ export interface DealLike {
   tracking_ref?: string | null;
   review_hold: boolean;
   created_at: string | Date;
+  /** A job paid in stages ("service"), or an item ("goods"). */
+  kind?: "goods" | "service";
+  fee_payer?: string;
 }
 
 export interface DealText {
@@ -33,11 +37,20 @@ export interface DealText {
   next: string;
 }
 
-export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buyer: string; seller: string }, paidKobo: number, extra: { decisionDue?: string | Date | null; evidenceDue?: string | Date | null; bankLast4?: string | null; endedBy?: "buyer" | "seller" | "system" | null; paidCrypto?: string | null; refundWaiting?: boolean } = {}, now = new Date(), t: T = en): DealText {
+export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buyer: string; seller: string }, paidKobo: number, extra: {
+  decisionDue?: string | Date | null; evidenceDue?: string | Date | null; bankLast4?: string | null; endedBy?: "buyer" | "seller" | "system" | null; paidCrypto?: string | null; refundWaiting?: boolean;
+  /** A job's stages (the deal page), or just whether the next one is marked done (the list of deals). */
+  stages?: DealStage[]; nextStageDone?: boolean | null;
+} = {}, now = new Date(), t: T = en): DealText {
   const buyer = firstName(names.buyer);
   const seller = firstName(names.seller);
   const due = Number(deal.amount_due_kobo);
+  const stages = extra.stages ?? [];
   const share = Number(deal.seller_share_kobo);
+  // A job paid in stages: what's still held once the stages already released are taken off.
+  const released = stages.filter((x) => x.released_at);
+  const heldShare = share - released.reduce((n, x) => n + Number(x.share_kobo), 0);
+  const heldPaid = paidKobo - released.reduce((n, x) => n + Number(x.share_kobo) + Number(x.fee_kobo), 0);
   const chip = { state: STATUS[deal.state].state, word: t(STATUS[deal.state].word) };
   const at = (x: string | Date | null | undefined) => (x ? when(new Date(x), now) : "");
   const held = t("held");
@@ -56,6 +69,27 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
         return role === "buyer"
           ? { chip, amountKobo: paidKobo, amountSuffix: held, next: t("We're checking your payment and will email you. Don't meet yet.") }
           : { chip, amountKobo: share, amountSuffix: held, next: t("NosHen is checking this payment. Don't hand over yet.") };
+      }
+      if (deal.kind === "service") {
+        const next = nextStage(stages);
+        const started = released.length > 0;
+        const startBy = started ? undefined : role === "buyer" ? t("{seller} starts by {time}", { seller, time: at(deal.handover_due_at) }) : t("Start by {time}", { time: at(deal.handover_due_at) });
+        if (!next) {
+          // The list of deals: only whether the next stage is marked done.
+          return role === "buyer"
+            ? { chip, deadline: startBy, amountKobo: heldPaid, amountSuffix: held, next: extra.nextStageDone ? t("{seller} marked a stage done. Check it, then release it or report a problem.", { seller }) : t("{seller} is paid stage by stage. Release each stage when you're happy with the work.", { seller }) }
+            : { chip, deadline: startBy, amountKobo: heldShare, amountSuffix: held, next: extra.nextStageDone ? t("Waiting for {buyer} to check the stage you marked done.", { buyer }) : t("Mark the next stage done when the work is finished, and {buyer} checks it.", { buyer }) };
+        }
+        const stage = t(next.title);
+        const amount = naira(stageAmount(next, role, deal.fee_payer ?? "buyer"));
+        if (next.done_at) {
+          return role === "buyer"
+            ? { chip, deadline: t("Check by {time}", { time: at(next.release_due_at) }), amountKobo: heldPaid, amountSuffix: held, next: t("{seller} says “{stage}” is done. Check it, then release {amount} or report a problem by {time}. If you do neither, it's released.", { seller, stage, amount, time: at(next.release_due_at) }) }
+            : { chip, deadline: t("Release {time}", { time: at(next.release_due_at) }), amountKobo: heldShare, amountSuffix: held, next: t("Waiting for {buyer} to check “{stage}”. If they don't report a problem, {amount} is released to you {time}.", { buyer, stage, amount, time: at(next.release_due_at) }) };
+        }
+        return role === "buyer"
+          ? { chip, deadline: startBy, amountKobo: heldPaid, amountSuffix: held, next: t("Next: “{stage}”, {amount}. Release it when you're happy with the work. {seller} can't get it before then.", { stage, amount, seller }) }
+          : { chip, deadline: startBy, amountKobo: heldShare, amountSuffix: held, next: t("Next: “{stage}”, {amount}. When it's done, mark it done and {buyer} checks it.", { stage, amount, buyer }) };
       }
       if (deal.handover === "delivery" && deal.delivered_at) {
         return role === "buyer"
@@ -81,7 +115,7 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
         : { chip, deadline: t("Hand over by {time}", { time: at(deal.handover_due_at) }), amountKobo: share, amountSuffix: held, next: t("{amount} is held for you. Hand over by {time} and ask for the code.", { amount: naira(share), time: at(deal.handover_due_at) }) };
     }
     case "disputed":
-      return { chip, deadline: t("Decision by {time}", { time: at(extra.decisionDue) }), amountKobo: role === "buyer" ? paidKobo : share, amountSuffix: t("frozen"),
+      return { chip, deadline: t("Decision by {time}", { time: at(extra.decisionDue) }), amountKobo: role === "buyer" ? heldPaid : heldShare, amountSuffix: t("frozen"),
         next: t("Add photos or notes by {evidence}. A reviewer decides by {decision}. Nobody can move the money until then.", { evidence: at(extra.evidenceDue), decision: at(extra.decisionDue) }) };
     case "released":
     case "paid_out": {
@@ -95,7 +129,7 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
     }
     case "refunded":
       return role === "buyer"
-        ? { chip, amountKobo: paidKobo || due, amountSuffix: extra.refundWaiting ? t("to refund") : t("refunded"), next: extra.refundWaiting
+        ? { chip, amountKobo: heldPaid || due, amountSuffix: extra.refundWaiting ? t("to refund") : t("refunded"), next: extra.refundWaiting
           ? t("Your refund is ready to go back as {coin}. Add your address below so we can send it.", { coin: extra.paidCrypto ?? "crypto" })
           : extra.paidCrypto
           ? t("Refunded as {coin} to the address you gave, at the rate on the day.", { coin: extra.paidCrypto })
@@ -122,7 +156,7 @@ export function dealText(deal: DealLike, role: "buyer" | "seller", names: { buye
 
 interface EventLike { to_state: DealState | null; at: string | Date; type: string }
 
-export function dealSteps(deal: DealLike, role: "buyer" | "seller", names: { buyer: string; seller: string }, events: EventLike[], dispute: { created_at: string | Date; evidence_due_at: string | Date; decision_due_at: string | Date } | null, now = new Date(), t: T = en): Step[] {
+export function dealSteps(deal: DealLike, role: "buyer" | "seller", names: { buyer: string; seller: string }, events: EventLike[], dispute: { created_at: string | Date; evidence_due_at: string | Date; decision_due_at: string | Date } | null, now = new Date(), t: T = en, stages: DealStage[] = []): Step[] {
   const buyer = firstName(names.buyer);
   const seller = firstName(names.seller);
   const at = (s: DealState) => events.find((e) => e.to_state === s)?.at;
@@ -147,6 +181,25 @@ export function dealSteps(deal: DealLike, role: "buyer" | "seller", names: { buy
     { label: role === "buyer" ? t("{seller} accepts", { seller }) : t("You accept"), when: reached("accepted") ? fmt(at("accepted")) : deal.state === "requested" ? by(deal.request_expires_at) : undefined, status: st(reached("accepted"), deal.state === "requested") },
     { label: role === "buyer" ? t("You pay {amount} into NosHen", { amount: due }) : t("{amount} held for you", { amount: share }), when: reached("held") ? fmt(at("held")) : deal.state === "accepted" ? by(deal.payment_due_at) : undefined, status: st(reached("held"), deal.state === "accepted") },
   ];
+  if (deal.kind === "service" && stages.length) {
+    // A step for each stage of the job: marked done, checked, released.
+    const held = deal.state === "held";
+    const next = nextStage(stages);
+    return [
+      ...start,
+      ...stages.map((x): Step => {
+        const stage = t(x.title);
+        const amount = naira(stageAmount(x, role, deal.fee_payer ?? "buyer"));
+        const isNext = held && next?.n === x.n;
+        return {
+          label: role === "buyer" ? t("“{stage}”: you release {amount}", { stage, amount }) : t("“{stage}”: you're paid {amount}", { stage, amount }),
+          when: x.released_at ? (x.released_by === "timer" ? t("Released on its own {time}", { time: fmt(x.released_at) ?? "" }) : fmt(x.released_at))
+            : isNext && x.done_at ? t("Marked done. Released on its own {time}", { time: fmt(x.release_due_at) ?? "" }) : undefined,
+          status: st(!!x.released_at, isNext),
+        };
+      }),
+    ];
+  }
   if (deal.handover === "delivery") {
     // Sent (with packing photos), then delivered and checked, then released.
     const held = deal.state === "held";

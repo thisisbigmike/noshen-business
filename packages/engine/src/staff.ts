@@ -196,9 +196,27 @@ export async function giveMoreTime(d: Deps, staff: StaffActor, dealId: string, d
   if (![1, 2, 3].includes(days)) throw new DealError("days", "Choose 1, 2 or 3 days.");
   return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
     const deal = await lockDeal(tx.db, dealId);
+    const now = nowOf(d);
+    // A job: more time for the buyer to check the stage marked done. Before any stage is paid, the deadline is the
+    // start of the job (handover_due_at, below); after, only a stage marked done has one.
+    if (deal.kind === "service" && deal.state === "held") {
+      const next = await one<{ n: number; title: string; release_due_at: Date | null }>(tx.db,
+        "select n, title, release_due_at from deal_stages where deal_id = $1 and released_at is null order by n limit 1 for update", [dealId]);
+      if (next?.release_due_at) {
+        const due = addHours(next.release_due_at > now ? next.release_due_at : now, days * 24);
+        await tx.db.query("update deal_stages set release_due_at = $3 where deal_id = $1 and n = $2", [dealId, next.n, due]);
+        schedule(d, tx, "stage_release", dealId, due);
+        const text = `NosHen gave more time to check “${next.title}”: it's released by itself ${when(due, now)} if no problem is reported.`;
+        await notify(d, tx, deal.buyer_id, dealId, "more_time", text);
+        await notify(d, tx, deal.seller_id, dealId, "more_time", text);
+        await logAction(tx, staff.id, "give_more_time", "deal", dealId, why, { field: "stage_release_due_at", stage: next.n, from: next.release_due_at, to: due });
+        return due;
+      }
+      const paid = await one(tx.db, "select 1 from deal_stages where deal_id = $1 and released_at is not null limit 1", [dealId]);
+      if (paid) throw new DealError("state", "This job isn't waiting on a deadline: the seller marks the next stage done when it's ready.");
+    }
     const dl = deadlineOf(deal);
     if (!dl) throw new DealError("state", "This deal isn't waiting on a deadline.");
-    const now = nowOf(d);
     const from = deal[dl.field];
     const due = addHours(from && from > now ? from : now, days * 24);
     await tx.db.query(`update deals set ${dl.field} = $2 where id = $1`, [dealId, due]);

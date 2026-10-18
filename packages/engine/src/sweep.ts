@@ -3,7 +3,7 @@ import { alertStaff } from "./staff-alerts";
 import { firstName } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { type Deps, lockDeal, notify, nowOf, settingsOf, userName } from "./core";
-import { release } from "./deals";
+import { release, releaseDueStage } from "./deals";
 
 /**
  * Acts on every deadline that has passed: the job of each Workflow timer, and the 15-minute sweep
@@ -58,15 +58,29 @@ export async function sweep(d: Deps, onlyDealId?: string) {
     done.push(`evidence closed ${r.id}`);
   }
 
-  // Hand-over deadline passed (and nothing sent): tell the buyer once that they may cancel for a full refund.
+  // A stage of a job marked done, with the time to check it passed: released, unless a problem was reported.
+  for (const r of await many<{ id: string }>(d.db,
+    `select distinct s.deal_id as id from deal_stages s join deals dl on dl.id = s.deal_id
+      where dl.state = 'held' and not dl.review_hold and s.released_at is null and s.release_due_at <= $1 ${onlyDealId ? "and dl.id = $2" : ""}`, params())) {
+    await inTx(d.db, { type: "system" }, async (tx) => {
+      const deal = await lockDeal(tx.db, r.id);
+      if (await releaseDueStage(d, tx, deal, now)) done.push(`stage released ${deal.id}`);
+    });
+  }
+
+  // Hand-over deadline passed (and nothing sent, or no stage of a job released): tell the buyer once that they may
+  // cancel for a full refund.
   for (const r of await many<{ id: string }>(d.db,
     `select id from deals dl where state = 'held' and handover_due_at <= $1 and delivered_at is null and sent_at is null
+       and not exists (select 1 from deal_stages s where s.deal_id = dl.id and s.released_at is not null)
        and not exists (select 1 from notifications n where n.deal_id = dl.id and n.template = 'handover_overdue') ${filter}`, params())) {
     await inTx(d.db, { type: "system" }, async (tx) => {
       const deal = await lockDeal(tx.db, r.id);
       if (deal.state !== "held") return;
       const seller = firstName(await userName(tx.db, deal.seller_id));
-      await notify(d, tx, deal.buyer_id, deal.id, "handover_overdue", `${seller} hasn't handed over in time. You can cancel now and get all your money back.`);
+      await notify(d, tx, deal.buyer_id, deal.id, "handover_overdue", deal.kind === "service"
+        ? `${seller} hasn't started the job in time. You can cancel now and get all your money back.`
+        : `${seller} hasn't handed over in time. You can cancel now and get all your money back.`);
       done.push(`hand-over overdue ${deal.id}`);
     });
   }

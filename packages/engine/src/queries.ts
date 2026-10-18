@@ -6,17 +6,39 @@ import { isCategory } from "@noshen/shared/categories";
 
 export interface SellerSummary {
   id: string; name: string; idVerified: boolean; rating: number | null; ratingCount: number; completedDeals: number;
+  /** When they joined NosHen. */
+  memberSince: Date;
+  /** Purchases they completed as a buyer. */
+  purchases: number;
+  /** Disputes on their sales a reviewer decided for the buyer. */
+  disputesLost: number;
+  /** Their sales that ended without a problem decided against them, as a percentage; null before any sale. */
+  problemFree: number | null;
+  /** How long they usually take to answer a buy request (the median, last 90 days); null with none to go on. */
+  replyMinutes: number | null;
 }
 
+/** Someone's track record on NosHen, from what actually happened in their deals: shown to the other person. */
 export async function sellerSummary(db: Db, userId: string): Promise<SellerSummary> {
   const r = await one(db,
-    `select u.id, u.full_name,
+    `select u.id, u.full_name, u.created_at,
        exists (select 1 from kyc_checks k where k.user_id = u.id and k.result = 'verified') as verified,
        (select round(avg(stars)::numeric, 1) from ratings where ratee_id = u.id) as rating,
        (select count(*) from ratings where ratee_id = u.id) as rating_count,
-       (select count(*) from deals where seller_id = u.id and state = 'paid_out') as completed
+       (select count(*) from deals where seller_id = u.id and state in ('released', 'paid_out')) as completed,
+       (select count(*) from deals where buyer_id = u.id and state in ('released', 'paid_out')) as purchases,
+       (select count(*) from disputes x join deals d on d.id = x.deal_id where d.seller_id = u.id and x.decision = 'refund_buyer') as lost,
+       (select percentile_cont(0.5) within group (order by extract(epoch from e.at - d.created_at))
+          from deals d join deal_events e on e.deal_id = d.id and e.actor = 'seller' and e.to_state in ('accepted', 'declined')
+         where d.seller_id = u.id and d.created_at > now() - interval '90 days') as reply_seconds
      from users u where u.id = $1`, [userId]);
-  return { id: r.id, name: r.full_name ?? "Seller", idVerified: r.verified, rating: r.rating === null ? null : Number(r.rating), ratingCount: Number(r.rating_count), completedDeals: Number(r.completed) };
+  const completed = Number(r.completed), lost = Number(r.lost);
+  return {
+    id: r.id, name: r.full_name ?? "Seller", idVerified: r.verified, rating: r.rating === null ? null : Number(r.rating), ratingCount: Number(r.rating_count),
+    completedDeals: completed, memberSince: r.created_at, purchases: Number(r.purchases), disputesLost: lost,
+    problemFree: completed + lost ? Math.round((completed / (completed + lost)) * 100) : null,
+    replyMinutes: r.reply_seconds === null ? null : Math.max(1, Math.round(Number(r.reply_seconds) / 60)),
+  };
 }
 
 /** A link's id that isn't even shaped like one finds nothing (rather than a database error). */
@@ -45,7 +67,8 @@ export interface BrowseFilters {
 
 export async function browse(db: Db, f: BrowseFilters) {
   // What's for sale, then what sold in the last two weeks (shown as sold, so people see things selling).
-  const where = ["(status = 'live' or (status = 'sold' and sold_at > now() - interval '14 days'))",
+  // Link-only listings (checkout links for Instagram, WhatsApp…) are never in Browse or search.
+  const where = ["visibility = 'public'", "(status = 'live' or (status = 'sold' and sold_at > now() - interval '14 days'))",
     "exists (select 1 from users u where u.id = listings.seller_id and u.status = 'active')"];
   const p: unknown[] = [];
   if (isCategory(f.cat)) { p.push(f.cat); where.push(`category = $${p.length}`); }
@@ -66,7 +89,20 @@ export async function browse(db: Db, f: BrowseFilters) {
 /** States with something for sale, busiest first, for the location chips on Browse. */
 export async function statesWithListings(db: Db) {
   return (await many<{ state: string; n: string }>(db,
-    "select state, count(*) as n from listings where status = 'live' and state is not null group by state order by count(*) desc, state")).map((r) => ({ state: r.state, n: Number(r.n) }));
+    "select state, count(*) as n from listings where status = 'live' and visibility = 'public' and state is not null group by state order by count(*) desc, state")).map((r) => ({ state: r.state, n: Number(r.n) }));
+}
+
+/** A seller's shop, for the link in their Instagram bio: their public listings, live first, then recently sold. */
+export async function sellerShop(db: Db, sellerId: string) {
+  if (!isId(sellerId)) return null;
+  const seller = await one<{ status: string }>(db, "select status from users where id = $1", [sellerId]);
+  if (!seller || seller.status !== "active") return null;
+  const listings = await many(db,
+    `select id, title, price_kobo, area, state, category, size_system, size, photo_keys, published_at, status, quantity, sold_count
+       from listings where seller_id = $1 and visibility = 'public'
+        and (status = 'live' or (status = 'sold' and sold_at > now() - interval '30 days'))
+      order by (status = 'sold'), published_at desc limit 60`, [sellerId]);
+  return { summary: await sellerSummary(db, sellerId), listings };
 }
 
 export async function myListings(db: Db, userId: string) {
@@ -81,6 +117,7 @@ export interface DealListItem {
   request_expires_at: Date; payment_due_at: Date | null; handover_due_at: Date | null; release_due_at: Date | null;
   delivered_at: Date | null; sent_at: Date | null; courier: string | null; tracking_ref: string | null; delivery_kobo: string; delivery_state: string | null;
   review_hold: boolean; created_at: Date; updated_at: Date; decision_due_at: Date | null;
+  kind: "goods" | "service"; next_stage_done: boolean | null;
   ended_by?: "buyer" | "seller" | "system" | null;
 }
 
@@ -90,7 +127,8 @@ export async function dealsFor(db: Db, userId: string): Promise<DealListItem[]> 
        coalesce(case when d.buyer_id = $1 then s.full_name else b.full_name end, 'Someone') as other,
        d.price_kobo, d.amount_due_kobo, d.seller_share_kobo, d.handover, d.request_expires_at, d.payment_due_at,
        d.handover_due_at, d.release_due_at, d.delivered_at, d.sent_at, d.courier, d.tracking_ref, d.delivery_kobo, d.delivery_state,
-       d.review_hold, d.created_at, d.updated_at,
+       d.review_hold, d.created_at, d.updated_at, d.kind,
+       (select s.done_at is not null from deal_stages s where s.deal_id = d.id and s.released_at is null order by s.n limit 1) as next_stage_done,
        (select decision_due_at from disputes x where x.deal_id = d.id) as decision_due_at,
        (select e.actor from deal_events e where e.deal_id = d.id and e.to_state = 'declined' order by e.id desc limit 1) as ended_by
      from deals d join listings l on l.id = d.listing_id join users b on b.id = d.buyer_id join users s on s.id = d.seller_id
@@ -99,8 +137,10 @@ export async function dealsFor(db: Db, userId: string): Promise<DealListItem[]> 
 }
 
 /** Whether this person needs to act on the deal now. */
-export function needsAction(x: { state: DealState; role: "buyer" | "seller"; delivered_at: Date | null; sent_at?: Date | null; handover: string; review_hold: boolean }) {
+export function needsAction(x: { state: DealState; role: "buyer" | "seller"; delivered_at: Date | null; sent_at?: Date | null; handover: string; review_hold: boolean; kind?: string; next_stage_done?: boolean | null }) {
   if (x.review_hold) return false;
+  // A job: the seller marks the next stage done, then it's the buyer's turn to release it.
+  if (x.state === "held" && x.kind === "service") return x.next_stage_done ? x.role === "buyer" : x.role === "seller";
   if (x.state === "requested") return x.role === "seller";
   if (x.state === "accepted") return x.role === "buyer";
   // A delivery: the seller sends it; while it's on its way nobody has to act; once delivered, the buyer checks it.
@@ -127,8 +167,9 @@ export async function dealView(db: Db, dealId: string) {
     many(db, "select kind, amount_kobo, status, created_at, updated_at from transfers where deal_id = $1 order by created_at", [dealId]),
   ]);
   const evidence = dispute ? await many(db, "select uploader_id, file_key, note, at from evidence where dispute_id = $1 order by at", [dispute.id]) : [];
+  const stages = deal.kind === "service" ? await many(db, "select n, title, share_kobo, fee_kobo, done_at, release_due_at, released_at, released_by from deal_stages where deal_id = $1 order by n", [dealId]) : [];
   const rc = await one(db, "select failed_attempts, locked_until from release_codes where deal_id = $1", [dealId]);
-  return { deal, listing, buyer, seller, payments, events, messages, dispute, evidence, ratings, sellerBank, transfers, releaseCode: rc };
+  return { deal, listing, buyer, seller, payments, events, messages, dispute, evidence, ratings, sellerBank, transfers, releaseCode: rc, stages };
 }
 
 export async function unreadCount(db: Db, userId: string) {
@@ -236,7 +277,7 @@ export async function staffDeal(db: Db, dealId: string) {
   const [buyer, seller, transfers, payments, code, actions, deposits] = await Promise.all([
     one(db, "select id, full_name, email, status, created_at from users where id = $1", [v.deal.buyer_id]),
     one(db, "select id, full_name, email, status, created_at from users where id = $1", [v.deal.seller_id]),
-    many(db, "select id, kind, amount_kobo, status, failure_reason, partner_ref, created_at, updated_at from transfers where deal_id = $1 order by created_at", [dealId]),
+    many(db, "select id, kind, stage, amount_kobo, status, failure_reason, partner_ref, created_at, updated_at from transfers where deal_id = $1 order by created_at", [dealId]),
     many(db, `select id, amount_kobo, method, coin, network, tx_hash, amount_coin_micro, sender_name, matches_amount_due, matches_buyer_name, sent_back, received_at
                 from payments where deal_id = $1 order by received_at`, [dealId]),
     one(db, "select failed_attempts, locked_until, used_at, voided_at from release_codes where deal_id = $1", [dealId]),

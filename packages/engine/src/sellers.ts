@@ -4,8 +4,9 @@ import { DELIVERY_MAX_KOBO } from "@noshen/shared/delivery";
 import { encryptField, hmac } from "./crypto";
 import { namesMatch } from "./deals";
 import { type Deps, DealError, N, notify, settingsOf } from "./core";
-import type { Condition } from "@noshen/shared/deal";
-import { categoryOf, idProblem, isCategory, normaliseId, type CategoryKey } from "@noshen/shared/categories";
+import { CONDITIONS, type Condition } from "@noshen/shared/deal";
+import { DEFAULT_STAGES, stagesProblem, type Stage } from "@noshen/shared/stages";
+import { categoryOf, idProblem, isCategory, isService, normaliseId, type CategoryKey } from "@noshen/shared/categories";
 import { naira } from "@noshen/shared/money";
 import { alertStaff } from "./staff-alerts";
 import { sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
@@ -84,6 +85,8 @@ export interface ListingInput {
   /** Delivery prices in kobo, within the item's state and to other states: null when not offered, 0 when free. */
   deliveryLocalKobo?: number | null;
   deliveryOtherKobo?: number | null;
+  /** Services only: the stages the price is paid in (see @noshen/shared/stages). */
+  stages?: Stage[];
 }
 
 /** Checks a seller's delivery prices: each is not offered (null), free (0), or up to the most allowed. */
@@ -102,9 +105,10 @@ function checkDelivery(local: number | null | undefined, other: number | null | 
  * made at: it's fixed on the deal.
  */
 export async function setDelivery(d: Deps, userId: string, listingId: string, prices: { localKobo: number | null; otherKobo: number | null }) {
-  const l = await one(d.db, "select seller_id, status, state from listings where id = $1", [listingId]);
+  const l = await one(d.db, "select seller_id, status, state, category from listings where id = $1", [listingId]);
   if (!l || l.seller_id !== userId) throw new DealError("forbidden", "This listing isn't yours.", 403);
   if (!["draft", "live", "paused"].includes(l.status)) throw new DealError("state", "This listing can't be changed now.");
+  if (isService(l.category)) throw new DealError("state", "A job has no delivery: it's paid in stages as the work is done.");
   const p = checkDelivery(prices.localKobo, prices.otherKobo, l.state);
   await d.db.query("update listings set delivery_local_kobo = $2, delivery_other_kobo = $3 where id = $1", [listingId, p.local, p.other]);
 }
@@ -160,18 +164,30 @@ export async function saveDraft(d: Deps, userId: string, listingId: string | nul
     const hasSize = !!sizeRuleFor(input.category) && !!input.size;
     const sizeWrong = sizeProblem(input.category, input.sizeSystem, input.size);
     if (sizeWrong) throw new DealError("size", sizeWrong);
-    const delivery = checkDelivery(input.deliveryLocalKobo, input.deliveryOtherKobo, input.state);
+    // A job has no condition or delivery; it has stages instead.
+    const service = isService(input.category);
+    const stages = service ? (input.stages?.length ? input.stages : DEFAULT_STAGES).map((x) => ({ title: x.title.trim(), percent: x.percent })) : null;
+    const stagesWrong = stages ? stagesProblem(stages) : null;
+    if (stagesWrong) throw new DealError("stages", stagesWrong);
+    const delivery = service ? { local: null, other: null } : checkDelivery(input.deliveryLocalKobo, input.deliveryOtherKobo, input.state);
+    const condition = service ? "new" : input.condition;
+    if (!CONDITIONS.some(([k]) => k === condition)) throw new DealError("condition", "Choose the condition.");
     await d.db.query(
       `update listings set category = $2, title = $3, description = $4, price_kobo = $5, condition = $6, area = $7, imei_or_serial = $8, state = $9,
-              size_system = $10, size = $11, quantity = $12, delivery_local_kobo = $13, delivery_other_kobo = $14 where id = $1`,
-      [listingId, input.category, input.title.trim().slice(0, 80), input.description?.trim().slice(0, 2000) || null, price, input.condition, area, imei || null, input.state,
-       hasSize ? input.sizeSystem : null, hasSize ? input.size : null, quantity, delivery.local, delivery.other]);
+              size_system = $10, size = $11, quantity = $12, delivery_local_kobo = $13, delivery_other_kobo = $14, stages = $15 where id = $1`,
+      [listingId, input.category, input.title.trim().slice(0, 80), input.description?.trim().slice(0, 2000) || null, price, condition, area, imei || null, input.state,
+       hasSize ? input.sizeSystem : null, hasSize ? input.size : null, quantity, delivery.local, delivery.other, stages ? JSON.stringify(stages) : null]);
   }
   return listingId!;
 }
 
-/** Publishes a draft. Sellers must pass the ID and bank checks first; a device already live elsewhere goes to review. */
-export async function publish(d: Deps, userId: string, listingId: string): Promise<"live" | "blocked"> {
+export type Visibility = "public" | "link";
+
+/**
+ * Publishes a draft. Sellers must pass the ID and bank checks first; a device already live elsewhere goes to review.
+ * "link": a checkout link for Instagram, WhatsApp or Facebook, not shown in Browse, and buyers are accepted at once.
+ */
+export async function publish(d: Deps, userId: string, listingId: string, visibility: Visibility = "public"): Promise<"live" | "blocked"> {
   const ready = await sellerReady(d, userId);
   if (!ready.ready) throw new DealError("seller_checks", "Verify your ID and bank account before your listing goes live.");
   return inTx(d.db, { type: "seller", id: userId }, async (tx) => {
@@ -180,16 +196,25 @@ export async function publish(d: Deps, userId: string, listingId: string): Promi
     if (l.status !== "draft") return l.status;
     if ((l.photo_keys ?? []).length < 3) throw new DealError("photos", "Add at least 3 photos.");
     if (l.title === "Untitled listing") throw new DealError("details", "Add the details first.");
+    if (isService(l.category) && !(Array.isArray(l.stages) && l.stages.length)) throw new DealError("details", "Add the stages the job is paid in.");
     const dup = l.imei_or_serial
       ? await one(tx.db, "select 1 from listings where imei_or_serial = $1 and status = 'live' and id <> $2", [l.imei_or_serial, listingId])
       : null;
     const status = dup ? "blocked" : "live";
-    await tx.db.query("update listings set status = $2, published_at = now() where id = $1", [listingId, status]);
+    await tx.db.query("update listings set status = $2, published_at = now(), visibility = $3 where id = $1", [listingId, status, visibility === "link" ? "link" : "public"]);
     if (dup) await alertStaff(d, tx, "listing_check", `Listing to check: ${l.title}`,
       `The same ${categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "number"} is on another live listing.`, "/listings?status=blocked");
     if (dup) await notify(d, tx, userId, null, "listing_review", `We're checking your listing because the same ${categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "number"} is on another live listing.`);
     return status as "live" | "blocked";
   });
+}
+
+/** Shows a listing on NosHen, or keeps it to its checkout link only. Requests already made carry on as they are. */
+export async function setVisibility(d: Deps, userId: string, listingId: string, visibility: Visibility) {
+  const l = await one(d.db, "select seller_id, status from listings where id = $1", [listingId]);
+  if (!l || l.seller_id !== userId) throw new DealError("forbidden", "This listing isn't yours.", 403);
+  if (!["draft", "live", "paused"].includes(l.status)) throw new DealError("state", "This listing can't be changed now.");
+  await d.db.query("update listings set visibility = $2 where id = $1", [listingId, visibility === "link" ? "link" : "public"]);
 }
 
 export async function setListingStatus(d: Deps, userId: string, listingId: string, status: "paused" | "live" | "removed") {

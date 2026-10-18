@@ -7,7 +7,8 @@ import { settingsOf } from "@noshen/engine/core";
 import { Avatar, BottomAction, Button, Icon, Info, Kv, PhotoViewer, ProtectionBadge, TopBar, Wordmark } from "@noshen/ui/ui";
 import { feeFor, naira } from "@noshen/shared/money";
 import { CONDITIONS, firstName } from "@noshen/shared/deal";
-import { categoryOf } from "@noshen/shared/categories";
+import { categoryOf, isService } from "@noshen/shared/categories";
+import type { Stage } from "@noshen/shared/stages";
 import { ago } from "@noshen/shared/time";
 import { photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
@@ -15,8 +16,10 @@ import { sizeLabel, sizeRuleFor } from "@noshen/shared/sizes";
 import { overLimit, sellerLimit } from "@noshen/engine/deals";
 import { sellerLimitText } from "@noshen/shared/limits";
 import { ShareButton } from "../lib/share";
+import { SellerRecord } from "../lib/track-record";
 import { useLite, useT } from "@noshen/ui/i18n";
 import { DeliveryCard } from "../lib/delivery";
+import { StagesCard } from "../lib/stages";
 import { deliverySummary } from "@noshen/shared/delivery";
 
 export const handle = { tabs: false };
@@ -40,7 +43,9 @@ export const meta: Route.MetaFunction = ({ loaderData: d }) => {
   if (!d) return [{ title: "Listing not found · NosHen" }];
   const l = d.listing;
   const title = `${l.title} · ${naira(l.price_kobo)}`;
-  const desc = `${placeLabel(l.area, l.state)}. Protected by NosHen: your money is held until you have the item.`;
+  const desc = isService(l.category)
+    ? `${placeLabel(l.area, l.state)}. Protected by NosHen: paid stage by stage, as the work is done.`
+    : `${placeLabel(l.area, l.state)}. Protected by NosHen: your money is held until you have the item.`;
   const img = l.photo_keys?.[0] ? `${d.origin}${photoUrl(l.photo_keys[0])}` : undefined;
   return [
     { title: `${title} · NosHen` },
@@ -74,13 +79,18 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   const conditionWord = condition ? t(condition[1]) : "";
   const price = Number(l.price_kobo);
   const cat = categoryOf(l.category);
+  const job = isService(l.category);
+  const stages = (Array.isArray(l.stages) ? l.stages : []) as Stage[];
   const size = sizeLabel(l.category, l.size_system, l.size);
   const left = Math.max(0, Number(l.quantity ?? 1) - Number(l.sold_count ?? 0));
   const limitText = limit ? sellerLimitText(limit, mine ? "seller" : "buyer", t) : null;
   // How many are left, when there was more than one; "Sold" once they've all gone.
   const stock = l.status === "sold" ? <span className="nh-status nh-status-sold label">{t("Sold")}</span>
     : Number(l.quantity) > 1 && l.status === "live" ? <span className="nh-status nh-status-awaiting label">{left === 1 ? t("Last one") : t("{n} available", { n: left })}</span> : null;
-  const status = l.status !== "live" ? (l.status === "sold" ? t("This item has been sold.") : t("This listing is paused.")) : null;
+  const status = l.status !== "live" ? (l.status === "sold" ? (job ? t("This job is fully booked.") : t("This item has been sold.")) : t("This listing is paused.")) : null;
+  // A job shows the stages it's paid in where an item shows its condition.
+  const kindChip = job ? <span className="nh-status nh-status-awaiting label">{t("Paid in {n} stages", { n: stages.length })}</span>
+    : <span className="nh-status nh-status-awaiting label">{t("{condition} condition", { condition: conditionWord })}</span>;
   const delivery = deliverySummary(l, t);
 
   const buy = mine ? (
@@ -88,7 +98,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   ) : status || limitText ? (
     <Button size="lg" block to="/browse">{t("See more listings")}</Button>
   ) : (
-    <Button variant="primary" size="lg" block icon="shield-check" to={`/l/${l.id}/buy`}>{t("Buy with protection")}</Button>
+    <Button variant="primary" size="lg" block icon="shield-check" to={`/l/${l.id}/buy`}>{job ? t("Book with protection") : t("Buy with protection")}</Button>
   );
 
   // The same words as the share screen after publishing.
@@ -116,25 +126,31 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             <div className="stack mobile-only">
               <h1 className="title">{l.title}</h1>
               <p className="big-amount">{naira(price)}</p>
-              <div className="row wrap"><span className="nh-status nh-status-awaiting label">{t("{condition} condition", { condition: conditionWord })}</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted row"><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
+              <div className="row wrap">{kindChip}{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted row"><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
               <div className="row"><ProtectionBadge /></div>
             </div>
             {status ? <p className="info warn">{status}</p> : null}
+            {l.visibility === "link" && !status ? <Info icon="link">{job
+              ? t("This is {seller}'s protected checkout link. Book here and you go straight to paying: NosHen holds the money and pays {seller} stage by stage, as you release each one.", { seller: sellerName })
+              : t("This is {seller}'s protected checkout link. Buy here and you go straight to paying: NosHen holds the money until you have the item.", { seller: sellerName })}</Info> : null}
             {!status && limitText ? <div className="mobile-only"><Info icon="info-circle">{limitText}</Info></div> : null}
-            <SellerCard seller={seller} area={placeLabel(l.area, l.state)} />
-            <DeliveryCard l={l} seller={sellerName} sendHours={sendHours} editTo={mine && ["live", "paused"].includes(l.status) ? `/sell/${l.id}/delivery` : undefined} />
+            <SellerRecord person={seller} area={placeLabel(l.area, l.state)} />
+            {job ? <StagesCard stages={stages} priceKobo={price} seller={sellerName} />
+              : <DeliveryCard l={l} seller={sellerName} sendHours={sendHours} editTo={mine && ["live", "paused"].includes(l.status) ? `/sell/${l.id}/delivery` : undefined} />}
             <section className="card stack-4" aria-labelledby="how">
               <h2 id="how" className="title">{t("How protection works")}</h2>
               <div className="steps4">
-                {[t("You pay NosHen"), t("Money is held"), t("You check the item"), t("{seller} is paid", { seller: sellerName })].map((step, i) => (
+                {(job ? [t("You pay NosHen"), t("Money is held"), t("You check each stage"), t("{seller} is paid stage by stage", { seller: sellerName })]
+                  : [t("You pay NosHen"), t("Money is held"), t("You check the item"), t("{seller} is paid", { seller: sellerName })]).map((step, i) => (
                   <div key={step} className="stack" style={{ alignItems: "center" }}><span className="step-n">{i + 1}</span><span className="caption">{step}</span></div>
                 ))}
               </div>
+              <p className="body">{t.rich("<b>If it's not what was listed, your money doesn't move.</b> Report it before you release the money: a real person reviews it within 72 hours and tells you both why.", { b: (s) => <strong>{s}</strong> })}</p>
             </section>
             <section className="card stack">
               <h2 className="title">{t("About this {thing}", { thing: cat.noun })}</h2>
               <Kv k={t("Category")} v={t(cat.label)} />
-              <Kv k={t("Condition")} v={condition ? `${conditionWord}: ${t(condition[2])}` : ""} />
+              {job ? null : <Kv k={t("Condition")} v={condition ? `${conditionWord}: ${t(condition[2])}` : ""} />}
               {size ? <Kv k={t(sizeRuleFor(l.category)?.label ?? "Size")} v={size} /> : null}
               {Number(l.quantity) > 1 ? <Kv k={t("Available")} v={l.status === "sold" ? t("All {n} sold", { n: l.quantity }) : t("{left} of {n}", { left, n: l.quantity })} /> : null}
               <Kv k={t("Location")} v={placeLabel(l.area, l.state)} />
@@ -145,13 +161,15 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
           <aside className="side desktop-only card stack-4">
             <h1 className="heading">{l.title}</h1>
             <p className="big-amount">{naira(price)}</p>
-            <div className="row wrap"><span className="nh-status nh-status-awaiting label">{t("{condition} condition", { condition: conditionWord })}</span>{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted">{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
+            <div className="row wrap">{kindChip}{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted">{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
             <ProtectionBadge />
+            <p className="caption muted">{t("If it's not what was listed, your money doesn't move.")}</p>
             {!status && limitText ? <Info icon="info-circle">{limitText}</Info> : null}
             {buy}
             {share("button")}
             <div><Kv k={t("Price")} v={naira(price)} /><Kv k={t("NosHen fee")} v={naira(fee)} /><Kv k={t("Total")} v={naira(price + fee)} total /></div>
-            <p className="caption muted row" style={{ gap: 6 }}><Icon name="truck-delivery" size={16} />{delivery ? `${delivery}. ${t("Meet-up is free.")}` : t("Meet-up only")}</p>
+            {job ? <p className="caption muted row" style={{ gap: 6 }}><Icon name="tool" size={16} />{t("Paid stage by stage, as the work is done")}</p>
+              : <p className="caption muted row" style={{ gap: 6 }}><Icon name="truck-delivery" size={16} />{delivery ? `${delivery}. ${t("Meet-up is free.")}` : t("Meet-up only")}</p>}
             {limitText ? null : <p className="caption muted">{t("You pay nothing until {seller} accepts.", { seller: sellerName })}</p>}
           </aside>
         </div>
@@ -160,26 +178,12 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
         <PhotoViewer label={t("Photos of {title}", { title: l.title })} start={viewing} onClose={closeViewer}
           photos={photos.map((k, i) => ({ src: photoUrl(k), alt: t("{title}, photo {n} of {total}", { title: l.title, n: i + 1, total: photos.length }) }))} />
       ) : null}
-      <aside className="mobile-only" aria-label={t("Buy this item")}>
+      <aside className="mobile-only" aria-label={job ? t("Book this job") : t("Buy this item")}>
         <BottomAction staticOnDesktop={false}>
           {limitText ? null : <p className="caption muted" style={{ textAlign: "center" }}>{t("You pay nothing until {seller} accepts.", { seller: sellerName })}</p>}
           {buy}
         </BottomAction>
       </aside>
     </div>
-  );
-}
-
-function SellerCard({ seller, area }: { seller: { name: string; idVerified: boolean; rating: number | null; ratingCount: number; completedDeals: number }; area: string }) {
-  const t = useT();
-  return (
-    <section className="card stack-4" aria-label={t("Seller")}>
-      <div className="row"><Avatar name={seller.name} /><div><p className="title">{firstName(seller.name)}</p><p className="caption muted">{t("Seller in {place}", { place: area })}</p></div></div>
-      <div className="stats">
-        <div className="stat"><p className="label">{seller.idVerified ? "ID" : "—"}</p><p className="caption muted">{seller.idVerified ? t("Verified") : t("Not verified")}</p></div>
-        <div className="stat"><p className="label">{seller.rating ?? t("New")}</p><p className="caption muted">{t("Rating")}</p></div>
-        <div className="stat"><p className="label">{seller.completedDeals}</p><p className="caption muted">{t("Completed deals")}</p></div>
-      </div>
-    </section>
   );
 }

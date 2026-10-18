@@ -172,6 +172,8 @@ textarea.nh-input { min-height: 96px; padding: 10px 12px; resize: vertical; line
 /* Seller card */
 .avatar { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: none; border-radius: var(--radius-full); background: linear-gradient(135deg, var(--tint), color-mix(in srgb, var(--brand) 30%, var(--tint))); color: var(--primary-ink); font-family: var(--font-display); font-weight: 600; box-shadow: 0 0 0 3px var(--surface), 0 0 0 4px var(--border); }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); text-align: center; }
+.stats.stats-4 { grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 560px) { .stats.stats-4 { grid-template-columns: repeat(4, 1fr); } }
 .stat { padding: 10px 4px; border-radius: var(--radius-md); background: var(--canvas); }
 
 /* How protection works */
@@ -639,3 +641,18 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 .soon-flag { font-size: 44px; line-height: 1; }
 .soon-form { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .soon-form .nh-input { min-width: 200px; }
+
+/* A small text button inside a form (like "Link only" on a listing row). */
+.link-btn { padding: 0; border: 0; background: none; color: var(--primary); font: inherit; text-decoration: underline; cursor: pointer; }
+
+/* Jobs paid in stages: the seller's stage rows (name, share, remove) and the numbered list on a listing. */
+.stage-row { display: grid; grid-template-columns: minmax(0, 1fr) 88px 40px; gap: 8px; align-items: start; }
+/* On a small phone the stage's name gets its own line, with its share and the remove button under it. */
+@media (max-width: 420px) {
+  .stage-row { grid-template-columns: 112px 40px minmax(0, 1fr); padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .stage-row > :first-child { grid-column: 1 / -1; }
+}
+.stage-row .nh-field-label { white-space: nowrap; }
+.stage-remove { width: 40px; height: 40px; margin-top: 28px; }
+.stage-n { display: inline-flex; width: 22px; height: 22px; flex: none; align-items: center; justify-content: center; border-radius: var(--radius-full); background: var(--canvas); color: var(--ink); font-weight: 600; font-size: 12px; }
+.stage-add { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; text-decoration: none; font-weight: 600; }

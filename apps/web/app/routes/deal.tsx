@@ -3,7 +3,7 @@ import { Form, Link, data, redirect, useFetcher, useNavigation, useRevalidator }
 import type { Route } from "./+types/deal";
 import { countryOf, requireUser, withApp, messageOf } from "../../server/web";
 import { dealView } from "@noshen/engine/queries";
-import { acceptDeal, cancelDeal, confirmReceived, declineDeal, explainHold, markDelivered, rate, sendMessage } from "@noshen/engine/deals";
+import { acceptDeal, cancelDeal, confirmReceived, declineDeal, explainHold, markDelivered, markStageDone, rate, sendMessage } from "@noshen/engine/deals";
 import { BottomAction, Button, CheckedForm, ErrorText, Icon, Info, Kv, MoneyStatus, TextArea, Timeline, TopBar, useEscape } from "@noshen/ui/ui";
 import { dealSteps, dealText } from "../lib/deal-text";
 import { naira } from "@noshen/shared/money";
@@ -18,6 +18,8 @@ import { PushCard } from "../lib/push";
 import { PayOptions } from "../lib/pay-options";
 import { useDealLive } from "../lib/live-deal";
 import { PackingPhotos } from "../lib/delivery";
+import { BuyerRecord } from "../lib/track-record";
+import { nextStage, stageAmount, type DealStage } from "../lib/stages";
 import { useLite, useT, type T } from "@noshen/ui/i18n";
 import { msg } from "@noshen/shared/i18n";
 
@@ -47,7 +49,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       holdPayment: role === "buyer" && v.deal.review_hold && counted[0] ? { amount_kobo: counted[0].amount_kobo as string, sender_name: (counted[0].sender_name ?? null) as string | null } : null,
       deal: v.deal, listing: { id: v.listing.id, title: v.listing.title, category: v.listing.category, area: placeLabel(v.listing.area, v.listing.state), photo: v.listing.photo_keys?.[0] ?? null },
       names: { buyer: v.buyer.name, seller: v.seller.name }, otherName: role === "buyer" ? v.seller.name : v.buyer.name,
+      // A seller deciding on a request sees what the buyer's own deals show.
+      buyerRecord: role === "seller" ? v.buyer : null,
       events: v.events, messages: v.messages, dispute: v.dispute, evidence: v.evidence, ratings: v.ratings,
+      // A job paid in stages: each stage, and whether it's marked done or released.
+      stages: v.stages as DealStage[],
       bankLast4: role === "seller" ? v.sellerBank?.account_last4 ?? null : null,
       myRating: v.ratings.find((r: any) => r.rater_id === user.id) ?? null,
     };
@@ -65,6 +71,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         case "decline": return declineDeal(d, user.id, params.id);
         case "cancel": return cancelDeal(d, user.id, params.id);
         case "delivered": return markDelivered(d, user.id, params.id);
+        case "stage_done": return markStageDone(d, user.id, params.id);
         case "received": return confirmReceived(d, user.id, params.id);
         case "message": return sendMessage(d, user.id, params.id, String(form.get("body") ?? ""));
         case "rate": return rate(d, user.id, params.id, Number(form.get("stars")), String(form.get("comment") ?? ""));
@@ -96,8 +103,10 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
   const other = firstName(x.otherName);
   const buyerName = firstName(names.buyer);
   const endedBy = [...x.events].reverse().find((e: any) => e.to_state === "declined")?.actor ?? null;
-  const dt = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4, endedBy, paidCrypto: x.paidCrypto, refundWaiting: !!x.refundWaiting }, new Date(), t);
-  const steps = dealSteps(deal, role, names, x.events, x.dispute, new Date(), t);
+  const dt = dealText(deal, role, names, x.paid, { decisionDue: x.dispute?.decision_due_at, evidenceDue: x.dispute?.evidence_due_at, bankLast4: x.bankLast4, endedBy, paidCrypto: x.paidCrypto, refundWaiting: !!x.refundWaiting, stages: x.stages }, new Date(), t);
+  const steps = dealSteps(deal, role, names, x.events, x.dispute, new Date(), t, x.stages);
+  const job = deal.kind === "service";
+  const releasedShare = x.stages.filter((s) => s.released_at).reduce((n, s) => n + Number(s.share_kobo), 0);
 
   // Live: messages and changes from the other person (or the bank, or a reviewer) show the moment they happen.
   const live = useDealLive(deal.id, role);
@@ -109,8 +118,9 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
     return () => clearInterval(id);
   }, [deal.state, live.connected, lite]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Once a delivery is on its way it can't be cancelled: the buyer confirms it, or reports a problem.
-  const canCancel = (deal.state === "requested" || deal.state === "accepted" || (deal.state === "held" && !deal.delivered_at && !deal.sent_at));
+  // Once a delivery is on its way it can't be cancelled: the buyer confirms it, or reports a problem. Nor can a job
+  // once a stage of it has been paid.
+  const canCancel = (deal.state === "requested" || deal.state === "accepted" || (deal.state === "held" && !deal.delivered_at && !deal.sent_at && !releasedShare));
   const delivery = Number(deal.delivery_kobo ?? 0);
   const deliveryTo = deal.delivery_state ? t("Delivery to {state}", { state: stateLabel(deal.delivery_state) }) : t("Delivery");
   const actions = actionsFor(x, t, () => setCancelOpen(true), canCancel, () => setPayOpen(true));
@@ -134,13 +144,15 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
                 {dt.deadline ? <span className="caption muted row"><Icon name="clock" size={16} />{dt.deadline}</span> : null}
               </div>
               <p className="big-amount">{naira(dt.amountKobo)}{dt.amountSuffix ? ` ${dt.amountSuffix}` : ""}</p>
-              <p className="body muted">{listing.title} · {other} · {deal.handover === "meetup" ? t("Meet-up") : deliveryTo}</p>
+              <p className="body muted">{listing.title} · {other} · {job ? t("Paid in {n} stages", { n: x.stages.length }) : deal.handover === "meetup" ? t("Meet-up") : deliveryTo}</p>
               <p className="body">{dt.next}</p>
               {x.paymentUrl ? <p className="caption"><a href={x.paymentUrl} target="_blank" rel="noreferrer">{t("See the payment on {explorer}", { explorer: x.paymentExplorer ?? "" })}</a></p> : null}
             </section>
 
             {deal.state === "held" && !deal.review_hold && role === "buyer" ? (
-              <Info icon="lock">{x.paymentUrl ? t("Your {coin} is held at this deal's own address, on-chain.", { coin: x.paidCrypto ?? "" }) : t("Our licensed partner holds your money.")} {deal.handover === "meetup"
+              <Info icon="lock">{x.paymentUrl ? t("Your {coin} is held at this deal's own address, on-chain.", { coin: x.paidCrypto ?? "" }) : t("Our licensed partner holds your money.")} {job
+                ? t("{name} is paid stage by stage, only when you release each one. If something is wrong, report it and what's still held stays held.", { name: other })
+                : deal.handover === "meetup"
                 ? t("{name} can't get it until you give your code. If something is wrong, report it and the money stays held.", { name: other })
                 : t("{name} can't get it until you confirm you received it. If something is wrong, report it and the money stays held.", { name: other })}</Info>
             ) : null}
@@ -150,9 +162,11 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
                 <Kv k={deal.fee_payer === "buyer" ? t("NosHen fee, paid by {name}", { name: buyerName }) : t("NosHen fee, paid by you")} v={naira(deal.fee_kobo)} />
                 {deal.handover === "delivery" ? <Kv k={t("{delivery}, for you to pay the courier", { delivery: deliveryTo })} v={delivery ? naira(delivery) : t("Free")} /> : null}
                 <Kv k={t("You get")} v={naira(deal.seller_share_kobo)} total />
+                {job && releasedShare ? <Kv k={t("Released to you so far")} v={naira(releasedShare)} /> : null}
                 {x.bankLast4 ? <Kv k={t("Paid to")} v={t("Your bank ••{last4}", { last4: x.bankLast4 })} /> : null}
               </section>
             ) : null}
+            {x.buyerRecord && (deal.state === "requested" || deal.state === "accepted") ? <BuyerRecord person={x.buyerRecord} /> : null}
             {role === "buyer" && deal.handover === "delivery" && (deal.state === "requested" || deal.state === "accepted") ? (
               <section className="card">
                 <Kv k={t("Price")} v={naira(deal.price_kobo)} />
@@ -165,7 +179,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
             {deal.state === "held" && !deal.review_hold && deal.handover === "delivery" && !deal.sent_at && role === "buyer" ? (
               <Info icon="truck-delivery">{t("Share your full address and phone number with {name} in the chat. {name} will add photos of it packed when it's sent. Delivery is already paid: don't pay a rider anything extra.", { name: other })}</Info>
             ) : null}
-            {deal.state === "held" && role === "seller" && deal.handover === "meetup" ? (
+            {deal.state === "held" && role === "seller" && deal.handover === "meetup" && !job ? (
               <Info icon="shield-lock">{t("Only {name}'s phone shows the code. Nobody from NosHen will ever ask you for it.", { name: buyerName })}</Info>
             ) : null}
 
@@ -206,7 +220,9 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
             <div className="row-between" style={{ alignItems: "flex-start" }}>
               <div className="stack" style={{ gap: 4 }}>
                 <h2 id="pay-title" className="heading">{t("How do you want to pay?")}</h2>
-                <p className="body muted">{t("{amount} for the {item}. However you pay, NosHen holds it until you have the item.", { amount: naira(deal.amount_due_kobo), item: listing.title })}</p>
+                <p className="body muted">{job
+                  ? t("{amount} for the {item}. However you pay, NosHen holds it and pays {name} stage by stage, as you release each one.", { amount: naira(deal.amount_due_kobo), item: listing.title, name: other })
+                  : t("{amount} for the {item}. However you pay, NosHen holds it until you have the item.", { amount: naira(deal.amount_due_kobo), item: listing.title })}</p>
               </div>
               <button type="button" className="icon-btn" aria-label={t("Close")} autoFocus onClick={() => setPayOpen(false)}><Icon name="x" size={20} /></button>
             </div>
@@ -307,7 +323,8 @@ function actionsFor(x: View, t: T, openCancel: () => void, canCancel: boolean, o
   );
   const cancel = canCancel ? <Button key="cancel" block onClick={openCancel}>{deal.state === "requested" && role === "buyer" ? t("Cancel request") : t("Cancel deal")}</Button> : null;
   const report = <Button key="report" block to={`/d/${deal.id}/report`}>{t("Report a problem")}</Button>;
-  const received = post("received", t("I received it: release the money"), "primary");
+  // A delivery is released after the checks for that kind of item (the confirm page), like a release code after a meet-up.
+  const received = <Button key="received" variant="primary" size="lg" block to={`/d/${deal.id}/confirm`}>{t("It arrived: check it and release")}</Button>;
   if (deal.state === "requested") {
     if (role === "seller") out.push(post("accept", t("Accept request"), "primary"), post("decline", t("Decline")));
     else out.push(cancel);
@@ -317,7 +334,17 @@ function actionsFor(x: View, t: T, openCancel: () => void, canCancel: boolean, o
       onClick={(e) => { e.preventDefault(); openPay(); }}>{t("Pay {amount}", { amount: naira(deal.amount_due_kobo) })}</Button>);
     out.push(cancel);
   } else if (deal.state === "held" && !deal.review_hold) {
-    if (deal.handover === "meetup") {
+    if (deal.kind === "service") {
+      // A job: the seller marks the next stage done; the buyer checks it and releases it (they can release it sooner).
+      const next = nextStage(x.stages);
+      if (next) {
+        const stage = t(next.title);
+        if (role === "buyer") out.push(<Button key="stage" variant={next.done_at ? "primary" : "secondary"} size={next.done_at ? "lg" : "md"} block to={`/d/${deal.id}/confirm`}>
+          {t("Check “{stage}” and release {amount}", { stage, amount: naira(stageAmount(next, "buyer", deal.fee_payer)) })}</Button>, report);
+        else if (!next.done_at) out.push(post("stage_done", t("Mark “{stage}” done", { stage }), "primary"));
+      }
+      out.push(cancel);
+    } else if (deal.handover === "meetup") {
       if (role === "buyer") out.push(<Button key="code" variant="primary" size="lg" block icon="lock" to={`/d/${deal.id}/code`}>{t("Show release code")}</Button>, report);
       else out.push(<Button key="enter" variant="primary" size="lg" block to={`/d/${deal.id}/enter-code`}>{t("Enter release code")}</Button>);
       out.push(cancel);

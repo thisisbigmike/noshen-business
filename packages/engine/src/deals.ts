@@ -11,10 +11,12 @@ import { coinAmount, coinName, cryptoLabel, networkOf, type Coin, type Network }
 import { alertStaff } from "./staff-alerts";
 import { isState, stateLabel } from "@noshen/shared/locations";
 import { deliveryFee, deliveryZone, offersDelivery, sendingProblem } from "@noshen/shared/delivery";
+import { isService } from "@noshen/shared/categories";
+import { splitStages, type Stage } from "@noshen/shared/stages";
 
 export { overLimit, sellerLimitText, type SellerLimit };
 import {
-  type Deps, type DealRow, DealError, N, amountPaid, lockDeal, notify, nowOf, post, pushToUser, schedule, settingsOf, userName,
+  type Deps, type DealRow, DealError, N, heldFor, lockDeal, notify, nowOf, post, pushToUser, releasedShare, schedule, settingsOf, userName,
 } from "./core";
 
 // ---------------------------------------------------------------------------
@@ -36,8 +38,21 @@ export async function sellerLimit(db: Tx["db"], sellerId: string, s: Settings): 
   return { capKobo: verified ? s.deal_max_kobo : s.unverified_seller_max_kobo, custom: false, verified };
 }
 
-/** deliveryState: where the buyer wants it delivered (one of the 36 states or FCT), when handover is "delivery". */
-export async function requestDeal(d: Deps, buyerId: string, input: { listingId: string; handover: Handover; deliveryState?: string; note?: string }): Promise<string> {
+type RequestInput = { listingId: string; handover: Handover; deliveryState?: string; note?: string };
+
+/**
+ * A buyer asks to buy a listing. deliveryState: where they want it delivered (one of the 36 states or FCT), when
+ * handover is "delivery". From a checkout link (a link-only listing) the seller already agreed to sell when they
+ * shared it, so the request is accepted at once and the buyer goes straight to paying.
+ */
+export async function requestDeal(d: Deps, buyerId: string, input: RequestInput): Promise<string> {
+  const r = await openRequest(d, buyerId, input);
+  // If accepting can't happen now (every unit is taken), the request waits for the seller as usual.
+  if (r.instant) await acceptDeal(d, r.sellerId, r.id).catch(() => {});
+  return r.id;
+}
+
+async function openRequest(d: Deps, buyerId: string, input: RequestInput): Promise<{ id: string; sellerId: string; instant: boolean }> {
   return inTx(d.db, { type: "buyer", id: buyerId }, async (tx) => {
     const s = await settingsOf(d);
     const now = nowOf(d);
@@ -62,8 +77,15 @@ export async function requestDeal(d: Deps, buyerId: string, input: { listingId: 
       "select id from deals where listing_id = $1 and buyer_id = $2 and state in ('requested','accepted','held','disputed')",
       [input.listingId, buyerId],
     );
-    if (existing) return existing.id;
+    const instant = listing.visibility === "link";
+    if (existing) {
+      const state = (await one<{ state: string }>(tx.db, "select state from deals where id = $1", [existing.id]))!.state;
+      return { id: existing.id, sellerId: listing.seller_id, instant: instant && state === "requested" };
+    }
 
+    // A job is paid in stages, and has no delivery (the work happens where they agree in the chat).
+    const service = isService(listing.category);
+    if (service) input = { ...input, handover: "meetup", deliveryState: undefined };
     // Delivery costs what the seller set for the buyer's zone: within the item's state, or to another state.
     let delivery = 0;
     if (input.handover === "delivery") {
@@ -78,12 +100,18 @@ export async function requestDeal(d: Deps, buyerId: string, input: { listingId: 
     const fee = feeFor(price, s.fee);
     const deal = await one<{ id: string }>(
       tx.db,
-      `insert into deals (listing_id, buyer_id, seller_id, price_kobo, fee_kobo, fee_payer, handover, request_expires_at, delivery_kobo, delivery_state)
-       values ($1, $2, $3, $4, $5, 'buyer', $6, $7, $8, $9) returning id`,
+      `insert into deals (listing_id, buyer_id, seller_id, price_kobo, fee_kobo, fee_payer, handover, request_expires_at, delivery_kobo, delivery_state, kind)
+       values ($1, $2, $3, $4, $5, 'buyer', $6, $7, $8, $9, $10) returning id`,
       [listing.id, buyerId, listing.seller_id, price, fee, input.handover, addHours(now, s.request_ttl_hours), delivery,
-       input.handover === "delivery" ? input.deliveryState : null],
+       input.handover === "delivery" ? input.deliveryState : null, service ? "service" : "goods"],
     );
     const id = deal!.id;
+    // The listing's stages, priced for this deal: fixed from here on, whatever the seller changes later.
+    if (service) {
+      for (const st of splitStages((listing.stages ?? []) as Stage[], price, fee)) {
+        await tx.db.query("insert into deal_stages (deal_id, n, title, share_kobo, fee_kobo) values ($1, $2, $3, $4, $5)", [id, st.n, st.title, st.shareKobo, st.feeKobo]);
+      }
+    }
     if (input.note?.trim()) {
       await tx.db.query("insert into messages (deal_id, sender_id, body) values ($1, $2, $3)", [id, buyerId, input.note.trim().slice(0, 2000)]);
     }
@@ -91,10 +119,11 @@ export async function requestDeal(d: Deps, buyerId: string, input: { listingId: 
     const sendTo = input.handover === "delivery"
       ? `, delivered to ${stateLabel(input.deliveryState!)}${delivery ? ` (${naira(delivery)} delivery, paid to you with the price)` : " (free delivery)"}`
       : "";
-    await notify(d, tx, listing.seller_id, id, "request_received",
-      `${buyer} wants to buy your ${listing.title} with protection${sendTo}. Answer by ${when(addHours(now, s.request_ttl_hours), now)}.`);
+    await notify(d, tx, listing.seller_id, id, "request_received", instant
+      ? `${buyer} is buying your ${listing.title} through your checkout link${sendTo}.`
+      : `${buyer} wants to buy your ${listing.title} with protection${sendTo}. Answer by ${when(addHours(now, s.request_ttl_hours), now)}.`);
     schedule(d, tx, "request_expiry", id, addHours(now, s.request_ttl_hours));
-    return id;
+    return { id, sellerId: listing.seller_id, instant };
   });
 }
 
@@ -168,6 +197,8 @@ export async function cancelDeal(d: Deps, userId: string, dealId: string) {
     }
     if (deal.state === "held") {
       if (deal.delivered_at) throw new DealError("delivered", "The item was marked delivered. Confirm you received it, or report a problem.");
+      if (deal.kind === "service" && await one(tx.db, "select 1 from deal_stages where deal_id = $1 and released_at is not null", [dealId]))
+        throw new DealError("started", "Part of the money for this job is already released, so the deal can't be cancelled. If something's wrong, report a problem.");
       if (deal.sent_at) throw new DealError("sent", isBuyer
         ? "The item is on its way. When it arrives, check it and confirm, or report a problem. If it never arrives, report it as not delivered."
         : "You've sent the item, so the deal can't be cancelled. If something went wrong, contact NosHen support.");
@@ -321,6 +352,9 @@ async function paymentArrived(d: Deps, tx: Tx, deal: DealRow, paymentId: string,
     await alertStaff(d, tx, "review_hold", `Payment to check: ${item?.title ?? "a deal"}`, hold, `/holds/${deal.id}`);
     await notify(d, tx, deal.buyer_id, deal.id, "payment_review", "Your payment arrived. We're checking it and will email you. Don't meet yet.");
     await notify(d, tx, deal.seller_id, deal.id, "payment_review", "A payment arrived, and NosHen is checking it. Don't hand over yet.");
+  } else if (deal.kind === "service") {
+    await notify(d, tx, deal.buyer_id, deal.id, "payment_held", `${naira(amountKobo)} is held safely. ${seller} can start the job. You release the money stage by stage, as the work gets done.`);
+    await notify(d, tx, deal.seller_id, deal.id, "payment_held", `${naira(deal.seller_share_kobo)} is held for you. Start the job by ${when(handoverDue, now)}, and mark each stage done as you go.`);
   } else if (deal.handover === "delivery") {
     await notify(d, tx, deal.buyer_id, deal.id, "payment_held", `${naira(amountKobo)} is held safely. ${seller} sends it by ${when(handoverDue, now)}, with photos of it packed. Don't pay anyone extra for delivery.`);
     await notify(d, tx, deal.seller_id, deal.id, "payment_held", `${naira(deal.seller_share_kobo)} is held for you, delivery included. Pack it, take photos, and send it by ${when(handoverDue, now)}.`);
@@ -350,7 +384,9 @@ async function onTransferResult(d: Deps, event: Extract<PartnerEvent, { type: "t
     if (t.kind === "payout") {
       await post(tx.db, t.deal_id, "payout_sent", [{ account: "seller_payable", debit: amount }, { account: "partner_cash", credit: amount }]);
       const deal = await lockDeal(tx.db, t.deal_id);
-      if (deal.state === "released") await tx.db.query("update deals set state = 'paid_out' where id = $1", [deal.id]);
+      // Paid out once every payout for the deal has gone (a job paid in stages has one per stage).
+      const waiting = await one(tx.db, "select 1 from transfers where deal_id = $1 and kind = 'payout' and status in ('pending', 'sent') limit 1", [deal.id]);
+      if (deal.state === "released" && !waiting) await tx.db.query("update deals set state = 'paid_out' where id = $1", [deal.id]);
       const acct = await one(tx.db, "select bank_code, account_last4 from bank_accounts where id = $1", [t.bank_account_id]);
       await notify(d, tx, deal.seller_id, deal.id, "payout_sent", `${naira(amount)} sent to your bank account ••${acct?.account_last4 ?? ""}.`);
     } else if (t.kind === "refund") {
@@ -366,11 +402,12 @@ async function onTransferResult(d: Deps, event: Extract<PartnerEvent, { type: "t
 
 /** Records a transfer with its idempotency key, and asks the partner to send it after commit. */
 async function createTransfer(d: Deps, tx: Tx, dealId: string, kind: "payout" | "refund", amount: number,
-  to: { bankAccountId?: string | null; refundPaymentId?: string | null; sendBack?: boolean }, key?: string) {
+  to: { bankAccountId?: string | null; refundPaymentId?: string | null; sendBack?: boolean }, key?: string, stage?: number | null) {
   const t = await one<{ id: string; idempotency_key: string }>(tx.db,
-    `insert into transfers (deal_id, kind, amount_kobo, bank_account_id, refund_payment_id, idempotency_key)
-     values ($1, $2, $3, $4, $5, $6) returning id, idempotency_key`,
-    [dealId, kind, amount, to.bankAccountId ?? null, to.refundPaymentId ?? null, key ?? (to.sendBack ? `${to.refundPaymentId}:send-back` : `${dealId}:${kind}`)]);
+    `insert into transfers (deal_id, kind, amount_kobo, bank_account_id, refund_payment_id, idempotency_key, stage)
+     values ($1, $2, $3, $4, $5, $6, $7) returning id, idempotency_key`,
+    [dealId, kind, amount, to.bankAccountId ?? null, to.refundPaymentId ?? null,
+     key ?? (to.sendBack ? `${to.refundPaymentId}:send-back` : stage ? `${dealId}:${kind}:${stage}` : `${dealId}:${kind}`), stage ?? null]);
   let destination: { bankCode: string; accountNumber: string; accountName: string };
   const coinTo = await refundTarget(tx, to.refundPaymentId);
   if (coinTo) {
@@ -403,8 +440,9 @@ export async function retryFailedTransfer(d: Deps, tx: Tx, transferId: string) {
   if (t.status !== "failed") throw new DealError("state", "Only a failed payout or refund can be sent again.");
   if ((t.kind !== "payout" && t.kind !== "refund") || !t.deal_id) throw new DealError("state", "Only a deal's payout or refund can be sent again here.");
   const again = await one(tx.db,
-    `select 1 from transfers where deal_id = $1 and kind = $2 and status <> 'failed' and ($2 = 'payout' or refund_payment_id is not distinct from $3)`,
-    [t.deal_id, t.kind, t.refund_payment_id]);
+    `select 1 from transfers where deal_id = $1 and kind = $2 and status <> 'failed' and stage is not distinct from $4
+        and ($2 = 'payout' or refund_payment_id is not distinct from $3)`,
+    [t.deal_id, t.kind, t.refund_payment_id, t.stage]);
   if (again) throw new DealError("state", `This ${t.kind} has already been sent again. Check its status on the deal.`);
   let bankAccountId: string | null = t.bank_account_id;
   if (t.kind === "payout") {
@@ -415,7 +453,7 @@ export async function retryFailedTransfer(d: Deps, tx: Tx, transferId: string) {
   }
   const tries = await one<{ n: string }>(tx.db, "select count(*) as n from transfers where deal_id = $1 and kind = $2", [t.deal_id, t.kind]);
   await createTransfer(d, tx, t.deal_id, t.kind, N(t.amount_kobo), { bankAccountId, refundPaymentId: t.refund_payment_id },
-    `${t.idempotency_key}:retry${N(tries?.n)}`);
+    `${t.idempotency_key}:retry${N(tries?.n)}`, t.stage);
 }
 
 type CoinRefundTarget = { coin: Coin; network: Network; address_enc: unknown | null; last4: string | null };
@@ -486,25 +524,34 @@ function refundWords(to: CoinRefundTarget | null, amount: number, fallback: stri
 // Release: one path for the code, the buyer's confirmation, the delivery timer, a dispute decision and an admin
 // ---------------------------------------------------------------------------
 
-/** Call with the deal already locked. Moves the money to the seller and starts the payout. */
-export async function release(d: Deps, tx: Tx, deal: DealRow, by: "code" | "confirmed" | "timer" | "reviewer" | "staff") {
+type ReleasedBy = "code" | "confirmed" | "timer" | "reviewer" | "staff";
+const STAGE_BY: Record<ReleasedBy, string> = { code: "buyer", confirmed: "buyer", timer: "timer", reviewer: "reviewer", staff: "staff" };
+
+/**
+ * Call with the deal already locked. Moves everything still held to the seller and starts the payout: the whole deal,
+ * or for a job paid in stages, the stages not yet released.
+ */
+export async function release(d: Deps, tx: Tx, deal: DealRow, by: ReleasedBy) {
   const allowed = by === "reviewer" ? deal.state === "disputed" : deal.state === "held";
   if (!allowed) throw new DealError("state", "This deal can't be released now.");
   if (deal.review_hold && by !== "reviewer") throw new DealError("review_hold", "NosHen is checking the payment for this deal. Don't hand over yet.");
-  const paid = await amountPaid(tx.db, deal.id);
-  const share = N(deal.seller_share_kobo);
-  const fee = paid - share;
+  // By the ledger: what's still held, and the seller's share less what earlier stages already paid them.
+  const held = await heldFor(tx.db, deal.id);
+  const share = N(deal.seller_share_kobo) - await releasedShare(tx.db, deal.id);
+  const fee = held - share;
   await post(tx.db, deal.id, "release", [
-    { account: "held_funds", debit: paid },
+    { account: "held_funds", debit: held },
     { account: "seller_payable", credit: share },
     { account: "fee_revenue", credit: fee },
   ], `released by ${by}`);
   await tx.db.query("update deals set state = 'released' where id = $1", [deal.id]);
   await tx.db.query("update release_codes set used_at = now() where deal_id = $1 and used_at is null and voided_at is null", [deal.id]);
+  const last = await one<{ n: number }>(tx.db,
+    "update deal_stages set released_at = now(), released_by = $2 where deal_id = $1 and released_at is null returning n", [deal.id, STAGE_BY[by]]);
 
   const bank = await one<{ id: string; account_last4: string }>(tx.db,
     "select id, account_last4 from bank_accounts where user_id = $1 and is_default and removed_at is null", [deal.seller_id]);
-  if (bank) await createTransfer(d, tx, deal.id, "payout", share, { bankAccountId: bank.id });
+  if (bank && share > 0) await createTransfer(d, tx, deal.id, "payout", share, { bankAccountId: bank.id }, undefined, last?.n ?? null);
   await collectCoin(d, tx, deal.id);
   const listing = await one(tx.db, "select title from listings where id = $1", [deal.listing_id]);
   // One more sold; the last one marks the listing sold.
@@ -515,7 +562,88 @@ export async function release(d: Deps, tx: Tx, deal: DealRow, by: "code" | "conf
       where id = $1`, [deal.listing_id]);
   const seller = firstName(await userName(tx.db, deal.seller_id));
   await notify(d, tx, deal.seller_id, deal.id, "released", `${naira(share)} released. Your payout${bank ? ` to ••${bank.account_last4}` : ""} is on its way.`);
-  await notify(d, tx, deal.buyer_id, deal.id, "released", `Deal closed: ${naira(share)} released to ${seller}. The ${listing.title} is yours. Please rate ${seller}.`);
+  await notify(d, tx, deal.buyer_id, deal.id, "released", deal.kind === "service"
+    ? `Job done and deal closed: everything is released to ${seller}. Please rate ${seller}.`
+    : `Deal closed: ${naira(share)} released to ${seller}. The ${listing.title} is yours. Please rate ${seller}.`);
+}
+
+// ---------------------------------------------------------------------------
+// Jobs paid in stages
+// ---------------------------------------------------------------------------
+
+interface StageRow { deal_id: string; n: number; title: string; share_kobo: string; fee_kobo: string; done_at: Date | null; release_due_at: Date | null; released_at: Date | null }
+
+/**
+ * Releases the next stage of a job (stages go in order). The last one closes the deal through release(); an earlier
+ * one moves just its share to the seller, with its part of the fee, and starts its payout. Call with the deal locked.
+ */
+async function releaseStage(d: Deps, tx: Tx, deal: DealRow, by: "buyer" | "timer" | "staff") {
+  if (deal.kind !== "service" || deal.state !== "held") throw new DealError("state", "There's no stage to release on this deal now.");
+  if (deal.review_hold) throw new DealError("review_hold", "NosHen is checking the payment for this deal. Don't release yet.");
+  const stages = await many<StageRow>(tx.db, "select * from deal_stages where deal_id = $1 order by n for update", [deal.id]);
+  const open = stages.filter((x) => !x.released_at);
+  const next = open[0];
+  if (!next) throw new DealError("state", "Every stage is already released.");
+  if (open.length === 1) return release(d, tx, deal, by === "buyer" ? "confirmed" : by);
+  const share = N(next.share_kobo), fee = N(next.fee_kobo);
+  await post(tx.db, deal.id, "release", [
+    { account: "held_funds", debit: share + fee },
+    { account: "seller_payable", credit: share },
+    { account: "fee_revenue", credit: fee },
+  ], `stage ${next.n} released by ${by}`);
+  await tx.db.query("update deal_stages set released_at = now(), released_by = $3 where deal_id = $1 and n = $2", [deal.id, next.n, by]);
+  await tx.db.query("insert into deal_events (deal_id, type, actor, actor_id, payload) values ($1, 'stage_released', $2, $3, $4)",
+    [deal.id, by === "buyer" ? "buyer" : "system", by === "buyer" ? deal.buyer_id : null, JSON.stringify({ n: next.n, by })]);
+  const bank = await one<{ id: string; account_last4: string }>(tx.db,
+    "select id, account_last4 from bank_accounts where user_id = $1 and is_default and removed_at is null", [deal.seller_id]);
+  if (bank && share > 0) await createTransfer(d, tx, deal.id, "payout", share, { bankAccountId: bank.id }, undefined, next.n);
+  await collectCoin(d, tx, deal.id, share + fee);
+  const seller = firstName(await userName(tx.db, deal.seller_id));
+  const left = await heldFor(tx.db, deal.id);
+  await notify(d, tx, deal.seller_id, deal.id, "stage_released",
+    `${naira(share)} released for “${next.title}”. Your payout${bank ? ` to ••${bank.account_last4}` : ""} is on its way. Mark the next stage done when it's ready.`);
+  await notify(d, tx, deal.buyer_id, deal.id, "stage_released", by === "timer"
+    ? `“${next.title}” was released to ${seller}: it was marked done and nobody reported a problem in time. ${naira(left)} is still held for the rest of the job.`
+    : `You released ${naira(share)} to ${seller} for “${next.title}”. ${naira(left)} is still held for the rest of the job.`);
+}
+
+/** The seller says the next stage of a job is done. The buyer releases it, or it's released by itself a few days later. */
+export async function markStageDone(d: Deps, sellerId: string, dealId: string) {
+  return inTx(d.db, { type: "seller", id: sellerId }, async (tx) => {
+    const s = await settingsOf(d);
+    const now = nowOf(d);
+    const deal = await lockDeal(tx.db, dealId);
+    if (deal.seller_id !== sellerId) throw new DealError("forbidden", "Only the seller can mark a stage done.", 403);
+    if (deal.kind !== "service" || deal.state !== "held" || deal.review_hold) throw new DealError("state", "There's no stage to mark done on this deal now.");
+    const next = await one<StageRow>(tx.db, "select * from deal_stages where deal_id = $1 and released_at is null order by n limit 1 for update", [dealId]);
+    if (!next) throw new DealError("state", "Every stage is already released.");
+    if (next.done_at) throw new DealError("state", `“${next.title}” is already marked done.`);
+    const due = addHours(now, s.stage_confirm_hours);
+    await tx.db.query("update deal_stages set done_at = $3, release_due_at = $4 where deal_id = $1 and n = $2", [dealId, next.n, now, due]);
+    await tx.db.query("insert into deal_events (deal_id, type, actor, actor_id, payload) values ($1, 'stage_done', 'seller', $2, $3)",
+      [dealId, sellerId, JSON.stringify({ n: next.n })]);
+    const seller = firstName(await userName(tx.db, sellerId));
+    await notify(d, tx, deal.buyer_id, dealId, "stage_done",
+      `${seller} says “${next.title}” is done. Check it, then release ${naira(next.share_kobo)} or report a problem by ${when(due, now)}. If you do neither, it's released.`);
+    schedule(d, tx, "stage_release", dealId, due);
+  });
+}
+
+/** The buyer releases the next stage of a job: they've checked the work. */
+export async function releaseNextStage(d: Deps, buyerId: string, dealId: string) {
+  return inTx(d.db, { type: "buyer", id: buyerId }, async (tx) => {
+    const deal = await lockDeal(tx.db, dealId);
+    if (deal.buyer_id !== buyerId) throw new DealError("forbidden", "Only the buyer can release the money.", 403);
+    await releaseStage(d, tx, deal, "buyer");
+  });
+}
+
+/** For the sweep: a stage marked done whose time to check it has passed, released if nobody reported a problem. */
+export async function releaseDueStage(d: Deps, tx: Tx, deal: DealRow, now: Date) {
+  const next = await one<StageRow>(tx.db, "select * from deal_stages where deal_id = $1 and released_at is null order by n limit 1", [deal.id]);
+  if (!next?.release_due_at || new Date(next.release_due_at) > now || deal.state !== "held" || deal.review_hold) return false;
+  await releaseStage(d, tx, deal, "timer");
+  return true;
 }
 
 /**
@@ -523,17 +651,23 @@ export async function release(d: Deps, tx: Tx, deal: DealRow, by: "code" | "conf
  * into NosHen's wallet, which funds the seller's payout. After commit, so a slow network never holds up the release;
  * the transaction goes on the deal's history. If it fails, the coin stays at the deal's address to collect later.
  */
-async function collectCoin(d: Deps, tx: Tx, dealId: string) {
-  const held = await one<{ provider_ref: string; network: Network; micro: string }>(tx.db,
-    `select c.provider_ref, c.network, sum(p.amount_coin_micro) as micro from payments p join crypto_deposits c on c.id = p.crypto_deposit_id
+async function collectCoin(d: Deps, tx: Tx, dealId: string, kobo?: number) {
+  const held = await one<{ provider_ref: string; network: Network; micro: string; kobo: string }>(tx.db,
+    `select c.provider_ref, c.network, sum(p.amount_coin_micro) as micro, sum(p.amount_kobo) as kobo from payments p join crypto_deposits c on c.id = p.crypto_deposit_id
       where p.deal_id = $1 and p.method = 'crypto' and not p.sent_back group by c.provider_ref, c.network`, [dealId]);
   const partner = d.crypto;
   if (!held || !partner?.collect || !partner.watches?.includes(held.network)) return;
+  // A stage of a job: its share of the coin. Otherwise (the deal's last release): what's left after earlier stages.
+  let micro = N(held.micro);
+  if (kobo !== undefined) micro = N(held.kobo) > 0 ? Math.floor((micro * kobo) / N(held.kobo)) : 0;
+  else micro -= N((await one<{ m: string }>(tx.db,
+    "select coalesce(sum((payload->>'micro')::bigint), 0) as m from deal_events where deal_id = $1 and type = 'coin_collected'", [dealId]))?.m);
+  if (micro <= 0) return;
   tx.after(async () => {
     try {
-      const sig = await partner.collect!(held.network, held.provider_ref, N(held.micro));
+      const sig = await partner.collect!(held.network, held.provider_ref, micro);
       await d.db.query("insert into deal_events (deal_id, type, actor, actor_id, payload) values ($1, 'coin_collected', 'system', null, $2)",
-        [dealId, JSON.stringify({ tx: sig, micro: N(held.micro), network: held.network })]);
+        [dealId, JSON.stringify({ tx: sig, micro, network: held.network })]);
     } catch (e) {
       console.error("couldn't collect the coin for", dealId, e);
     }
@@ -636,10 +770,13 @@ export async function confirmReceived(d: Deps, buyerId: string, dealId: string) 
   });
 }
 
-/** Refunds the buyer in full (fee included). Call with the deal locked. */
+/**
+ * Refunds the buyer everything still held (fee included): the whole payment, or for a job paid in stages, what
+ * wasn't released yet. Call with the deal locked.
+ */
 export async function refund(d: Deps, tx: Tx, deal: DealRow, why: "cancelled" | "reviewer" | "review_hold") {
   if (deal.state !== "held" && deal.state !== "disputed") throw new DealError("state", "This deal can't be refunded now.");
-  const paid = await amountPaid(tx.db, deal.id);
+  const paid = await heldFor(tx.db, deal.id);
   await post(tx.db, deal.id, "refund_due", [{ account: "held_funds", debit: paid }, { account: "refunds_due", credit: paid }], why);
   await tx.db.query("update deals set state = 'refunded', review_hold = false, review_hold_reason = null where id = $1", [deal.id]);
   await tx.db.query("update release_codes set voided_at = now() where deal_id = $1 and used_at is null and voided_at is null", [deal.id]);

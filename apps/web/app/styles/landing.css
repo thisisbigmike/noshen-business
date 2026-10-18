@@ -308,3 +308,12 @@
   .fc-seller { right: -40px; }
   .seal.hero-seal { bottom: 28px; right: -18px; }
 }
+
+/* The NosHen promise, under the hero. */
+.promise { display: inline-flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; padding: 10px 14px; border-radius: var(--radius-md); background: var(--tint); color: var(--ink); font-size: 15px; line-height: 22px; animation: lp-in 700ms 300ms var(--ease-out) both; }
+.promise .nh-icon { flex: none; margin-top: 2px; color: var(--primary); }
+
+/* Phones, laptops and cars: what NosHen checks for each. */
+.value-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.value-card { display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: inherit; }
+.value-card .tap { margin-top: auto; color: var(--primary); }

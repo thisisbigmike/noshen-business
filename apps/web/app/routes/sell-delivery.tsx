@@ -14,10 +14,10 @@ export const meta = () => [{ title: "Delivery prices · NosHen" }];
 export async function loader({ request, params }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const user = await requireUser(request, d);
-    const l = await one(d.db, "select id, seller_id, title, status, state, delivery_local_kobo, delivery_other_kobo from listings where id = $1", [params.id]);
+    const l = await one(d.db, "select id, seller_id, title, status, state, category, delivery_local_kobo, delivery_other_kobo from listings where id = $1", [params.id]);
     if (!l || l.seller_id !== user.id) throw data("Not found", { status: 404 });
     if (l.status === "draft") throw redirect(`/sell/${l.id}/details`);
-    if (!["live", "paused"].includes(l.status)) throw redirect(`/l/${l.id}`);
+    if (!["live", "paused"].includes(l.status) || l.category === "services") throw redirect(`/l/${l.id}`);
     return { listing: l };
   });
 }

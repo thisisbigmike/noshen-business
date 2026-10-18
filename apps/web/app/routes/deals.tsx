@@ -26,7 +26,7 @@ export default function Deals({ loaderData }: Route.ComponentProps) {
   const now = new Date();
   const card = (x: (typeof list)[number]) => {
     const names = x.role === "buyer" ? { buyer: loaderData.me, seller: x.other } : { buyer: x.other, seller: loaderData.me };
-    const dt = dealText(x, x.role, names, Number(x.amount_due_kobo), { decisionDue: x.decision_due_at, endedBy: x.ended_by }, now, t);
+    const dt = dealText(x, x.role, names, Number(x.amount_due_kobo), { decisionDue: x.decision_due_at, endedBy: x.ended_by, nextStageDone: x.next_stage_done }, now, t);
     return <DealCard key={x.id} href={`/d/${x.id}`} state={dt.chip.state} word={dt.chip.word} amountKobo={dt.amountKobo} item={x.title}
       counterpart={x.other.split(" ")[0]} deadline={dt.deadline} nextStep={x.action ? dt.next : undefined} />;
   };

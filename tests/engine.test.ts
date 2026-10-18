@@ -2,15 +2,17 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { world, person, verifiedSeller, liveListing, pay, payCrypto, settleAll, balances, stateOf, sendIt, type TestWorld } from "./helpers";
 import {
   requestDeal, sellerLimit, acceptDeal, releaseByCode, releaseCodeForBuyer, markDelivered, markSent, confirmReceived, cancelDeal, handlePartnerEvent, sendMessage, rate, explainHold,
+  markStageDone, releaseNextStage,
 } from "@noshen/engine/deals";
 import { reportProblem, decideDispute, resolveReviewHold, addEvidence } from "@noshen/engine/disputes";
 import { sweep } from "@noshen/engine/sweep";
 import { DealError, settingsOf } from "@noshen/engine/core";
+import { one } from "@noshen/engine/db";
 import { feeFor, naira } from "@noshen/shared/money";
-import { saveDraft, publish, setDelivery } from "@noshen/engine/sellers";
+import { saveDraft, publish, setDelivery, setVisibility } from "@noshen/engine/sellers";
 import { sizeLabel } from "@noshen/shared/sizes";
 import { moderateListing, setAccountStatus, setDealLimit, unlockReleaseCode, retryTransfer, checkDeadlinesNow, deleteSoldListings, staffRefund, staffRelease, giveMoreTime, openDisputeForBuyer, staffCancel, noteToBoth } from "@noshen/engine/staff";
-import { adminOverview, browse, staffListings, staffUsers, statesWithListings, staffDeals, staffDeal, staffPerson, staffCounts, auditLog, listingView } from "@noshen/engine/queries";
+import { adminOverview, browse, staffListings, staffUsers, statesWithListings, staffDeals, staffDeal, staffPerson, staffCounts, auditLog, listingView, sellerShop, sellerSummary } from "@noshen/engine/queries";
 import { cryptoQuotes, prepareCryptoPayment, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
 import { FAKE_RATE_KOBO } from "@noshen/engine/partner/fake-crypto";
 import { addressProblem, coinAmount, coinMicroFor, koboForCoin, payPlanFor } from "@noshen/shared/payments";
@@ -913,5 +915,163 @@ describe("waitlist", () => {
     const rows = (await w.db.query("select country, lang from waitlist where email = $1", [email])).rows;
     expect(rows).toEqual([{ country: "KE", lang: "pcm" }]);
     expect((await waitlistCounts(w.db)).find((c) => c.country === "KE")!.n).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("services paid in stages", () => {
+  const PRICE = 200_000; // ₦200,000 for the job
+  async function job(stages = [{ title: "Work starts", percent: 30 }, { title: "Work finished", percent: 70 }]) {
+    const seller = await verifiedSeller(w, "Bisi Fixes");
+    const buyer = await person(w, "Ngozi Stage");
+    const listing = await saveDraft(w.d, seller, null, ["a", "b", "c"], {
+      category: "services", title: "Kitchen cabinets, built and fitted", priceNaira: PRICE, condition: undefined as any, state: "Lagos", area: "Surulere", stages,
+    });
+    await publish(w.d, seller, listing);
+    const dealId = await requestDeal(w.d, buyer, { listingId: listing, handover: "delivery", deliveryState: "Kano" });
+    await acceptDeal(w.d, seller, dealId);
+    const due = Number((await w.db.query("select amount_due_kobo from deals where id = $1", [dealId])).rows[0].amount_due_kobo);
+    await pay(w, dealId, due, "NGOZI STAGE");
+    return { seller, buyer, dealId, due };
+  }
+  const held = async (dealId: string) => Number((await w.db.query(
+    "select coalesce(sum(credit_kobo - debit_kobo), 0) as n from ledger_entries where account = 'held_funds' and deal_id = $1", [dealId])).rows[0].n);
+  const checkHeld = async () => {
+    const r = (await w.db.query("select ledger_held_kobo, open_deals_kobo from held_funds_check")).rows[0];
+    expect(Number(r.ledger_held_kobo)).toBe(Number(r.open_deals_kobo));
+  };
+
+  it("splits the price and fee into the stages, and the request is a job: no delivery", async () => {
+    const { dealId } = await job();
+    const deal = (await w.db.query("select kind, handover, delivery_kobo, fee_kobo, price_kobo from deals where id = $1", [dealId])).rows[0];
+    expect(deal).toMatchObject({ kind: "service", handover: "meetup", delivery_kobo: "0" });
+    const stages = (await w.db.query("select n, title, share_kobo, fee_kobo from deal_stages where deal_id = $1 order by n", [dealId])).rows;
+    expect(stages.map((s: any) => s.title)).toEqual(["Work starts", "Work finished"]);
+    expect(stages.reduce((n: number, s: any) => n + Number(s.share_kobo), 0)).toBe(Number(deal.price_kobo));
+    expect(stages.reduce((n: number, s: any) => n + Number(s.fee_kobo), 0)).toBe(Number(deal.fee_kobo));
+    expect(Number(stages[0].share_kobo)).toBe(PRICE * 100 * 0.3);
+  });
+
+  it("releases a stage at a time, pays each, then closes the deal on the last one", async () => {
+    const { seller, buyer, dealId, due } = await job();
+    await markStageDone(w.d, seller, dealId);
+    await expect(markStageDone(w.d, seller, dealId)).rejects.toThrow(/already marked done/);
+    await releaseNextStage(w.d, buyer, dealId);
+    const s1 = (await w.db.query("select share_kobo, fee_kobo, released_by from deal_stages where deal_id = $1 and n = 1", [dealId])).rows[0];
+    expect(s1.released_by).toBe("buyer");
+    expect(await stateOf(w, dealId)).toBe("held");
+    expect(await held(dealId)).toBe(due - Number(s1.share_kobo) - Number(s1.fee_kobo));
+    await checkHeld();
+    await expect(cancelDeal(w.d, buyer, dealId)).rejects.toThrow(/already released/);
+    await releaseNextStage(w.d, buyer, dealId);
+    expect(await stateOf(w, dealId)).toBe("released");
+    expect(await held(dealId)).toBe(0);
+    await settleAll(w);
+    expect(await stateOf(w, dealId)).toBe("paid_out");
+    const payouts = (await w.db.query("select stage, amount_kobo from transfers where deal_id = $1 and kind = 'payout' order by stage", [dealId])).rows;
+    expect(payouts.map((p: any) => p.stage)).toEqual([1, 2]);
+    expect(payouts.reduce((n: number, p: any) => n + Number(p.amount_kobo), 0)).toBe(PRICE * 100);
+    const b = await balances(w, dealId);
+    expect(b.seller_payable ?? 0).toBe(0);
+    expect(-(b.fee_revenue ?? 0)).toBe(due - PRICE * 100);
+    await checkHeld();
+  });
+
+  it("refunds only what's still held when a dispute is decided for the buyer", async () => {
+    const { buyer, dealId, due } = await job();
+    await releaseNextStage(w.d, buyer, dealId);
+    const left = await held(dealId);
+    expect(left).toBeLessThan(due);
+    await reportProblem(w.d, buyer, dealId, { reason: "not_as_described", description: "The doors don't close" });
+    const disputeId = (await w.db.query("select id from disputes where deal_id = $1", [dealId])).rows[0].id;
+    await decideDispute(w.d, staffId, disputeId, "refund_buyer", "Photos show the doors don't close; the second stage wasn't done");
+    expect(await stateOf(w, dealId)).toBe("refunded");
+    await settleAll(w);
+    const refund = (await w.db.query("select amount_kobo from transfers where deal_id = $1 and kind = 'refund'", [dealId])).rows[0];
+    expect(Number(refund.amount_kobo)).toBe(left);
+    expect(await held(dealId)).toBe(0);
+    await checkHeld();
+  });
+
+  it("releases a stage by itself when it was marked done and nobody acted in time", async () => {
+    const { seller, dealId } = await job([{ title: "Deposit", percent: 50 }, { title: "Fitting", percent: 25 }, { title: "Finished", percent: 25 }]);
+    await markStageDone(w.d, seller, dealId);
+    expect(w.timers.some((t) => t.kind === "stage_release" && t.dealId === dealId)).toBe(true);
+    expect(await sweep(w.d, dealId)).toEqual([]);
+    w.clock.now = new Date(Date.now() + 73 * 3600_000);
+    expect(await sweep(w.d, dealId)).toContain(`stage released ${dealId}`);
+    w.clock.now = new Date();
+    const r = (await w.db.query("select n, released_by from deal_stages where deal_id = $1 and released_at is not null", [dealId])).rows;
+    expect(r).toEqual([{ n: 1, released_by: "timer" }]);
+    expect(await stateOf(w, dealId)).toBe("held");
+  });
+
+  it("lets staff give the buyer more time to check a stage marked done", async () => {
+    const { seller, dealId } = await job();
+    await markStageDone(w.d, seller, dealId);
+    const before = (await w.db.query("select release_due_at from deal_stages where deal_id = $1 and n = 1", [dealId])).rows[0].release_due_at as Date;
+    const due = await giveMoreTime(w.d, { id: staffId, role: "reviewer" as const }, dealId, 2, "Buyer is travelling and asked to check on Monday");
+    expect(due.getTime() - before.getTime()).toBe(48 * 3600_000);
+    const after = (await w.db.query("select release_due_at from deal_stages where deal_id = $1 and n = 1", [dealId])).rows[0].release_due_at as Date;
+    expect(after.getTime()).toBe(due.getTime());
+    expect(Number((await w.db.query("select count(*) as n from staff_actions where target_id = $1 and action = 'give_more_time'", [dealId])).rows[0].n)).toBe(1);
+  });
+
+  it("needs stages that add up to 100%", async () => {
+    const seller = await verifiedSeller(w, "Bad Stages");
+    await expect(saveDraft(w.d, seller, null, ["a", "b", "c"], {
+      category: "services", title: "Painting", priceNaira: 50_000, condition: undefined as any, state: "Lagos", area: "Yaba",
+      stages: [{ title: "Start", percent: 30 }, { title: "End", percent: 60 }],
+    })).rejects.toThrow(/add up to 90%/);
+  });
+});
+
+describe("checkout links", () => {
+  it("keeps a link-only listing out of Browse and the shop, and accepts its buyers at once", async () => {
+    const seller = await verifiedSeller(w, "Ada Links");
+    const buyer = await person(w, "Kemi Link");
+    const id = await saveDraft(w.d, seller, null, ["a", "b", "c"], { category: "fashion", title: "Ankara two-piece, made to order", priceNaira: 30_000, condition: "new", state: "Lagos", area: "Ikeja", sizeSystem: "letter", size: "M" });
+    await publish(w.d, seller, id, "link");
+    expect((await one(w.db, "select visibility from listings where id = $1", [id])).visibility).toBe("link");
+    expect((await browse(w.db, { q: "ankara" })).map((l: any) => l.id)).not.toContain(id);
+    expect((await sellerShop(w.db, seller))!.listings.map((l: any) => l.id)).not.toContain(id);
+    // Anyone with the link can still open it and buy.
+    expect((await listingView(w.db, id))!.listing.status).toBe("live");
+    const dealId = await requestDeal(w.d, buyer, { listingId: id, handover: "meetup" });
+    expect(await stateOf(w, dealId)).toBe("accepted");
+
+    // Shown on NosHen: in Browse and the shop, and buyers wait for the seller to accept again.
+    await setVisibility(w.d, seller, id, "public");
+    expect((await browse(w.db, { q: "ankara" })).map((l: any) => l.id)).toContain(id);
+    expect((await sellerShop(w.db, seller))!.listings.map((l: any) => l.id)).toContain(id);
+    const other = await person(w, "Tolu Public");
+    expect(await stateOf(w, await requestDeal(w.d, other, { listingId: id, handover: "meetup" }))).toBe("requested");
+    await expect(setVisibility(w.d, buyer, id, "link")).rejects.toThrow(/isn't yours/);
+  });
+});
+
+describe("a seller's track record", () => {
+  it("counts deals, problem-free deals, purchases and how fast they answer", async () => {
+    const seller = await verifiedSeller(w, "Record Keeper");
+    const fresh = await sellerSummary(w.db, seller);
+    expect(fresh).toMatchObject({ completedDeals: 0, purchases: 0, disputesLost: 0, problemFree: null, replyMinutes: null });
+    // One deal closed well, one lost in a dispute.
+    for (const outcome of ["released", "refunded"] as const) {
+      const buyer = await person(w, `Buyer ${outcome}`);
+      const listing = await liveListing(w, seller, 100_000, `Phone for ${outcome}`);
+      const dealId = await requestDeal(w.d, buyer, { listingId: listing, handover: "meetup" });
+      await acceptDeal(w.d, seller, dealId);
+      const due = Number((await one(w.db, "select amount_due_kobo from deals where id = $1", [dealId])).amount_due_kobo);
+      await pay(w, dealId, due, `BUYER ${outcome.toUpperCase()}`);
+      if (outcome === "released") await releaseByCode(w.d, seller, dealId, await releaseCodeForBuyer(w.d, buyer, dealId));
+      else {
+        await reportProblem(w.d, buyer, dealId, { reason: "not_as_described", description: "Screen is cracked" });
+        const disputeId = (await one(w.db, "select id from disputes where deal_id = $1", [dealId])).id;
+        await decideDispute(w.d, staffId, disputeId, "refund_buyer", "The photos show a cracked screen the listing didn't mention");
+      }
+    }
+    const r = await sellerSummary(w.db, seller);
+    expect(r).toMatchObject({ completedDeals: 1, disputesLost: 1, problemFree: 50 });
+    expect(r.replyMinutes).toBeGreaterThanOrEqual(1);
+    expect(new Date(r.memberSince).getTime()).toBeLessThanOrEqual(Date.now());
   });
 });

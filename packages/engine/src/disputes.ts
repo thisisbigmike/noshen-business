@@ -2,7 +2,7 @@ import { inTx, one, type Tx } from "./db";
 import { naira } from "@noshen/shared/money";
 import { firstName, DISPUTE_REASONS, type DisputeReason } from "@noshen/shared/deal";
 import { when, addHours } from "@noshen/shared/time";
-import { type DealRow, type Deps, DealError, N, amountPaid, lockDeal, notify, nowOf, schedule, settingsOf, userName } from "./core";
+import { type DealRow, type Deps, DealError, N, amountPaid, heldFor, releasedShare, lockDeal, notify, nowOf, schedule, settingsOf, userName } from "./core";
 import { refund, release } from "./deals";
 import { alertStaff } from "./staff-alerts";
 
@@ -68,6 +68,9 @@ export async function decideDispute(d: Deps, staffId: string, disputeId: string,
     if (!disp) throw new DealError("not_found", "Dispute not found.", 404);
     if (disp.state === "decided") throw new DealError("decided", "This dispute has already been decided.");
     const deal = await lockDeal(tx.db, disp.deal_id);
+    // What's at stake: everything still held (a job paid in stages may have released some already).
+    const held = await heldFor(tx.db, deal.id);
+    const share = N(deal.seller_share_kobo) - await releasedShare(tx.db, deal.id);
     if (decision === "refund_buyer") await refund(d, tx, deal, "reviewer");
     else await release(d, tx, deal, "reviewer");
     await tx.db.query(
@@ -76,8 +79,7 @@ export async function decideDispute(d: Deps, staffId: string, disputeId: string,
     await tx.db.query(
       "insert into staff_actions (staff_id, action, target_type, target_id, reason, payload) values ($1, 'decide_dispute', 'dispute', $2, $3, $4)",
       [staffId, disputeId, reason.trim(), JSON.stringify({ decision, deal_id: deal.id })]);
-    const paid = await amountPaid(tx.db, deal.id);
-    const outcome = decision === "refund_buyer" ? `${naira(paid)} refunded to the buyer` : `${naira(deal.seller_share_kobo)} released to the seller`;
+    const outcome = decision === "refund_buyer" ? `${naira(held)} refunded to the buyer` : `${naira(share)} released to the seller`;
     for (const u of [deal.buyer_id, deal.seller_id]) {
       await notify(d, tx, u, deal.id, "decision_made", `Decision: ${outcome}. Reason: ${reason.trim()}`);
     }

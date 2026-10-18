@@ -98,7 +98,13 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
   const flagged = v.messages.filter((m: any) => m.flagged).length;
   const held = v.payments.filter((p: any) => !p.sent_back).reduce((n: number, p: any) => n + Number(p.amount_kobo), 0);
   const open = ["requested", "accepted", "held", "disputed"].includes(deal.state);
-  const deadline: [string, string | null] | null = deal.state === "requested" ? ["Seller answers by", deal.request_expires_at]
+  // A job: the start of the work, then each stage the seller marks done.
+  const nextStage = v.stages.find((s: any) => !s.released_at) ?? null;
+  const started = v.stages.some((s: any) => s.released_at);
+  const jobDeadline: [string, string | null] | null = deal.kind !== "service" || deal.state !== "held" ? null
+    : nextStage?.done_at ? [`Buyer checks “${nextStage.title}” by`, nextStage.release_due_at]
+    : started ? [`Waiting for the seller to mark “${nextStage?.title ?? "the next stage"}” done`, null] : ["Seller starts the job by", deal.handover_due_at];
+  const deadline: [string, string | null] | null = jobDeadline ? jobDeadline : deal.state === "requested" ? ["Seller answers by", deal.request_expires_at]
     : deal.state === "accepted" ? ["Buyer pays by", deal.payment_due_at]
     : deal.state === "held" && deal.delivered_at ? ["Buyer checks the delivery by", deal.release_due_at]
     : deal.state === "held" && deal.sent_at ? ["Sent, on its way since", deal.sent_at]
@@ -163,6 +169,24 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
             </section>
           ) : null}
 
+          {v.stages.length ? (
+            <section className="panel" aria-labelledby="stages-title">
+              <h2 id="stages-title" className="title">Stages of the job</h2>
+              <p className="caption muted">Paid in order. A stage is released by the buyer, by itself when its check time runs out after the seller marks it done, or by a dispute decision (everything still held at once).</p>
+              {v.stages.map((s: any) => (
+                <div key={s.n} className="money-row">
+                  <div className="stack" style={{ gap: 2, minWidth: 0 }}>
+                    <span className="body">{s.n}. {s.title} · {naira(s.share_kobo)} <span className="caption muted">+ {naira(s.fee_kobo)} fee</span></span>
+                    <span className="caption muted">{s.released_at
+                      ? `Released ${when(new Date(s.released_at))}${s.released_by ? ` by ${s.released_by === "timer" ? "the timer" : `the ${s.released_by}`}` : ""}`
+                      : s.done_at ? `Marked done ${when(new Date(s.done_at))} · releases by itself ${when(new Date(s.release_due_at))}` : "Not marked done yet"}</span>
+                  </div>
+                  <span className={`st-pill${s.released_at ? " ok" : s.done_at ? " warn" : " muted"}`}>{s.released_at ? "Released" : s.done_at ? "Checking" : "To do"}</span>
+                </div>
+              ))}
+            </section>
+          ) : null}
+
           <section className="panel" aria-labelledby="money-title">
             <h2 id="money-title" className="title">Money</h2>
             <div>
@@ -192,7 +216,7 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
             {v.transfers.length === 0 ? <p className="caption muted">Nothing sent yet.</p> : v.transfers.map((t: any) => (
               <div key={t.id} className="money-row">
                 <div className="stack" style={{ gap: 2 }}>
-                  <span className="body">{t.kind === "payout" ? "Payout to the seller" : "Refund to the buyer"} · {naira(t.amount_kobo)}</span>
+                  <span className="body">{t.kind === "payout" ? (t.stage ? `Payout to the seller, stage ${t.stage}` : "Payout to the seller") : "Refund to the buyer"} · {naira(t.amount_kobo)}</span>
                   <span className="caption muted">{when(new Date(t.created_at))}{t.failure_reason ? ` · ${t.failure_reason}` : ""}</span>
                 </div>
                 <StatePill map={TRANSFER_STATUS} value={t.status} />
@@ -255,16 +279,17 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
           {open ? (
             <section className="panel" aria-labelledby="work-title">
               <h2 id="work-title" className="title">Work on this deal</h2>
-              {deadline?.[1] ? <Kv k={deadline[0]} v={when(new Date(deadline[1]))} /> : null}
+              {deadline?.[1] ? <Kv k={deadline[0]} v={when(new Date(deadline[1]))} /> : deadline ? <p className="caption muted">{deadline[0]}.</p> : null}
               {deal.state === "disputed" && dispute ? (
                 <p className="caption muted">The money is frozen by a dispute. <Link to={`/disputes/${dispute.id}`}>Decide it from the dispute</Link>.</p>
               ) : null}
               {deal.state === "held" && deal.review_hold ? (
                 <p className="caption muted">The payment is held for review. <Link to={`/holds/${deal.id}`}>Clear the hold or send the money back</Link> before it can be released.</p>
               ) : null}
-              {deal.state === "accepted" || deal.state === "held" ? (
+              {deal.state === "accepted" || (deal.state === "held" && deadline?.[1]) ? (
                 <ReasonAction intent="time" confirmLabel="Give more time"
-                  label={deal.state === "accepted" ? "Give more time to pay" : deal.delivered_at ? "Give the buyer more time to check" : "Give more time for the hand-over"}
+                  label={deal.state === "accepted" ? "Give more time to pay" : jobDeadline ? (nextStage?.done_at ? `Give the buyer more time to check “${nextStage.title}”` : "Give more time to start the job")
+                    : deal.delivered_at ? "Give the buyer more time to check" : "Give more time for the hand-over"}
                   help="Added to the current deadline, or to now if it has passed. Both people are told the new time.">
                   <Select name="days" label="How much more" defaultValue="1" options={[{ value: "1", label: "1 day" }, { value: "2", label: "2 days" }, { value: "3", label: "3 days" }]} />
                 </ReasonAction>

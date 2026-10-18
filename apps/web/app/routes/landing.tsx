@@ -38,8 +38,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const s = await settingsOf(d);
     const recent = await many<{ id: string; title: string; area: string; state: string | null; price_kobo: string; photo_keys: string[] | null }>(d.db,
-      "select id, title, area, state, price_kobo, photo_keys from listings where status = 'live' order by published_at desc limit 12");
-    const byCat = await many<{ category: string; n: string }>(d.db, "select category, count(*) as n from listings where status = 'live' group by category");
+      "select id, title, area, state, price_kobo, photo_keys from listings where status = 'live' and visibility = 'public' order by published_at desc limit 12");
+    const byCat = await many<{ category: string; n: string }>(d.db, "select category, count(*) as n from listings where status = 'live' and visibility = 'public' group by category");
     const counts = Object.fromEntries(byCat.map((r) => [r.category, Number(r.n)]));
     const live = byCat.reduce((t, r) => t + Number(r.n), 0);
     const user = await optionalUser(request, d);
@@ -163,6 +163,8 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
         </div>
       </section>
 
+      <HighValue />
+
       <FollowTheMoney />
 
       <section className="lp-band" aria-labelledby="code-title">
@@ -260,6 +262,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
         <div className="lp-inner final-inner reveal">
           <Seal className="final-seal" />
           <h2 id="final-title" className="final-title">{t("Your next deal, protected.")}</h2>
+          <p className="final-sub">{t("If it's not what was listed, your money doesn't move.")}</p>
           <p className="final-sub">{t("You pay nothing until the seller accepts. Fee: {percent}%, from {min} to {max}.", { percent: x.fee.percent, min: naira(x.fee.min_kobo), max: naira(x.fee.max_kobo) })}</p>
           <div className="hero-ctas" style={{ justifyContent: "center" }}>
             <Button variant="primary" size="lg" pill to="/browse" iconRight="arrow-right">{t("See what's for sale")}</Button>
@@ -272,6 +275,49 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
 
       {footer}
     </div>
+  );
+}
+
+/** NosHen's promise in one line: the thing a buyer should remember. */
+function BuyerPromise() {
+  const t = useT();
+  return (
+    <p className="promise">
+      <Icon name="shield-check" size={18} />
+      <span>{t.rich("<b>The NosHen promise:</b> if it's not what was listed, your money doesn't move.", { b: (s) => <strong>{s}</strong> })}</span>
+    </p>
+  );
+}
+
+/** Where scams hurt most, and what NosHen checks for each: phones, laptops and cars. */
+const HIGH_VALUE: [string, IconName, string, string][] = [
+  ["phone", "device-mobile", msg("Used iPhones and Samsungs"), msg("The IMEI is on the listing and checked at the hand-over. You confirm it isn't locked to someone else's account before you give your code.")],
+  ["laptop", "device-laptop", msg("Laptops and MacBooks"), msg("The serial number matches the listing, there's no activation lock, and you try it before the money moves.")],
+  ["vehicle", "car", msg("Cars"), msg("The chassis number on the papers matches the car and the listing. Test-drive it, bring a mechanic, then release.")],
+];
+
+function HighValue() {
+  const t = useT();
+  return (
+    <section className="lp-band lp-tint" aria-labelledby="value-title">
+      <div className="lp-inner">
+        <div className="lp-head reveal">
+          <p className="lp-eyebrow">{t("Where scams hurt most")}</p>
+          <h2 id="value-title" className="lp-h2">{t("The safest place to buy a used iPhone or a car")}</h2>
+          <p className="lp-lede">{t("On a ₦500,000 phone, the fee is ₦7,500 at most. The checks are built in for each kind of item.")}</p>
+        </div>
+        <div className="value-grid">
+          {HIGH_VALUE.map(([cat, icon, title, body]) => (
+            <Link key={cat} to={`/browse?cat=${cat}`} className="side-card value-card reveal">
+              <span className="lp-icon"><Icon name={icon} /></span>
+              <p className="title">{t(title)}</p>
+              <p className="body muted">{t(body)}</p>
+              <span className="label row tap">{t("See what's for sale")}<Icon name="arrow-right" size={16} /></span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -296,6 +342,7 @@ function Hero({ live }: { live: number }) {
             <li><Icon name="id" size={18} />{t("Sellers ID-checked")}</li>
             <li><Icon name="scale" size={18} />{t("Problems decided in 72 hours")}</li>
           </ul>
+          <BuyerPromise />
           <AbroadNote />
         </div>
 
@@ -492,7 +539,7 @@ function CategoryRail({ counts }: { counts: Record<string, number> }) {
   );
 }
 
-const CHECK_TABS: [string, string, IconName][] = [["phone", msg("Phones"), "device-mobile"], ["fashion", msg("Clothes"), "shirt"], ["vehicle", msg("Cars"), "car"], ["home", msg("Home"), "sofa"]];
+const CHECK_TABS: [string, string, IconName][] = [["phone", msg("Phones"), "device-mobile"], ["laptop", msg("Laptops"), "device-laptop"], ["vehicle", msg("Cars"), "car"], ["fashion", msg("Clothes"), "shirt"]];
 
 /** The release-code checklist changes with what you're buying. */
 function CheckTabs() {

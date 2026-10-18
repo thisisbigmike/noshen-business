@@ -5,14 +5,17 @@ import { requireUser, withApp, messageOf } from "../../server/web";
 import { listingView } from "@noshen/engine/queries";
 import { settingsOf } from "@noshen/engine/core";
 import { requestDeal } from "@noshen/engine/deals";
+import { one } from "@noshen/engine/db";
 import { BottomAction, Button, ErrorText, Icon, Kv, Select, TextArea, TopBar, Info } from "@noshen/ui/ui";
 import { feeFor, naira } from "@noshen/shared/money";
 import { firstName } from "@noshen/shared/deal";
 import { photoUrl } from "@noshen/shared/photos";
-import { categoryOf } from "@noshen/shared/categories";
+import { categoryOf, isService } from "@noshen/shared/categories";
+import type { Stage } from "@noshen/shared/stages";
 import { NIGERIA_STATES, placeLabel, stateLabel } from "@noshen/shared/locations";
 import { deliveryFee, deliveryPriceLabel, deliveryZones, offersDelivery, sendWithin } from "@noshen/shared/delivery";
 import { useT } from "@noshen/ui/i18n";
+import { StagesCard } from "../lib/stages";
 
 export const handle = { tabs: false };
 export const meta = () => [{ title: "Buy request · NosHen" }];
@@ -40,7 +43,9 @@ export async function action({ request, params }: Route.ActionArgs) {
         note: String(form.get("note") ?? ""),
       });
     });
-    return redirect(`/d/${dealId}`);
+    // From a checkout link the request is accepted at once: straight on to paying.
+    const state = await withApp(async (d) => (await one<{ state: string }>(d.db, "select state from deals where id = $1", [dealId]))?.state);
+    return redirect(state === "accepted" ? `/d/${dealId}/pay` : `/d/${dealId}`);
   } catch (e) {
     if (e instanceof Response) throw e;
     const msg = messageOf(e);
@@ -61,11 +66,14 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
   const [to, setTo] = useState<string>(l.delivery_local_kobo !== null ? l.state ?? "" : "");
   const delivery = handover === "delivery" && to ? deliveryFee(l, to) : null;
   const cantDeliver = handover === "delivery" && (!to || delivery === null);
+  // A job has no handover to choose: it's paid in stages as the work is done.
+  const job = isService(l.category);
+  const heading = job ? t("Book this job") : t("Buy request");
   return (
     <Form method="post">
-      <TopBar title={t("Buy request")} back={`/l/${l.id}`} />
+      <TopBar title={heading} back={`/l/${l.id}`} />
       <main className="page narrow no-tabs stack-4">
-        <h1 className="heading desktop-only">{t("Buy request")}</h1>
+        <h1 className="heading desktop-only">{heading}</h1>
         <div className="card row">
           <div style={{ width: 56, height: 56, borderRadius: 8, overflow: "hidden", background: "var(--canvas)", flex: "none" }}>
             {l.photo_keys?.[0] ? <img src={photoUrl(l.photo_keys[0], "small")} alt="" width={56} height={56} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Icon name="camera" />}
@@ -73,7 +81,7 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
           <div className="grow"><p className="title">{l.title}</p><p className="caption muted">{name} · {placeLabel(l.area, l.state)}</p></div>
         </div>
 
-        <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+        {job ? <><input type="hidden" name="handover" value="meetup" /><StagesCard stages={l.stages as Stage[]} priceKobo={price} seller={name} /></> : <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="label" style={{ marginBottom: 8 }}>{t("How do you want to get it?")}</legend>
           <label className="choice">
             <input type="radio" name="handover" value="meetup" checked={handover === "meetup"} onChange={() => setHandover("meetup")} />
@@ -88,7 +96,7 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
                 : t("{name} only does meet-ups for this {thing}.", { name, thing: noun })}</span>
               {delivers ? <span className="caption">{deliveryZones(l, t).map((z) => `${z.label}: ${deliveryPriceLabel(z.kobo, t)}`).join(" · ")}</span> : null}</span>
           </label>
-        </fieldset>
+        </fieldset>}
 
         {handover === "delivery" ? (
           <div className="stack">
@@ -108,12 +116,21 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
           {handover === "delivery" && delivery !== null ? <p className="caption muted">{t("Delivery is paid with the price and held with it. If it never comes, you get it back. Don't pay a rider anything extra.")}</p> : null}
         </section>
 
-        <TextArea label={t("Note to {name} (optional)", { name })} name="note" placeholder={handover === "delivery" ? t("Anything they should know about the delivery?") : t("When and where works for you?")} maxLength={500} />
-        <Info icon="shield-check">{t("You pay nothing until {name} accepts. Then you pay NosHen, and we hold the money until you have the {thing}.", { name, thing: noun })}</Info>
+        <TextArea label={t("Note to {name} (optional)", { name })} name="note" placeholder={job ? t("What do you need done, where, and by when?") : handover === "delivery" ? t("Anything they should know about the delivery?") : t("When and where works for you?")} maxLength={500} />
+        <Info icon="shield-check">{job
+          ? (l.visibility === "link"
+            ? t("{name} shared this checkout link, so there's no waiting: you pay NosHen the whole price next, and {name} is paid each stage only when you release it.", { name })
+            : t("You pay nothing until {name} accepts. Then you pay NosHen the whole price, and {name} is paid each stage only when you release it.", { name }))
+          : l.visibility === "link"
+          ? t("{name} shared this checkout link, so there's no waiting: you pay NosHen next, and we hold the money until you have the {thing}.", { name, thing: noun })
+          : t("You pay nothing until {name} accepts. Then you pay NosHen, and we hold the money until you have the {thing}.", { name, thing: noun })}</Info>
+        <Info icon="scale">{job
+          ? t("If the work isn't what you agreed, the money still held doesn't move: report it, and a real person reviews it within 72 hours and tells you both why.")
+          : t("If it's not what was listed, your money doesn't move: report it, and a real person reviews it within 72 hours and tells you both why.")}</Info>
         <p className="caption muted">{t.rich("Sending a request means you agree to the <terms>Protected Deal Terms</terms>.", { terms: (s) => <Link to="/deal-terms">{s}</Link> })}</p>
         <ErrorText>{actionData?.error}</ErrorText>
         {actionData?.needsId ? <Link to={`/account/verify?next=/l/${l.id}/buy`}>{t("Verify your ID")}</Link> : null}
-        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy || cantDeliver}>{busy ? t("Sending…") : t("Send request")}</Button></BottomAction>
+        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy || cantDeliver}>{busy ? t("Sending…") : l.visibility === "link" ? t("Continue to pay") : t("Send request")}</Button></BottomAction>
       </main>
     </Form>
   );

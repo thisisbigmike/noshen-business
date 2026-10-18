@@ -8,7 +8,7 @@ import type { Settings } from "./settings";
 import { loadSettings } from "./settings";
 import type { DealState } from "@noshen/shared/deal";
 
-export type TimerKind = "request_expiry" | "payment_expiry" | "handover_due" | "delivery_release" | "arrival_check" | "evidence_close" | "partner_event" | "crypto_watch";
+export type TimerKind = "request_expiry" | "payment_expiry" | "handover_due" | "delivery_release" | "arrival_check" | "stage_release" | "evidence_close" | "partner_event" | "crypto_watch";
 
 export interface Timers {
   /** source: which partner a partner_event came from ("crypto" for the crypto partner; the bank partner otherwise). */
@@ -70,6 +70,8 @@ export interface DealRow {
   /** Delivery: the fee for the buyer's zone (held with the price), the buyer's state, and what the seller sent. */
   delivery_kobo: string; delivery_state: string | null;
   sent_at: Date | null; courier: string | null; tracking_ref: string | null; packing_photo_keys: string[];
+  /** "service": a job paid in stages (deal_stages); "goods": an item, released in one go. */
+  kind: "goods" | "service";
   collection_ref: string | null; collection_account_number: string | null; collection_bank_name: string | null;
   review_hold: boolean; review_hold_reason: string | null;
   created_at: Date; closed_at: Date | null;
@@ -106,6 +108,20 @@ export async function post(
 export async function amountPaid(db: Db, dealId: string): Promise<number> {
   const r = await one<{ s: string }>(db, "select coalesce(sum(amount_kobo), 0) as s from payments where deal_id = $1 and not sent_back", [dealId]);
   return N(r?.s);
+}
+
+/** What the deal's money still held comes to, by the ledger: paid in, less anything released, refunded or sent back. */
+export async function heldFor(db: Db, dealId: string): Promise<number> {
+  const r = await one<{ n: string }>(db, "select coalesce(sum(credit_kobo - debit_kobo), 0) as n from ledger_entries where account = 'held_funds' and deal_id = $1", [dealId]);
+  return N(r?.n);
+}
+
+/** What's already been released to the seller from a deal (a service's earlier stages). */
+export async function releasedShare(db: Db, dealId: string): Promise<number> {
+  const r = await one<{ n: string }>(db,
+    `select coalesce(sum(e.credit_kobo), 0) as n from ledger_entries e join ledger_transactions t on t.id = e.txn_id
+      where e.account = 'seller_payable' and e.deal_id = $1 and t.kind = 'release'`, [dealId]);
+  return N(r?.n);
 }
 
 export async function userName(db: Db, userId: string): Promise<string> {

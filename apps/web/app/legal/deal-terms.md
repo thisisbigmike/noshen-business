@@ -8,7 +8,7 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 ## 1. What a protected deal is
 
-1.1. A protected deal is a sale of one item between a buyer and a seller who use NosHen. The buyer pays into an account held by the Partner. The money stays there until the buyer releases it to the seller, the delivery window passes, or NosHen decides a dispute, as set out below.
+1.1. A protected deal is a sale of one item, or a job paid in stages (section 8A), between a buyer and a seller who use NosHen. The buyer pays into an account held by the Partner. The money stays there until the buyer releases it to the seller, the delivery window passes, or NosHen decides a dispute, as set out below.
 
 1.2. The sale is between the buyer and the seller. NosHen is not the seller, does not own, inspect or guarantee any item, and is not an agent of either side for the sale itself. NosHen's role is to run the deal steps in these Deal Terms and to instruct the Partner where the money goes.
 
@@ -26,7 +26,7 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 3.1. **Request.** A buyer starts a deal by sending a buy request from a listing, choosing a meet-up or delivery. For delivery, the buyer chooses the state to deliver to, and the seller's delivery price for that state, as shown on the listing, is added. The request shows the price, any delivery fee, the NosHen fee and the total.
 
-3.2. **Acceptance.** The seller has {{request_hours}} hours to accept or decline. A request that is not answered in time expires. The buyer can cancel a request before the seller answers. Accepting one request declines any others on the same listing.
+3.2. **Acceptance.** The seller has {{request_hours}} hours to accept or decline. A request that is not answered in time expires. The buyer can cancel a request before the seller answers. Accepting one request declines any others on the same listing. A seller can share a listing as a checkout link only (for example on Instagram or WhatsApp); a request sent from it is accepted at once, and the buyer goes straight to paying.
 
 3.3. **Terms are fixed.** Once the seller accepts, the price, fee, who pays the fee, the hand-over method, and the delivery fee and state can't be changed. To change them, cancel the deal and start a new one.
 
@@ -93,9 +93,25 @@ In these Deal Terms, "**NosHen**", "**we**" and "**us**" mean the NosHen team (c
 
 8.3. After release, NosHen instructs the Partner to pay the seller's share to the seller's verified bank account. We aim to start the payout within 5 minutes, but the timing depends on the Partner and the banks.
 
+## 8A. Jobs paid in stages
+
+8A.1. A listing in Services & repairs is a job, not an item. The seller names up to four stages on the listing and each one's share of the price, adding up to 100%. The buyer pays the whole price, and the NosHen fee, when the seller accepts. There is no release code or delivery for a job.
+
+8A.2. **Each stage is released on its own,** in order. The seller marks a stage done in the app. That stage's share of the price, with its share of the fee, is released to the seller when one of these happens first:
+
+- (a) the buyer releases it in the app (the buyer can release a stage before it is marked done);
+- (b) {{stage_hours}} hours pass after the seller marked it done, and the buyer has not reported a problem; or
+- (c) a NosHen reviewer decides a dispute in the seller's favour, which releases everything still held.
+
+8A.3. A released stage is final, as in 8.2. A report under section 10 freezes only the money still held for the stages not yet released, and a decision for the buyer refunds only that money.
+
+8A.4. A job can be cancelled under section 9 only until its first stage is released.
+
+8A.5. The seller must start the job within {{handover_hours}} hours of the payment being confirmed, unless the buyer agrees otherwise in the deal chat. If no stage has been released by then, the buyer may cancel and be refunded in full. <mark>[Proposed; confirm.]</mark>
+
 ## 9. Cancelling
 
-9.1. Before hand-over, and for a delivery before it is marked Sent, either the buyer or the seller can cancel a deal in the app. If the buyer has paid, the buyer is refunded in full.
+9.1. Before hand-over, and for a delivery before it is marked Sent, either the buyer or the seller can cancel a deal in the app. If the buyer has paid, the buyer is refunded in full. A job paid in stages can't be cancelled once a stage has been released (8A.4).
 
 9.2. A seller who often cancels paid deals may have their account limited or closed.
 
