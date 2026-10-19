@@ -720,3 +720,22 @@ label[for="photo-pick"][aria-disabled="true"] { opacity: 0.6; pointer-events: no
 .trust-chip { display: inline-flex; flex: none; align-items: center; gap: 6px; max-width: 100%; padding: 4px 10px 4px 6px; border-radius: var(--radius-full); background: var(--canvas); color: var(--ink-muted); }
 .trust-chip.trust-building { color: var(--ink); }
 .trust-chip.trust-trusted { background: var(--tint); color: var(--primary-ink); }
+
+/* Account: a seller's social handles, and the code to put in their bio. */
+.handle-list { display: flex; flex-direction: column; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.handle-list > li + li { padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.handle-code { padding: 6px 12px; border-radius: var(--radius-md); background: var(--tint); color: var(--primary-ink); font-family: var(--font-mono); font-size: 17px; font-weight: 600; letter-spacing: 0.04em; }
+.handle-add { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr); gap: 8px; align-items: start; }
+@media (max-width: 420px) { .handle-add { grid-template-columns: minmax(0, 1fr); } }
+
+/* Check a seller: the search, the steps before paying, and the message to send a seller who isn't on NosHen. */
+.check-form { display: flex; gap: 8px; align-items: center; }
+.check-steps { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.check-steps li { display: flex; gap: 10px; align-items: flex-start; }
+.check-steps li svg { flex: none; margin-top: 2px; color: var(--primary); }
+.check-message { margin: 0; padding: 12px 14px; border-left: 3px solid var(--primary); border-radius: 0; background: var(--canvas); color: var(--ink); font-size: 15px; line-height: 1.5; }
+.shop-handles { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0; }
+.shop-handles a { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.check-nudge { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600; }
+.check-nudge svg:first-child { flex: none; color: var(--primary); }
+.check-nudge svg:last-child { flex: none; margin-left: auto; color: var(--ink-muted); }

@@ -7,6 +7,7 @@ export default [
     route("l/:id", "routes/listing.tsx"),
     route("l/:id/buy", "routes/buy.tsx"),
     route("s/:id", "routes/shop.tsx"),
+    route("check", "routes/check.tsx"),
     route("deals", "routes/deals.tsx"),
     route("d/:id", "routes/deal.tsx"),
     route("d/:id/pay", "routes/pay.tsx"),

@@ -16,34 +16,42 @@ import { msg } from "@noshen/shared/i18n";
 import { DataSaverSwitch, LanguageSwitch } from "../lib/prefs";
 import { CountrySwitch } from "../lib/country";
 import { CopyButton } from "../lib/copy-button";
+import { HandlesCard, type Handle } from "../lib/handles";
+import { addHandle, myHandles, removeHandle, submitHandle } from "@noshen/engine/handles";
 
 export const meta = () => [{ title: "Account · NosHen" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const user = await requireUser(request, d);
-    const [ready, summary, listings, bank, kyc] = await Promise.all([
+    const [ready, summary, listings, bank, kyc, handles] = await Promise.all([
       sellerReady(d, user.id), sellerSummary(d.db, user.id), myListings(d.db, user.id),
       one(d.db, "select account_name, account_last4 from bank_accounts where user_id = $1 and is_default and removed_at is null", [user.id]),
       one(d.db, "select type, verified_name from kyc_checks where user_id = $1 and result = 'verified' order by checked_at desc limit 1", [user.id]),
+      myHandles(d.db, user.id),
     ]);
-    return { user, ready, summary, listings, bank, kyc, shop: `${new URL(request.url).origin}/s/${user.id}` };
+    return { user, ready, summary, listings, bank, kyc, handles: handles as Handle[], shop: `${new URL(request.url).origin}/s/${user.id}` };
   });
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const f = await request.formData();
+  const intent = String(f.get("intent") ?? "");
   try {
     await withApp(async (d) => {
       const user = await requireUser(request, d);
+      // Social handles, for "Check a seller".
+      if (intent === "handle_add") return void await addHandle(d, user.id, String(f.get("platform") ?? ""), String(f.get("handle") ?? ""));
+      if (intent === "handle_submit") return submitHandle(d, user.id, String(f.get("handle")));
+      if (intent === "handle_remove") return removeHandle(d, user.id, String(f.get("handle")));
       const visibility = f.get("visibility");
       if (visibility === "public" || visibility === "link") await setVisibility(d, user.id, String(f.get("listing")), visibility);
       else await setListingStatus(d, user.id, String(f.get("listing")), String(f.get("status")) as "paused" | "live" | "removed");
     });
-    return { ok: true };
+    return { ok: true, intent };
   } catch (e) {
     if (e instanceof Response) throw e;
-    return { error: messageOf(e) };
+    return { error: messageOf(e), intent };
   }
 }
 
@@ -99,7 +107,7 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
             ))}
           </section>
         ) : null}
-        <ErrorText>{(actionData as any)?.error}</ErrorText>
+        <ErrorText>{(actionData as any)?.intent?.startsWith("handle_") ? null : (actionData as any)?.error}</ErrorText>
         {x.listings.length ? (
           <section className="card stack" aria-labelledby="shop-link">
             <p className="title" id="shop-link">{t("Your shop link")}</p>
@@ -107,6 +115,9 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
             <div className="row wrap" style={{ gap: 8 }}><code className="caption">{x.shop}</code><CopyButton text={x.shop} label={t("Copy link")} /></div>
             <Link to={new URL(x.shop).pathname} className="caption">{t("See your shop")}</Link>
           </section>
+        ) : null}
+        {x.listings.length || x.handles.length ? (
+          <HandlesCard handles={x.handles} idOk={x.ready.idOk} error={(actionData as any)?.intent?.startsWith("handle_") ? (actionData as any)?.error : null} />
         ) : null}
         <PushCard />
         <section className="card stack" aria-labelledby="language">

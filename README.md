@@ -87,6 +87,7 @@ The live demo is at **https://noshen-web.usenoshen.workers.dev**. Sign in there 
 - Delivery prices by zone (within the state, other states), held with the price; sending with packing photos and a tracking number; and a check-in with both people (and staff) when a delivery takes longer than usual.
 - Checks before the money moves, for each kind of item: a phone's IMEI and account lock, a laptop's serial number and activation lock, a car's chassis number and papers. A delivery is released through the same checklist.
 - **Checkout links** for selling on Instagram, WhatsApp and Facebook, and a **seller shop** (`/s/:id`) with one link to everything a seller has on show.
+- **Check a seller** (`/check`): a buyer pastes an Instagram, TikTok, Facebook or X name or profile link and sees the NosHen seller behind it, with their track record, or is told no verified seller has it and given a message asking the vendor to sell through NosHen. Sellers add handles in Account and put a code in that profile's bio; staff check the profile in the staff site's Handles queue before a handle shows. A handle is verified for one seller only.
 - **Track records** from real deals: sales completed, the share without a lost dispute, purchases, member since, rating and how fast they answer requests, with a trust level (new, building, trusted). Sellers see a buyer's record before accepting.
 - **Jobs paid in stages**, with the seller marking each stage done and the buyer releasing it, or the timer releasing it.
 - **The NosHen promise** on the home page, listings and the buy page: if it's not what was listed, the money doesn't move, and a person reviews every report.
@@ -189,6 +190,7 @@ The engine tests cover:
 - Delivery prices, sending with packing proof, and late deliveries.
 - Jobs paid in stages: the split, releasing stage by stage (ledger, payouts, the held-funds check), the refund of what's still held after a dispute, the timer release, no cancel after a stage is paid, and staff giving more time.
 - Checkout links (kept out of Browse and the shop, buyers accepted at once) and the seller's track record.
+- Check a seller: a handle shows only once staff have seen the code, whatever way it's typed; one seller per handle; other claims turned away; frozen sellers hidden.
 - Translations: every English string the customer site shows has a Pidgin line, each keeps its {values} and <tags>, and none is left over.
 - Bank and stablecoin payments, including second and wrong-name payments.
 - Units and sizes.

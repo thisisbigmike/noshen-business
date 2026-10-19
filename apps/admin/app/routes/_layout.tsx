@@ -22,7 +22,7 @@ const SECTIONS: { title: string; links: { to: string; label: string; icon: IconN
     { to: "/holds", label: "Review holds", icon: "shield-lock", count: (c) => c.holds },
     { to: "/deals", label: "Deals", icon: "receipt", count: (c) => c.locked + c.stuck + c.failed },
   ] },
-  { title: "Marketplace", links: [{ to: "/listings", label: "Listings", icon: "tag" }, { to: "/users", label: "People", icon: "users" }] },
+  { title: "Marketplace", links: [{ to: "/listings", label: "Listings", icon: "tag" }, { to: "/handles", label: "Handles", icon: "id", count: (c) => c.handles }, { to: "/users", label: "People", icon: "users" }] },
   { title: "Records", links: [{ to: "/money", label: "Money", icon: "cash" }, { to: "/audit", label: "Audit log", icon: "history" }] },
 ];
 

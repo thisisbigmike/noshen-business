@@ -317,3 +317,4 @@
 .value-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .value-card { display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: inherit; }
 .value-card .tap { margin-top: auto; color: var(--primary); }
+.lp-check { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-md); }

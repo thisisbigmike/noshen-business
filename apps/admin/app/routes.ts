@@ -8,6 +8,7 @@ export default [
   layout("routes/_layout.tsx", [
     index("routes/dashboard.tsx"),
     route("listings", "routes/listings.tsx"),
+    route("handles", "routes/handles.tsx"),
     route("users", "routes/users.tsx"),
     route("users/:id", "routes/person.tsx"),
     route("deals", "routes/deals.tsx"),

@@ -17,6 +17,7 @@ NosHen is the data controller for the personal data described here. Our Data Pro
 - **Listing data:** photos, descriptions, category, price, condition and area, and, where the category asks for one, the item's IMEI, serial number or chassis number.
 - **Deal data:** your buy requests, deals, deadlines, release and refund history, and ratings you give and receive.
 - **Messages and evidence:** chat messages in your deals, photos and notes you add when a problem is reported, and, for a delivery, the seller's packing photos, the courier's name and the tracking or waybill number. Packing photos can show the delivery label, with the buyer's name, address or phone number; only the buyer, the seller and NosHen reviewers see them.
+- **Social handles, if you add them:** your Instagram, TikTok, Facebook or X name and the code we give you to put in that profile's bio. Once we've checked a handle, anyone can look it up on NosHen ("Check a seller") and see your NosHen shop and track record. You can remove a handle at any time.
 - **Support data:** what you tell us when you contact us.
 
 ### From others

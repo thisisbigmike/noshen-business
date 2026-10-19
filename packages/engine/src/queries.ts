@@ -253,9 +253,10 @@ export async function staffCounts(db: Db) {
             (select count(*) from release_codes where locked_until > now()) as locked,
             (select count(*) from deals where (state = 'held' and handover_due_at < now() - interval '1 hour')
                                              or (state = 'released' and state_changed_at < now() - interval '1 hour')) as stuck,
-            (select count(*) from transfers where status = 'failed') as failed`);
+            (select count(*) from transfers where status = 'failed') as failed,
+            (select count(*) from social_handles where status = 'submitted') as handles`);
   const n = (k: string) => Number(r?.[k] ?? 0);
-  return { disputes: n("disputes"), holds: n("holds"), locked: n("locked"), stuck: n("stuck"), failed: n("failed") };
+  return { disputes: n("disputes"), holds: n("holds"), locked: n("locked"), stuck: n("stuck"), failed: n("failed"), handles: n("handles") };
 }
 
 const DEAL_STATES = ["requested", "accepted", "held", "disputed", "released", "paid_out", "refunded", "declined"];

@@ -8,6 +8,7 @@ import { reportProblem, decideDispute, resolveReviewHold, addEvidence } from "@n
 import { sweep } from "@noshen/engine/sweep";
 import { DealError, settingsOf } from "@noshen/engine/core";
 import { one } from "@noshen/engine/db";
+import { addHandle, checkSeller, decideHandle, handlesToCheck, removeHandle, submitHandle, verifiedHandles } from "@noshen/engine/handles";
 import { feeFor, naira } from "@noshen/shared/money";
 import { saveDraft, publish, setDelivery, setVisibility } from "@noshen/engine/sellers";
 import { sizeLabel } from "@noshen/shared/sizes";
@@ -1077,5 +1078,71 @@ describe("a seller's track record", () => {
     expect(card).not.toHaveProperty("seller_id");
     expect(r.replyMinutes).toBeGreaterThanOrEqual(1);
     expect(new Date(r.memberSince).getTime()).toBeLessThanOrEqual(Date.now());
+  });
+});
+
+describe("check a seller", () => {
+  const staff = () => ({ id: staffId, role: "reviewer" as const });
+
+  it("shows a handle only once staff have seen the seller's code, and finds it however it's typed", async () => {
+    const seller = await verifiedSeller(w, "Ada Styles");
+    const h = await addHandle(w.d, seller, "instagram", "@Ada.Styles");
+    expect(h).toMatchObject({ platform: "instagram", handle: "ada.styles", status: "added" });
+    expect(h.code).toMatch(/^NOSHEN-[A-Z2-9]{4}$/);
+    expect((await addHandle(w.d, seller, "instagram", "https://www.instagram.com/ada.styles/?igsh=abc")).id).toBe(h.id);
+    // Not findable until it's checked.
+    expect((await checkSeller(w.db, "@ada.styles")).matches).toEqual([]);
+    await submitHandle(w.d, seller, h.id);
+    expect(Number((await one(w.db, "select count(*) as n from staff_alerts where kind = 'handle_check'")).n)).toBeGreaterThan(0);
+    expect((await handlesToCheck(w.db)).map((r: any) => r.id)).toContain(h.id);
+    await decideHandle(w.d, staff(), h.id, true, "Code in the bio on 19 Oct");
+    for (const q of ["@ada.styles", "Ada.Styles", "instagram.com/ada.styles", "https://www.instagram.com/ada.styles/"]) {
+      const r = await checkSeller(w.db, q);
+      expect(r.matches.map((m) => m.seller.id)).toEqual([seller]);
+    }
+    // The same name on another platform is someone else's until verified there.
+    expect((await checkSeller(w.db, "tiktok.com/@ada.styles")).matches).toEqual([]);
+    expect(await verifiedHandles(w.db, seller)).toEqual([{ platform: "instagram", handle: "ada.styles" }]);
+    expect(Number((await one(w.db, "select count(*) as n from staff_actions where action = 'verify_handle' and target_id = $1", [seller])).n)).toBe(1);
+  });
+
+  it("keeps a verified handle to its seller, and turns away other claims to it", async () => {
+    const owner = await verifiedSeller(w, "Real Vendor");
+    const copycat = await verifiedSeller(w, "Copy Cat");
+    const fake = await addHandle(w.d, copycat, "x", "realvendor");
+    const real = await addHandle(w.d, owner, "x", "@realvendor");
+    await submitHandle(w.d, owner, real.id);
+    await decideHandle(w.d, staff(), real.id, true, "Code in the bio");
+    expect((await one(w.db, "select status, reject_reason from social_handles where id = $1", [fake.id]))).toEqual({ status: "rejected", reject_reason: "Verified for another seller." });
+    await expect(addHandle(w.d, copycat, "x", "realvendor")).rejects.toThrow(/already verified for another/);
+    expect((await checkSeller(w.db, "@realvendor")).matches.map((m) => m.seller.id)).toEqual([owner]);
+  });
+
+  it("tells the seller why when the code isn't there, and lets them send it again", async () => {
+    const seller = await verifiedSeller(w, "Try Again");
+    const h = await addHandle(w.d, seller, "tiktok", "tryagain.ng");
+    await submitHandle(w.d, seller, h.id);
+    await decideHandle(w.d, staff(), h.id, false, "The code isn't in the bio.");
+    const note = await one(w.db, "select params from notifications where user_id = $1 and template = 'handle_rejected' order by created_at desc limit 1", [seller]);
+    expect(note.params.text).toContain("The code isn't in the bio.");
+    await submitHandle(w.d, seller, h.id);
+    expect((await one(w.db, "select status from social_handles where id = $1", [h.id])).status).toBe("submitted");
+  });
+
+  it("needs an ID check and a real handle, and hides sellers who can't sell", async () => {
+    const noId = await person(w, "No Id Yet");
+    await expect(addHandle(w.d, noId, "instagram", "noid.yet")).rejects.toThrow(/Verify your ID/);
+    const seller = await verifiedSeller(w, "Frozen Shop");
+    await expect(addHandle(w.d, seller, "x", "this_is_far_too_long_for_x")).rejects.toThrow(/doesn't look like/);
+    await expect(addHandle(w.d, seller, "instagram", "tiktok.com/@frozen")).rejects.toThrow(/TikTok link/);
+    const h = await addHandle(w.d, seller, "facebook", "frozen.shop");
+    await submitHandle(w.d, seller, h.id);
+    await decideHandle(w.d, staff(), h.id, true, "Code in the bio");
+    expect((await checkSeller(w.db, "frozen.shop")).matches).toHaveLength(1);
+    await w.db.query("update users set status = 'frozen' where id = $1", [seller]);
+    expect((await checkSeller(w.db, "frozen.shop")).matches).toEqual([]);
+    expect((await checkSeller(w.db, "not a handle!")).query).toBeNull();
+    await removeHandle(w.d, seller, h.id);
+    await expect(removeHandle(w.d, noId, h.id)).rejects.toThrow(/isn't yours/);
   });
 });

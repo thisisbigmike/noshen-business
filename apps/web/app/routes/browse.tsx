@@ -150,6 +150,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
               </div>
             </div>
             <AbroadNote />
+            <Link to="/check" className="check-nudge caption"><Icon name="shield-check" size={16} />{t("Found a seller on Instagram or TikTok? Check them before you pay")}<Icon name="chevron-right" size={16} /></Link>
             <div className="mobile-only">{filters}</div>
             {active.length ? (
               <div className="active-filters" aria-label={t("Filters on")}>

@@ -96,6 +96,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
           <p className="label">{t("Use NosHen")}</p>
           <Link to="/browse" className="caption">{t("Browse")}</Link>
           <Link to="/sell" className="caption">{t("Sell")}</Link>
+          <Link to="/check" className="caption">{t("Check a seller")}</Link>
           <Link to={x.signedIn ? "/account" : "/signin"} className="caption">{x.signedIn ? t("Account") : t("Sign in")}</Link>
         </nav>
         <nav className="stack" aria-label={t("Help")}>
@@ -183,6 +184,21 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
               <div><p className="label">{t("NosHen never asks for it")}</p><p className="caption muted">{t("Not by call, chat or SMS.")}</p></div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="lp-band" aria-labelledby="check-title">
+        <div className="lp-inner lp-split">
+          <div className="lp-head reveal" style={{ marginBottom: 0 }}>
+            <p className="lp-eyebrow">{t("Found a seller on Instagram?")}</p>
+            <h2 id="check-title" className="lp-h2">{t("Check a seller before you pay")}</h2>
+            <p className="lp-lede">{t("Paste their Instagram, TikTok, Facebook or X name. A verified NosHen seller shows their real track record. If they're not on NosHen, ask them to sell to you through it.")}</p>
+          </div>
+          <form method="get" action="/check" className="check-form lp-check reveal" role="search">
+            <label className="sr-only" htmlFor="lp-check-q">{t("Their name or profile link")}</label>
+            <input id="lp-check-q" name="q" type="search" className="nh-input grow" placeholder="@ada.styles" autoCapitalize="none" autoCorrect="off" spellCheck={false} required maxLength={200} enterKeyHint="search" />
+            <Button type="submit" variant="primary" icon="search">{t("Check")}</Button>
+          </form>
         </div>
       </section>
 
