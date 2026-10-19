@@ -8,3 +8,7 @@ FIELD_KEY=change-me
 # Google sign-in (optional): an OAuth client from Google Cloud with redirect URI <APP_URL>/api/auth/callback/google
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
+# NIN/BVN checks through Dojah (set ID_PROVIDER to "dojah-sandbox" or "dojah" in wrangler.jsonc): the App ID and
+# secret key from the Dojah dashboard, Developers → Configuration. Sandbox and live keys are different.
+# DOJAH_APP_ID=
+# DOJAH_SECRET_KEY=

@@ -216,9 +216,10 @@ The demo is deployed like this:
    - Put `SOLANA_WALLET`, `SOLANA_DEMO_WALLET`, `SOLANA_DEPOSIT_SECRET` and `SOLANA_RPC_URL` on both sites as secrets.
    - The RPC has to be a keyed one, such as Helius: Solana's public RPC refuses requests from Cloudflare Workers.
    - Without these, Solana stays pretend like the other networks.
-7. **Staff accounts.** Create one with `pnpm staff:create "Name" email admin` (or `reviewer`). The person sets up two-factor at their first sign-in.
-8. **Deploy:** `pnpm deploy:web` and `pnpm deploy:admin`.
-9. **WhatsApp help (optional).** The "Stuck? Chat with us on WhatsApp" link on the selling steps shows once NosHen's number is set, in international form, without a redeploy (it shows within 5 minutes):
+7. **ID checks (Dojah).** Set `ID_PROVIDER` in `apps/web/wrangler.jsonc` to `dojah-sandbox` (free test numbers) or `dojah` (real checks), and add the keys from the Dojah dashboard as secrets: `wrangler secret put DOJAH_APP_ID --env production` and `wrangler secret put DOJAH_SECRET_KEY --env production`, run in `apps/web`. Until then it's `fake`, where any 11 digits pass.
+8. **Staff accounts.** Create one with `pnpm staff:create "Name" email admin` (or `reviewer`). The person sets up two-factor at their first sign-in.
+9. **Deploy:** `pnpm deploy:web` and `pnpm deploy:admin`.
+10. **WhatsApp help (optional).** The "Stuck? Chat with us on WhatsApp" link on the selling steps shows once NosHen's number is set, in international form, without a redeploy (it shows within 5 minutes):
    `insert into settings (key, value) values ('support_whatsapp', '"2348012345678"') on conflict (key) do update set value = excluded.value;`
 
 ## Not built yet
@@ -226,7 +227,7 @@ The demo is deployed like this:
 - **Real providers.** These are still stand-ins, plugging in behind the interfaces in `packages/engine/src/partner/`, `idcheck.ts` and `email.ts`:
   - the payment partner (a licensed bank to hold naira);
   - live stablecoin rates and Solana mainnet. The devnet wallet uses a fixed test rate; mainnet needs the real mints and legal sign-off;
-  - NIN/BVN checks;
+  - NIN/BVN checks: Dojah is connected (`packages/engine/src/idcheck.ts`) and tested against a stand-in; it needs a Dojah account and keys, and the live service needs Dojah's business checks and a funded wallet;
   - email sending.
 - **Phone sign-in and SMS updates.**
 - **More of NosHen in Pidgin.** Emails, phone notifications and messages from the server (most error messages) are still in English. Hausa, Yoruba and Igbo would each be one more catalog like `packages/shared/src/i18n-pcm.ts`. The Pidgin should be read through by a native speaker before launch.

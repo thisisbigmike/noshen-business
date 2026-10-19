@@ -6,6 +6,7 @@ import { sellerReady, setListingStatus, setProfilePhoto, setVisibility } from "@
 import { offersDelivery } from "@noshen/shared/delivery";
 import { isService } from "@noshen/shared/categories";
 import { one } from "@noshen/engine/db";
+import { DealError } from "@noshen/engine/core";
 import { Button, ErrorText, Icon, Info, Kv, TopBar } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { LEGAL_NAV } from "@noshen/shared/legal-pages";
@@ -45,7 +46,7 @@ export async function action({ request }: Route.ActionArgs) {
       // The profile picture: a new one replaces (and deletes) the old.
       if (intent === "photo_upload" || intent === "photo_remove") {
         const p = intent === "photo_upload" ? photosFrom(f, "photo")[0] : null;
-        if (intent === "photo_upload" && !p) throw new Error(msg("Choose a photo."));
+        if (intent === "photo_upload" && !p) throw new DealError("photo", msg("Choose a photo."));
         const key = p ? await storePhoto(`avatars/${user.id}`, p.file, p.small) : null;
         const old = await setProfilePhoto(d, user.id, key);
         if (old) await deletePhoto(old).catch((e) => console.error("couldn't delete old profile photo", e));

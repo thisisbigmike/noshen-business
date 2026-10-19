@@ -20,6 +20,8 @@
     "PARTNER_BANK_NAME": "Test Bank (fake partner)",
     // "console" prints emails to the log and shows sign-in codes on screen in development.
     "EMAIL": "console",
+    // NIN/BVN checks: "fake" (any 11 digits pass), "dojah-sandbox" (Dojah's free test service: NIN 70123456789,
+    // BVN 22222222222) or "dojah" (real checks, paid per check). Dojah needs the secrets DOJAH_APP_ID and DOJAH_SECRET_KEY.
     "ID_PROVIDER": "fake",
     // NosHen's own Solana wallet on devnet (pnpm solana:setup). Secrets: SOLANA_RPC_URL (a keyed RPC: Solana's public one refuses Workers), SOLANA_WALLET, SOLANA_DEMO_WALLET, SOLANA_DEPOSIT_SECRET.
     "SOLANA_USDC_MINT": "J7sNd4p3yWKQwsYChizSTJtMTZbWPY9rKNfKHUTbTm5",
@@ -55,6 +57,7 @@
         "PARTNER_BANK_NAME": "Test Bank (demo)",
         // No email provider until there's a domain: sign-in is by Google, and updates are in the app.
         "EMAIL": "none",
+        // "fake" until Dojah is live (see the comment on ID_PROVIDER above).
         "ID_PROVIDER": "fake",
         // NosHen's own Solana wallet on devnet (pnpm solana:setup). Secrets: SOLANA_RPC_URL (a keyed RPC: Solana's public one refuses Workers), SOLANA_WALLET, SOLANA_DEMO_WALLET, SOLANA_DEPOSIT_SECRET.
         "SOLANA_USDC_MINT": "J7sNd4p3yWKQwsYChizSTJtMTZbWPY9rKNfKHUTbTm5",

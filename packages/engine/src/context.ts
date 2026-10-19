@@ -8,7 +8,7 @@ import type { SolanaConfig } from "./partner/solana";
 import type { EvmConfig } from "./partner/evm";
 import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
 import { ConsoleEmail, NoEmail, type EmailSender } from "./email";
-import { FakeIdProvider } from "./idcheck";
+import { DojahIdProvider, FakeIdProvider, UnconfiguredIdProvider, type IdProvider } from "./idcheck";
 import type { PushConfig } from "./push";
 import { flushStaffAlerts } from "./staff-alerts";
 
@@ -124,6 +124,18 @@ export function staffAlertsFor(): Deps["staffAlerts"] {
   return undefined;
 }
 
+/**
+ * The NIN/BVN check: ID_PROVIDER "dojah" (live) or "dojah-sandbox" (Dojah's free test service), with the keys in
+ * DOJAH_APP_ID and DOJAH_SECRET_KEY; anything else is the pretend check, where any 11 digits pass. Dojah without
+ * its keys never lets anyone through.
+ */
+export function idsFor(): IdProvider {
+  const e = env as unknown as { ID_PROVIDER?: string; DOJAH_APP_ID?: string; DOJAH_SECRET_KEY?: string };
+  if (e.ID_PROVIDER !== "dojah" && e.ID_PROVIDER !== "dojah-sandbox") return new FakeIdProvider();
+  if (!e.DOJAH_APP_ID || !e.DOJAH_SECRET_KEY) return new UnconfiguredIdProvider();
+  return new DojahIdProvider({ appId: e.DOJAH_APP_ID, secretKey: e.DOJAH_SECRET_KEY, sandbox: e.ID_PROVIDER === "dojah-sandbox" });
+}
+
 export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
   return {
     db,
@@ -133,7 +145,7 @@ export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
     push: pushFor(),
     live: liveFor(),
     staffAlerts: staffAlertsFor(),
-    ids: new FakeIdProvider(),
+    ids: idsFor(),
     timers: workflowTimers,
     secrets: { releaseCode: env.RELEASE_CODE_SECRET, fieldKey: env.FIELD_KEY },
     appUrl: env.APP_URL,

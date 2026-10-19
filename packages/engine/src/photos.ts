@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { seedArt } from "./seed-art";
 import { msg } from "@noshen/shared/i18n";
+import { DealError } from "./core";
 
 /** Seed listings have no real photos: draw studio-style illustrations of each device instead. */
 function seedPhoto(key: string) {
@@ -32,8 +33,8 @@ const TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png",
  */
 export async function storePhoto(prefix: string, file: File, small?: File | null): Promise<string> {
   const ext = TYPES[file.type];
-  if (!ext) throw new Error(msg("Use a JPEG, PNG, WebP or HEIC photo."));
-  if (file.size > 8 * 1024 * 1024) throw new Error(msg("Photos must be under 8 MB."));
+  if (!ext) throw new DealError("photo", msg("Use a JPEG, PNG, WebP or HEIC photo."));
+  if (file.size > 8 * 1024 * 1024) throw new DealError("photo", msg("Photos must be under 8 MB."));
   const key = `${prefix}/${crypto.randomUUID()}.${ext}`;
   await env.PHOTOS.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type } });
   if (small && small.size > 0 && small.size < 1024 * 1024 && TYPES[small.type]) {
