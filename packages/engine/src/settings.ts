@@ -20,6 +20,8 @@ export interface Settings {
   /** The most a seller who hasn't passed the ID and bank checks can take in one deal. */
   unverified_seller_max_kobo: number;
   buyer_id_required_above_kobo: number;
+  /** NosHen's WhatsApp number for help while selling, in international form (2348012345678), or null to hide the link. */
+  support_whatsapp: string | null;
 }
 
 const DEFAULTS: Settings = {
@@ -37,6 +39,7 @@ const DEFAULTS: Settings = {
   release_code: { digits: 6, max_attempts: 5, lock_minutes: 30 },
   unverified_seller_max_kobo: 30_000_000,
   buyer_id_required_above_kobo: 50_000_000,
+  support_whatsapp: null,
 };
 
 /** Deal rules from the settings table, falling back to the PRD's values. */

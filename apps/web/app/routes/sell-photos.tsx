@@ -13,6 +13,8 @@ import { msg } from "@noshen/shared/i18n";
 import { shrinkPhotos } from "@noshen/ui/shrink";
 import { MAX_PHOTOS, MIN_PHOTOS, photoShots } from "@noshen/shared/photo-shots";
 import { SellSteps } from "../lib/sell-steps";
+import { SellHelp } from "../lib/sell-help";
+import { settingsOf } from "@noshen/engine/core";
 import { photosFrom } from "@noshen/engine/photos";
 
 export const handle = { tabs: false };
@@ -31,7 +33,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const user = await requireUser(request, d);
     const l = await draftFor(d, user.id, params.id);
-    return { draftId: l.id, category: l.category, photos: (l.photo_keys ?? []) as string[] };
+    return { draftId: l.id, category: l.category, photos: (l.photo_keys ?? []) as string[], help: (await settingsOf(d)).support_whatsapp };
   });
 }
 
@@ -156,6 +158,7 @@ export default function SellPhotos({ loaderData: x, actionData }: Route.Componen
           <li><Icon name="eye" size={18} />{t("Show any damage")}</li>
         </ul>
         <ErrorText>{(actionData as any)?.error}</ErrorText>
+        <SellHelp whatsapp={x.help} step={t("Photos")} />
         <BottomAction>
           {n < MIN_PHOTOS ? (
             <label htmlFor={PICK} className="nh-btn nh-btn-primary nh-btn-lg nh-btn-block" aria-disabled={busy || undefined}>

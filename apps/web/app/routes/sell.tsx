@@ -1,6 +1,8 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/sell";
 import { SellSteps } from "../lib/sell-steps";
+import { SellHelp } from "../lib/sell-help";
+import { settingsOf } from "@noshen/engine/core";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { sellerReady, startListing } from "@noshen/engine/sellers";
 import { one } from "@noshen/engine/db";
@@ -23,6 +25,7 @@ export async function loader({ request }: Route.LoaderArgs) {
         ? { id: draft.id, category: draft.category, title: draft.title === "Untitled listing" ? null : draft.title, photos, next: photos >= 3 ? "details" : "photos" }
         : null,
       ready: await sellerReady(d, user.id),
+      help: (await settingsOf(d)).support_whatsapp,
     };
   });
 }
@@ -86,6 +89,7 @@ export default function SellStart({ loaderData: x, actionData }: Route.Component
           <Info icon="shield-check">{t.rich("Before your listing goes live, <verify>verify your ID and bank account</verify>. You can start your listing now.", { verify: (s) => <Link to="/account/verify?next=/sell">{s}</Link> })}</Info>
         ) : null}
         <p className="caption muted">{t.rich("Some things can't be sold on NosHen, such as anything stolen or fake. See the <list>prohibited items</list>.", { list: (s) => <Link to="/prohibited-items">{s}</Link> })}</p>
+        <SellHelp whatsapp={x.help} step={t("What")} />
       </main>
     </div>
   );

@@ -215,6 +215,8 @@ The demo is deployed like this:
    - Without these, Solana stays pretend like the other networks.
 7. **Staff accounts.** Create one with `pnpm staff:create "Name" email admin` (or `reviewer`). The person sets up two-factor at their first sign-in.
 8. **Deploy:** `pnpm deploy:web` and `pnpm deploy:admin`.
+9. **WhatsApp help (optional).** The "Stuck? Chat with us on WhatsApp" link on the selling steps shows once NosHen's number is set, in international form, without a redeploy (it shows within 5 minutes):
+   `insert into settings (key, value) values ('support_whatsapp', '"2348012345678"') on conflict (key) do update set value = excluded.value;`
 
 ## Not built yet
 

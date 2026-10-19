@@ -2,10 +2,12 @@ import { useState } from "react";
 import { Link, data, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/sell-details";
 import { SellSteps } from "../lib/sell-steps";
+import { SellHelp } from "../lib/sell-help";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { saveDraft } from "@noshen/engine/sellers";
 import { one } from "@noshen/engine/db";
 import { BottomAction, Button, CheckedForm, ErrorText, Icon, Info, Select, TextArea, TextField, TopBar } from "@noshen/ui/ui";
+import type { IconName } from "@noshen/ui/icons";
 import { CONDITIONS, type Condition } from "@noshen/shared/deal";
 import { NIGERIA_STATES, areaProblem, comingSoonList, stateLabel } from "@noshen/shared/locations";
 import { categoryOf, idProblem, isCategory, isService, type CategoryKey } from "@noshen/shared/categories";
@@ -20,6 +22,9 @@ import { StageFields } from "../lib/stages";
 import { useT } from "@noshen/ui/i18n";
 
 export const handle = { tabs: false };
+
+/** A picture for each condition, on the cards to choose from. */
+const CONDITION_ICON: Record<string, IconName> = { new: "package", like_new: "star", good: "circle-check", fair: "tag" };
 export const meta = () => [{ title: "Details · Sell · NosHen" }];
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -36,7 +41,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const place = { state: l.state ?? last?.state ?? "", area: l.area?.trim() ? l.area : last?.area ?? "" };
     // So a new seller hears about their deal limit while pricing, not from a buyer later.
     const limit = await sellerLimit(d.db, user.id, st);
-    return { listing: l, place, limit, min: st.deal_min_kobo, max: st.deal_max_kobo, fee: st.fee, confirmHours: st.stage_confirm_hours };
+    return { listing: l, place, limit, min: st.deal_min_kobo, max: st.deal_max_kobo, fee: st.fee, confirmHours: st.stage_confirm_hours, help: st.support_whatsapp };
   });
 }
 
@@ -68,7 +73,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   return redirect(`/sell/${params.id}/review`);
 }
 
-export default function SellDetails({ loaderData: { listing: l, place, limit, min, max, fee, confirmHours }, actionData }: Route.ComponentProps) {
+export default function SellDetails({ loaderData: { listing: l, place, limit, min, max, fee, confirmHours, help }, actionData }: Route.ComponentProps) {
   const t = useT();
   const busy = useNavigation().state !== "idle";
   const untouched = l.title === "Untitled listing";
@@ -88,6 +93,9 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
   const job = isService(l.category);
   const priceOk = p >= min && (max === null || p <= max) && Number.isSafeInteger(p);
   const [stagesError, setStagesError] = useState<string | null>(null);
+  // "More details" starts open when the draft already has something in it.
+  const [more, setMore] = useState<boolean>(Number(l.quantity ?? 1) > 1 || l.delivery_local_kobo !== null || l.delivery_other_kobo !== null
+    || !!l.description || (!!c.id && !c.id.required && !!l.imei_or_serial));
   return (
     <CheckedForm method="post" onSubmit={(e) => {
       const problem = sizeRule ? sizeProblem(l.category, kind?.id, size, t) : null;
@@ -112,9 +120,16 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
         {job ? null : (
           <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
             <legend className="label" style={{ marginBottom: 8 }}>{t("Condition (is it new or used?)")}</legend>
-            {CONDITIONS.map(([v, label, hint]) => (
-              <label key={v} className="choice"><input type="radio" name="condition" value={v} checked={cond === v} onChange={() => setCond(v)} /><span className="stack" style={{ gap: 0 }}><span className="body">{t(label)}</span><span className="caption muted">{t(hint)}</span></span></label>
-            ))}
+            <div className="cond-grid">
+              {CONDITIONS.map(([v, label, hint]) => (
+                <label key={v} className="cond-card">
+                  <input type="radio" name="condition" value={v} checked={cond === v} onChange={() => setCond(v)} className="sr-only" />
+                  <span className="cond-icon"><Icon name={CONDITION_ICON[v]} size={22} /></span>
+                  <span className="label">{t(label)}</span>
+                  <span className="caption muted">{t(hint)}</span>
+                </label>
+              ))}
+            </div>
           </fieldset>
         )}
         {sizeRule && kind ? (
@@ -138,18 +153,6 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
             {sizeError ? <p className="nh-field-msg nh-field-msg-error caption" role="alert"><Icon name="alert-triangle" size={16} />{sizeError}</p> : <p className="caption muted">{t(sizeRule.hint)}</p>}
           </fieldset>
         ) : null}
-        <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="label" style={{ marginBottom: 8 }}>{job ? t("How many buyers can book this?") : t("How many do you have?")}</legend>
-          <div className="qty-stepper">
-            <button type="button" className="icon-btn" aria-label={t("One fewer")} disabled={qty <= 1} onClick={() => setQty((q) => Math.max(1, q - 1))}><span aria-hidden="true">−</span></button>
-            <input name="quantity" type="number" inputMode="numeric" min={1} max={999} value={qty} aria-label={job ? t("How many buyers can book this?") : t("How many you have")}
-              onChange={(e) => setQty(Math.min(999, Math.max(1, Math.floor(Number(e.target.value) || 1))))} />
-            <button type="button" className="icon-btn" aria-label={t("One more")} disabled={qty >= 999} onClick={() => setQty((q) => Math.min(999, q + 1))}><Icon name="plus" size={18} /></button>
-          </div>
-          <p className="caption muted">{job
-            ? (qty > 1 ? t("Each buyer books one job. It shows as booked when all {n} are taken.", { n: qty }) : t("Can you take on more than one of these at a time? Set how many, and each buyer books one."))
-            : qty > 1 ? t("Each buyer gets one. Buyers see how many are left, and it shows as sold when all {n} have gone.", { n: qty }) : t("Selling more than one of the same thing? Set how many, and buyers can each buy one.")}</p>
-        </fieldset>
         <TextField label={priceOk ? t("Price in ₦ (you get {amount})", { amount: naira(p) }) : t("Price in ₦ (what you get)")} name="price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d,]/g, ""))} placeholder="45,000" required missing={t("Enter a price in naira, like 45,000.")}
           validate={(v) => { const k = Number(v.replace(/[^\d]/g, "")) * 100; return k < min ? t("The lowest price on NosHen is {min}. You've entered {price}.", { min: naira(min), price: naira(k) }) : max !== null && k > max ? t("The highest price on NosHen is {max}. You've entered {price}.", { max: naira(max), price: naira(k) }) : !Number.isSafeInteger(k) ? t("That price is too large. Check the number of zeros.") : null; }}
           hint={priceOk ? t("The buyer pays {total}, with NosHen's fee.", { total: naira(p + feeFor(p, fee)) }) : max === null ? t("From {min}. There's no top price.", { min: naira(min) }) : t("From {min} to {max}.", { min: naira(min), max: naira(max) })} />
@@ -163,17 +166,47 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
             hint={job ? t("Buyers see this to know where you work. Never your street address.") : t("Buyers see this to plan the meet-up. Never your street address.")} missing={t("Add your area or town, like Yaba, Wuse 2 or GRA.")} validate={(v) => areaProblem(v, t)} />
           <p className="caption muted">{t("NosHen works in all 36 states and Abuja. {countries} are coming soon.", { countries: comingSoonList() })}</p>
         </fieldset>
-        {job ? null : <DeliveryFields state={itemState} local={l.delivery_local_kobo} other={l.delivery_other_kobo} />}
-        {c?.id ? (
+        {c?.id?.required ? (
           <TextField key={c.key} label={t(c.id.label)} name="imei" inputMode={c.id.numeric ? "numeric" : "text"} autoCapitalize="characters" defaultValue={l.category === c.key ? l.imei_or_serial ?? "" : ""}
             hint={t(c.id.hint)} required={c.id.required} missing={idProblem(c.key, "", t) ?? undefined} validate={(v) => idProblem(c.key, v, t)} />
         ) : null}
-        <TextArea label={t("Description (optional)")} name="description" defaultValue={l.description ?? ""} maxLength={2000} placeholder={t(c.describeHint)} />
+        {/* Only what every listing needs is open; the rest is one tap away, and opens by itself if it has something in it. */}
+        <details className="more-details" open={more} onToggle={(e) => setMore(e.currentTarget.open)}>
+          <summary>
+            <span className="grow stack" style={{ gap: 0 }}>
+              <span className="label">{t("More details (optional)")}</span>
+              <span className="caption muted">{job ? t("How many buyers can book it, and a description")
+                : c.id ? t("How many you have, delivery, the serial number, and a description") : t("How many you have, delivery, and a description")}</span>
+            </span>
+            <Icon name="chevron-down" size={20} />
+          </summary>
+          <div className="stack-4 more-body">
+            <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+              <legend className="label" style={{ marginBottom: 8 }}>{job ? t("How many buyers can book this?") : t("How many do you have?")}</legend>
+              <div className="qty-stepper">
+                <button type="button" className="icon-btn" aria-label={t("One fewer")} disabled={qty <= 1} onClick={() => setQty((q) => Math.max(1, q - 1))}><span aria-hidden="true">−</span></button>
+                <input name="quantity" type="number" inputMode="numeric" min={1} max={999} value={qty} aria-label={job ? t("How many buyers can book this?") : t("How many you have")}
+                  onChange={(e) => setQty(Math.min(999, Math.max(1, Math.floor(Number(e.target.value) || 1))))} />
+                <button type="button" className="icon-btn" aria-label={t("One more")} disabled={qty >= 999} onClick={() => setQty((q) => Math.min(999, q + 1))}><Icon name="plus" size={18} /></button>
+              </div>
+              <p className="caption muted">{job
+                ? (qty > 1 ? t("Each buyer books one job. It shows as booked when all {n} are taken.", { n: qty }) : t("Can you take on more than one of these at a time? Set how many, and each buyer books one."))
+                : qty > 1 ? t("Each buyer gets one. Buyers see how many are left, and it shows as sold when all {n} have gone.", { n: qty }) : t("Selling more than one of the same thing? Set how many, and buyers can each buy one.")}</p>
+            </fieldset>
+            {job ? null : <DeliveryFields state={itemState} local={l.delivery_local_kobo} other={l.delivery_other_kobo} />}
+            {c?.id && !c.id.required ? (
+              <TextField key={c.key} label={t(c.id.label)} name="imei" inputMode={c.id.numeric ? "numeric" : "text"} autoCapitalize="characters" defaultValue={l.category === c.key ? l.imei_or_serial ?? "" : ""}
+                hint={t(c.id.hint)} required={c.id.required} missing={idProblem(c.key, "", t) ?? undefined} validate={(v) => idProblem(c.key, v, t)} />
+            ) : null}
+            <TextArea label={t("Description (optional)")} name="description" defaultValue={l.description ?? ""} maxLength={2000} placeholder={t(c.describeHint)} />
+          </div>
+        </details>
         <Info icon="shield-check">{job
           ? t("Your listing shows “Protected by NosHen”. Buyers pay NosHen before you start, and you're paid stage by stage as the work is done.")
           : t("Your listing shows “Protected by NosHen”. Buyers pay NosHen, and you're paid when they give you their code.")}</Info>
         <p className="caption muted">{t.rich("Some things can't be sold on NosHen, such as anything stolen or fake. See the <list>prohibited items</list>.", { list: (s) => <Link to="/prohibited-items">{s}</Link> })}</p>
         <ErrorText>{actionData?.error}</ErrorText>
+        <SellHelp whatsapp={help} step={t("Details")} />
         <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy} iconRight="arrow-right">{busy ? t("Saving…") : t("Next: review")}</Button></BottomAction>
       </main>
     </CheckedForm>

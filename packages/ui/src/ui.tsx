@@ -103,6 +103,9 @@ export function CheckedForm({ children, onChange, ...props }: FormProps) {
     const el = e.target as Checkable;
     if (!el.name) return;
     e.preventDefault();
+    // A field folded away in a closed <details> ("More details"): open it, so the field and its message show.
+    const folded = el.closest("details:not([open])");
+    if (folded) (folded as HTMLDetailsElement).open = true;
     const msg = messageFor(el, t);
     setErrors((p) => (p[el.name] === msg ? p : { ...p, [el.name]: msg }));
     const now = Date.now();

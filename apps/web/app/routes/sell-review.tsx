@@ -1,6 +1,7 @@
 import { Form, Link, data, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/sell-review";
 import { SellSteps } from "../lib/sell-steps";
+import { SellHelp } from "../lib/sell-help";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { publish, sellerReady } from "@noshen/engine/sellers";
 import { DealError, settingsOf } from "@noshen/engine/core";
@@ -40,6 +41,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       listing: l, fee: feeFor(price, s.fee),
       limit: overLimit(price, limit) ? limit : null,
       ready: (await sellerReady(d, user.id)).ready,
+      help: s.support_whatsapp,
     };
   });
 }
@@ -66,7 +68,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 /** Step 4 of selling: everything the buyer will see, with a way back to each part, before it goes live. */
-export default function SellReview({ loaderData: { listing: l, fee, limit, ready }, actionData }: Route.ComponentProps) {
+export default function SellReview({ loaderData: { listing: l, fee, limit, ready, help }, actionData }: Route.ComponentProps) {
   const t = useT();
   const busy = useNavigation().state !== "idle";
   const c = categoryOf(l.category);
@@ -173,6 +175,7 @@ export default function SellReview({ loaderData: { listing: l, fee, limit, ready
         </label>
 
         <ErrorText>{actionData?.error}</ErrorText>
+        <SellHelp whatsapp={help} step={t("Publish")} />
         <BottomAction>
           <Button type="submit" variant="primary" size="lg" block icon="shield-check" disabled={busy}>{busy ? t("Publishing…") : ready ? t("Publish listing") : t("Verify, then publish")}</Button>
         </BottomAction>

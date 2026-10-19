@@ -693,3 +693,25 @@ label[for="photo-pick"][aria-disabled="true"] { opacity: 0.6; pointer-events: no
 .photo-tips { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; padding: 0; list-style: none; color: var(--ink-muted); font-size: 14px; }
 .photo-tips li { display: inline-flex; align-items: center; gap: 6px; }
 .photo-tips li svg { color: var(--primary); }
+
+/* Selling, details: the condition as four cards, two by two. */
+.cond-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.cond-card { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); cursor: pointer; transition: border-color var(--dur-fast), box-shadow var(--dur-fast), background-color var(--dur-fast); }
+.cond-icon { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: var(--radius-md); background: var(--canvas); color: var(--ink-muted); }
+.cond-card:has(input:checked) { border-color: var(--primary); background: var(--tint); box-shadow: 0 0 0 1px var(--primary); }
+.cond-card:has(input:checked) .cond-icon { background: var(--primary); color: var(--on-primary); }
+.cond-card:has(input:focus-visible) { box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 25%, transparent); }
+.cond-card:active { transform: scale(0.98); }
+
+/* Selling, details: what isn't needed for every listing, one tap away. */
+.more-details { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.more-details > summary { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; list-style: none; }
+.more-details > summary::-webkit-details-marker { display: none; }
+.more-details > summary svg { flex: none; color: var(--ink-muted); transition: transform var(--dur-fast) var(--ease-out); }
+.more-details[open] > summary svg { transform: rotate(180deg); }
+.more-details > summary:focus-visible { border-radius: var(--radius-lg); }
+.more-details .more-body { padding: 0 16px 16px; }
+
+/* "Stuck? Chat with us on WhatsApp", at the bottom of each selling step. */
+.sell-help { display: flex; align-items: center; gap: 8px; color: var(--ink-muted); }
+.sell-help svg { flex: none; color: #25d366; }
