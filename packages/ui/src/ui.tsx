@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Form, Link, type FormProps } from "react-router";
 import { ICONS, type IconName } from "./icons";
 import { naira } from "@noshen/shared/money";
+import { photoUrl } from "@noshen/shared/photos";
 import { emailProblem } from "@noshen/shared/validate";
 import { useT, type T } from "./i18n";
 import { msg } from "@noshen/shared/i18n";
@@ -554,8 +555,13 @@ export function Timeline({ steps }: { steps: Step[] }) {
   );
 }
 
-export function Avatar({ name }: { name: string }) {
-  return <span className="avatar" aria-hidden="true">{(name.trim()[0] ?? "?").toUpperCase()}</span>;
+/** Someone's profile picture, or the first letter of their name when they haven't added one. */
+export function Avatar({ name, photo, size }: { name: string; photo?: string | null; size?: number }) {
+  return (
+    <span className={cx("avatar", photo && "has-photo")} aria-hidden="true" style={size ? { width: size, height: size, fontSize: Math.round(size * 0.4) } : undefined}>
+      {photo ? <img src={photoUrl(photo, "small")} alt="" loading="lazy" decoding="async" /> : (name.trim()[0] ?? "?").toUpperCase()}
+    </span>
+  );
 }
 
 export function ErrorText({ children }: { children?: ReactNode }) {

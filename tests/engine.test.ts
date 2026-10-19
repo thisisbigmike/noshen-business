@@ -10,9 +10,9 @@ import { DealError, settingsOf } from "@noshen/engine/core";
 import { one } from "@noshen/engine/db";
 import { addHandle, checkSeller, decideHandle, handlesToCheck, removeHandle, submitHandle, verifiedHandles } from "@noshen/engine/handles";
 import { feeFor, naira } from "@noshen/shared/money";
-import { saveDraft, publish, setDelivery, setVisibility } from "@noshen/engine/sellers";
+import { saveDraft, publish, setDelivery, setVisibility, setProfilePhoto } from "@noshen/engine/sellers";
 import { sizeLabel } from "@noshen/shared/sizes";
-import { moderateListing, setAccountStatus, setDealLimit, unlockReleaseCode, retryTransfer, checkDeadlinesNow, deleteSoldListings, staffRefund, staffRelease, giveMoreTime, openDisputeForBuyer, staffCancel, noteToBoth } from "@noshen/engine/staff";
+import { moderateListing, setAccountStatus, setDealLimit, unlockReleaseCode, retryTransfer, checkDeadlinesNow, deleteSoldListings, staffRefund, staffRelease, giveMoreTime, openDisputeForBuyer, staffCancel, noteToBoth, removeProfilePhoto } from "@noshen/engine/staff";
 import { adminOverview, browse, staffListings, staffUsers, statesWithListings, staffDeals, staffDeal, staffPerson, staffCounts, auditLog, listingView, sellerShop, sellerSummary } from "@noshen/engine/queries";
 import { cryptoQuotes, prepareCryptoPayment, refundsWaitingForAddress, saveRefundAddress } from "@noshen/engine/stablecoins";
 import { FAKE_RATE_KOBO } from "@noshen/engine/partner/fake-crypto";
@@ -1144,5 +1144,33 @@ describe("check a seller", () => {
     expect((await checkSeller(w.db, "not a handle!")).query).toBeNull();
     await removeHandle(w.d, seller, h.id);
     await expect(removeHandle(w.d, noId, h.id)).rejects.toThrow(/isn't yours/);
+  });
+});
+
+describe("profile pictures", () => {
+  it("sets, replaces and removes a photo, and shows it with the person's track record", async () => {
+    const u = await verifiedSeller(w, "Photo Person");
+    const a = `avatars/${u}/${crypto.randomUUID()}.webp`;
+    const b = `avatars/${u}/${crypto.randomUUID()}.webp`;
+    expect(await setProfilePhoto(w.d, u, a)).toBeNull();
+    expect((await sellerSummary(w.db, u)).photo).toBe(a);
+    expect(await setProfilePhoto(w.d, u, b)).toBe(a);
+    const other = await person(w, "Someone Else");
+    await expect(setProfilePhoto(w.d, other, b)).rejects.toThrow(/isn't yours/);
+    expect(await setProfilePhoto(w.d, u, null)).toBe(b);
+    expect((await sellerSummary(w.db, u)).photo).toBeNull();
+  });
+
+  it("lets staff take a photo down, telling the person why", async () => {
+    const u = await verifiedSeller(w, "Borrowed Face");
+    const key = `avatars/${u}/${crypto.randomUUID()}.jpg`;
+    await setProfilePhoto(w.d, u, key);
+    const reviewer = { id: staffId, role: "reviewer" as const };
+    expect(await removeProfilePhoto(w.d, reviewer, u, "It's a bank's logo, not theirs")).toBe(key);
+    expect((await sellerSummary(w.db, u)).photo).toBeNull();
+    const note = await one(w.db, "select params from notifications where user_id = $1 and template = 'photo_removed'", [u]);
+    expect(note.params.text).toContain("a bank's logo");
+    expect(Number((await one(w.db, "select count(*) as n from staff_actions where action = 'remove_profile_photo' and target_id = $1", [u])).n)).toBe(1);
+    await expect(removeProfilePhoto(w.d, reviewer, u, "Again, for the test")).rejects.toThrow(/no profile picture/);
   });
 });

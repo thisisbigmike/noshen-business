@@ -3,7 +3,8 @@ import type { Route } from "./+types/person";
 import { env } from "cloudflare:workers";
 import { messageOf, requireStaff, withApp } from "../../server/web";
 import { staffPerson } from "@noshen/engine/queries";
-import { setAccountStatus, setDealLimit } from "@noshen/engine/staff";
+import { removeProfilePhoto, setAccountStatus, setDealLimit } from "@noshen/engine/staff";
+import { deletePhoto } from "@noshen/engine/photos";
 import { settingsOf } from "@noshen/engine/core";
 import { Avatar, Icon, Info, Kv, TextField } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
@@ -42,6 +43,11 @@ export async function action({ request, params }: Route.ActionArgs): Promise<Act
       await withApp((d) => setDealLimit(d, staff, params.id, Math.round(amount * 100), reason));
       return { ok: true, intent, message: "Limit saved. They've been told." };
     }
+    if (intent === "remove_photo") {
+      const old = await withApp((d) => removeProfilePhoto(d, staff, params.id, reason));
+      if (old) await deletePhoto(old).catch((e) => console.error("couldn't delete profile photo", e));
+      return { ok: true, intent, message: "Photo removed. They've been told why." };
+    }
     if (intent === "standard") {
       await withApp((d) => setDealLimit(d, staff, params.id, null, reason));
       return { ok: true, intent, message: "Back on the standard rules." };
@@ -68,7 +74,7 @@ export default function Person({ loaderData: v }: Route.ComponentProps) {
       <nav className="caption muted" aria-label="Breadcrumb"><Link to="/">Dashboard</Link> / <Link to="/users">People</Link> / {u.full_name ?? u.email}</nav>
       <header className="console-head">
         <div className="cell-listing">
-          <Avatar name={u.full_name ?? u.email ?? "?"} />
+          <Avatar name={u.full_name ?? u.email ?? "?"} photo={u.photo_key} />
           <div className="stack" style={{ gap: 4 }}>
             <h1 className="heading">{u.full_name ?? "No name yet"}</h1>
             <div className="row wrap" style={{ gap: 8 }}>
@@ -157,6 +163,15 @@ export default function Person({ loaderData: v }: Route.ComponentProps) {
               <p className="caption muted">Only an admin can lift a ban.</p>
             )}
           </section>
+
+          {u.photo_key ? (
+            <section className="panel" aria-labelledby="photo-title">
+              <h2 id="photo-title" className="title">Profile picture</h2>
+              <a href={photoUrl(u.photo_key)} target="_blank" rel="noreferrer" className="photo-slot" style={{ width: 120 }}><img src={photoUrl(u.photo_key)} alt={`${u.full_name ?? "Their"} profile picture`} /></a>
+              <ReasonAction intent="remove_photo" label="Remove photo" danger
+                help="For someone else's photo, a bank's or NosHen's logo, or anything offensive. They're told your reason and can add another." />
+            </section>
+          ) : null}
 
           <section className="panel" aria-labelledby="limit-title">
             <h2 id="limit-title" className="title">Deal limit</h2>

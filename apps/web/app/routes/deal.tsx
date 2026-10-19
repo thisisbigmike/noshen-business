@@ -49,6 +49,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       holdPayment: role === "buyer" && v.deal.review_hold && counted[0] ? { amount_kobo: counted[0].amount_kobo as string, sender_name: (counted[0].sender_name ?? null) as string | null } : null,
       deal: v.deal, listing: { id: v.listing.id, title: v.listing.title, category: v.listing.category, area: placeLabel(v.listing.area, v.listing.state), photo: v.listing.photo_keys?.[0] ?? null },
       names: { buyer: v.buyer.name, seller: v.seller.name }, otherName: role === "buyer" ? v.seller.name : v.buyer.name,
+      otherPhoto: (role === "buyer" ? v.seller.photo : v.buyer.photo) as string | null,
       // A seller deciding on a request sees what the buyer's own deals show.
       buyerRecord: role === "seller" ? v.buyer : null,
       events: v.events, messages: v.messages, dispute: v.dispute, evidence: v.evidence, ratings: v.ratings,
@@ -476,7 +477,7 @@ function Chat({ x, other, live }: { x: View; other: string; live: ReturnType<typ
   return (
     <section className="card stack-4" id="chat" aria-labelledby="chat-title">
       <div className="row">
-        <span className="avatar" aria-hidden="true">{other[0]}{live.otherOnline ? <span className="online-dot" /> : null}</span>
+        <span className={`avatar${x.otherPhoto ? " has-photo" : ""}`} aria-hidden="true">{x.otherPhoto ? <img src={photoUrl(x.otherPhoto, "small")} alt="" /> : other[0]}{live.otherOnline ? <span className="online-dot" /> : null}</span>
         <div>
           <h2 id="chat-title" className="title">{other}</h2>
           <p className="caption muted">{live.otherTyping ? <span className="typing-text">{t("typing…")}</span> : live.otherOnline ? t("On this deal now") : t("Keep everything about this deal in this chat.")}</p>

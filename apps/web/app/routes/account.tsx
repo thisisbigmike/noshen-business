@@ -2,7 +2,7 @@ import { Form, Link } from "react-router";
 import type { Route } from "./+types/account";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { myListings, sellerSummary } from "@noshen/engine/queries";
-import { sellerReady, setListingStatus, setVisibility } from "@noshen/engine/sellers";
+import { sellerReady, setListingStatus, setProfilePhoto, setVisibility } from "@noshen/engine/sellers";
 import { offersDelivery } from "@noshen/shared/delivery";
 import { isService } from "@noshen/shared/categories";
 import { one } from "@noshen/engine/db";
@@ -17,6 +17,8 @@ import { DataSaverSwitch, LanguageSwitch } from "../lib/prefs";
 import { CountrySwitch } from "../lib/country";
 import { CopyButton } from "../lib/copy-button";
 import { HandlesCard, type Handle } from "../lib/handles";
+import { ProfilePhoto } from "../lib/profile-photo";
+import { deletePhoto, photosFrom, storePhoto } from "@noshen/engine/photos";
 import { addHandle, myHandles, removeHandle, submitHandle } from "@noshen/engine/handles";
 
 export const meta = () => [{ title: "Account · NosHen" }];
@@ -40,6 +42,15 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     await withApp(async (d) => {
       const user = await requireUser(request, d);
+      // The profile picture: a new one replaces (and deletes) the old.
+      if (intent === "photo_upload" || intent === "photo_remove") {
+        const p = intent === "photo_upload" ? photosFrom(f, "photo")[0] : null;
+        if (intent === "photo_upload" && !p) throw new Error(msg("Choose a photo."));
+        const key = p ? await storePhoto(`avatars/${user.id}`, p.file, p.small) : null;
+        const old = await setProfilePhoto(d, user.id, key);
+        if (old) await deletePhoto(old).catch((e) => console.error("couldn't delete old profile photo", e));
+        return;
+      }
       // Social handles, for "Check a seller".
       if (intent === "handle_add") return void await addHandle(d, user.id, String(f.get("platform") ?? ""), String(f.get("handle") ?? ""));
       if (intent === "handle_submit") return submitHandle(d, user.id, String(f.get("handle")));
@@ -65,11 +76,15 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
       <TopBar title={t("Account")} />
       <main className="page narrow stack-4">
         <h1 className="heading desktop-only">{t("Account")}</h1>
-        <section className="card">
+        <section className="card stack-4">
+          <ProfilePhoto name={x.user.full_name ?? x.user.email ?? "?"} photo={x.summary.photo}
+            error={(actionData as any)?.intent?.startsWith("photo_") ? (actionData as any)?.error : null} />
+          <div>
           <Kv k={t("Name")} v={x.user.full_name ?? t("Not added")} />
           <Kv k={t("Email")} v={x.user.email ?? t("Not added")} />
           <Kv k={t("Rating")} v={x.summary.rating ? t("{rating} from {n}", { rating: x.summary.rating, n: x.summary.ratingCount }) : t("No ratings yet")} />
           <Kv k={t("Completed sales")} v={String(x.summary.completedDeals)} />
+          </div>
         </section>
         <section className="card stack">
           <p className="title">{t("Selling")}</p>
@@ -107,7 +122,7 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
             ))}
           </section>
         ) : null}
-        <ErrorText>{(actionData as any)?.intent?.startsWith("handle_") ? null : (actionData as any)?.error}</ErrorText>
+        <ErrorText>{/^(handle|photo)_/.test((actionData as any)?.intent ?? "") ? null : (actionData as any)?.error}</ErrorText>
         {x.listings.length ? (
           <section className="card stack" aria-labelledby="shop-link">
             <p className="title" id="shop-link">{t("Your shop link")}</p>

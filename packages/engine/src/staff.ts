@@ -50,6 +50,22 @@ async function logAction(tx: Tx, staffId: string, action: string, targetType: "u
 }
 
 /**
+ * Takes down someone's profile picture: someone else's photo, a bank's or NosHen's logo, or anything offensive.
+ * They're told why and can add another. Returns the photo removed, for the caller to delete. Kept in the audit log.
+ */
+export async function removeProfilePhoto(d: Deps, staff: StaffActor, userId: string, reason: string): Promise<string | null> {
+  const why = reasonOf(reason);
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    const u = await one<{ photo_key: string | null }>(tx.db, "select photo_key from users where id = $1 for update", [userId]);
+    if (!u?.photo_key) throw new DealError("state", "This person has no profile picture.");
+    await tx.db.query("update users set photo_key = null where id = $1", [userId]);
+    await notify(d, tx, userId, null, "photo_removed", `NosHen removed your profile picture: ${why} You can add another in Account.`);
+    await logAction(tx, staff.id, "remove_profile_photo", "user", userId, why, { photo: u.photo_key });
+    return u.photo_key;
+  });
+}
+
+/**
  * Freezes, bans or reactivates an account. A frozen or banned person can't sign in to buy or sell, and their
  * listings disappear from Browse; deals already under way carry on, and their money stays held. Reviewers can
  * freeze and unfreeze; banning, and lifting a ban, is for admins.

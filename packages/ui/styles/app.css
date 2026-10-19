@@ -739,3 +739,11 @@ label[for="photo-pick"][aria-disabled="true"] { opacity: 0.6; pointer-events: no
 .check-nudge { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600; }
 .check-nudge svg:first-child { flex: none; color: var(--primary); }
 .check-nudge svg:last-child { flex: none; margin-left: auto; color: var(--ink-muted); }
+.avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.avatar.has-photo { background: var(--canvas); }
+
+/* Account: the profile picture, with add, change and remove. */
+.profile-photo { display: flex; gap: var(--space-4); align-items: flex-start; }
+.photo-pick-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.photo-pick-label[aria-disabled="true"] { opacity: 0.6; pointer-events: none; }
+.photo-pick-label:has(input:focus-visible) { border-radius: var(--radius-sm); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }

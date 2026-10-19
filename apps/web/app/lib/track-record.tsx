@@ -29,7 +29,7 @@ export function SellerRecord({ person, area, shop }: { person: Person; area?: st
   return (
     <section className="card stack-4" aria-label={t("Seller")}>
       <div className="row">
-        <Avatar name={person.name} />
+        <Avatar name={person.name} photo={person.photo} />
         <div className="grow stack" style={{ gap: 4, alignItems: "flex-start" }}>
           <p className="title">{name}</p>
           <TrustChip person={person} />

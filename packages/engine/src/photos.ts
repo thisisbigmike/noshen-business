@@ -42,6 +42,12 @@ export async function storePhoto(prefix: string, file: File, small?: File | null
   return key;
 }
 
+/** Deletes a photo and its small copy, when it's no longer used (a profile picture that was replaced or removed). */
+export async function deletePhoto(key: string) {
+  if (key.startsWith("seed/")) return;
+  await env.PHOTOS.delete([key, smallKey(key)]);
+}
+
 /** The photos from a form field, each with the small copy at the same place in `${field}_small`, if any. */
 export function photosFrom(form: FormData, field: string): { file: File; small: File | null }[] {
   const smalls = form.getAll(`${field}_small`);

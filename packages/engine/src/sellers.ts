@@ -11,6 +11,17 @@ import { naira } from "@noshen/shared/money";
 import { alertStaff } from "./staff-alerts";
 import { sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
 
+/**
+ * Sets someone's profile picture (a photo key from storePhoto under avatars/<their id>/), or removes it with null.
+ * Returns the photo it replaced, for the caller to delete.
+ */
+export async function setProfilePhoto(d: Deps, userId: string, key: string | null): Promise<string | null> {
+  if (key !== null && !key.startsWith(`avatars/${userId}/`)) throw new DealError("photo", "That photo isn't yours.", 403);
+  const r = await one<{ old: string | null }>(d.db,
+    "update users u set photo_key = $2 from (select photo_key as old from users where id = $1) o where u.id = $1 returning o.old", [userId, key]);
+  return r?.old ?? null;
+}
+
 export async function setName(d: Deps, userId: string, fullName: string) {
   const name = fullName.trim().replace(/\s+/g, " ");
   if (name.length < 2 || name.split(" ").length < 2) throw new DealError("name", "Enter your first and last name, as on your bank account.");

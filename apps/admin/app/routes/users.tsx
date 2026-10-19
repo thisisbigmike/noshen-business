@@ -47,7 +47,7 @@ export default function Users({ loaderData: { q, rows } }: Route.ComponentProps)
                 const st = STATUS[u.status] ?? { label: u.status, tone: "muted" };
                 return (
                   <tr key={u.id}>
-                    <td><div className="cell-listing"><Avatar name={u.full_name ?? u.email ?? "?"} /><div style={{ minWidth: 0 }}><Link to={`/users/${u.id}`} className="body ink-link" prefetch="intent">{u.full_name ?? "No name yet"}</Link><p className="caption muted">{u.email ?? "No email"}</p></div></div></td>
+                    <td><div className="cell-listing"><Avatar name={u.full_name ?? u.email ?? "?"} photo={u.photo_key} /><div style={{ minWidth: 0 }}><Link to={`/users/${u.id}`} className="body ink-link" prefetch="intent">{u.full_name ?? "No name yet"}</Link><p className="caption muted">{u.email ?? "No email"}</p></div></div></td>
                     <td className="caption" style={{ whiteSpace: "nowrap" }}>{ago(u.created_at)}</td>
                     <td>
                       <div className="checks">

@@ -172,6 +172,11 @@ export const PCM: Catalog = {
   "Data saver": "Data saver",
   "Off": "Off",
   "On": "On",
+  // apps/web/app/lib/profile-photo.tsx
+  "Saving…": "E dey save…",
+  "Change photo": "Change photo",
+  "Add a profile photo": "Add profile photo",
+  "A clear photo of you or your shop's logo. Buyers see it with your name. Never someone else's photo, or a bank's or NosHen's logo.": "Clear photo of you or your shop logo. Buyers go see am with your name. No use another person photo, or bank logo or NosHen logo.",
   // apps/web/app/lib/push.tsx
   "Couldn't turn notifications on.": "We no fit on notifications.",
   "Notifications are on for this device. Tap “Send a test” to see one.": "Notifications don on for this phone. Tap “Send test” to see one.",
@@ -197,7 +202,6 @@ export const PCM: Catalog = {
   // apps/web/app/lib/refund-address.tsx
   "Your {coin} address on {network}": "Your {coin} address for {network}",
   "Copy it from your wallet. For an exchange account, use the exchange's {coin} deposit address on {network}.": "Copy am from your wallet. If na exchange account, use the exchange {coin} deposit address for {network}.",
-  "Saving…": "E dey save…",
   // apps/web/app/lib/sell-help.tsx
   "Hello NosHen, I need help listing something. I'm on the {step} step.": "Hello NosHen, I need help to list something. I dey the {step} step.",
   "Stuck? <chat>Chat with us on WhatsApp</chat>. A person will help you.": "You don hang? <chat>Chat with us for WhatsApp</chat>. Person go help you.",
@@ -275,6 +279,7 @@ export const PCM: Catalog = {
   "{n} deals need you": "{n} deals need you",
   "{n} new": "{n} new",
   // apps/web/app/routes/account.tsx
+  "Choose a photo.": "Choose one photo.",
   "Live": "E dey live",
   "Paused": "E pause",
   "Sold": "E don sell",

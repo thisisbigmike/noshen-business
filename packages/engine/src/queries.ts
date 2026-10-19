@@ -7,6 +7,8 @@ import { isCategory } from "@noshen/shared/categories";
 
 export interface SellerSummary {
   id: string; name: string; idVerified: boolean; rating: number | null; ratingCount: number; completedDeals: number;
+  /** Their profile picture's photo key, or null. */
+  photo: string | null;
   /** When they joined NosHen. */
   memberSince: Date;
   /** Purchases they completed as a buyer. */
@@ -22,7 +24,7 @@ export interface SellerSummary {
 /** Someone's track record on NosHen, from what actually happened in their deals: shown to the other person. */
 export async function sellerSummary(db: Db, userId: string): Promise<SellerSummary> {
   const r = await one(db,
-    `select u.id, u.full_name, u.created_at,
+    `select u.id, u.full_name, u.created_at, u.photo_key,
        exists (select 1 from kyc_checks k where k.user_id = u.id and k.result = 'verified') as verified,
        (select round(avg(stars)::numeric, 1) from ratings where ratee_id = u.id) as rating,
        (select count(*) from ratings where ratee_id = u.id) as rating_count,
@@ -35,7 +37,7 @@ export async function sellerSummary(db: Db, userId: string): Promise<SellerSumma
      from users u where u.id = $1`, [userId]);
   const completed = Number(r.completed), lost = Number(r.lost);
   return {
-    id: r.id, name: r.full_name ?? "Seller", idVerified: r.verified, rating: r.rating === null ? null : Number(r.rating), ratingCount: Number(r.rating_count),
+    id: r.id, name: r.full_name ?? "Seller", photo: r.photo_key ?? null, idVerified: r.verified, rating: r.rating === null ? null : Number(r.rating), ratingCount: Number(r.rating_count),
     completedDeals: completed, memberSince: r.created_at, purchases: Number(r.purchases), disputesLost: lost,
     problemFree: completed + lost ? Math.round((completed / (completed + lost)) * 100) : null,
     replyMinutes: r.reply_seconds === null ? null : Math.max(1, Math.round(Number(r.reply_seconds) / 60)),
@@ -307,7 +309,7 @@ export async function staffDeal(db: Db, dealId: string) {
 
 /** One person for staff: their account, checks, bank, listings, deals and what staff have done about them. */
 export async function staffPerson(db: Db, userId: string) {
-  const u = await one(db, "select id, full_name, email, phone, status, max_deal_kobo, created_at, signup_source from users where id = $1", [userId]);
+  const u = await one(db, "select id, full_name, email, phone, status, max_deal_kobo, created_at, signup_source, photo_key from users where id = $1", [userId]);
   if (!u) return null;
   const [kyc, bank, listings, deals, actions, disputes] = await Promise.all([
     one(db, "select type, result, verified_name, checked_at from kyc_checks where user_id = $1 order by checked_at desc limit 1", [userId]),
@@ -399,7 +401,7 @@ export async function staffUsers(db: Db, q: string) {
   let where = "";
   if (q.trim()) { p.push(`%${q.trim()}%`); where = "where u.full_name ilike $1 or u.email ilike $1"; }
   return many(db,
-    `select u.id, u.full_name, u.email, u.status, u.created_at, u.max_deal_kobo,
+    `select u.id, u.full_name, u.email, u.status, u.created_at, u.max_deal_kobo, u.photo_key,
             exists (select 1 from kyc_checks k where k.user_id = u.id and k.result = 'verified') as id_verified,
             exists (select 1 from bank_accounts b where b.user_id = u.id and b.is_default and b.removed_at is null) as bank_ok,
             (select count(*) from listings l where l.seller_id = u.id and l.status = 'live') as live_listings,
