@@ -173,7 +173,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
                 {listings.map((l: any) => (
                   <ListingCard key={l.id} href={`/l/${l.id}`} title={l.title} priceKobo={l.price_kobo} area={[sizeLabel(l.category, l.size_system, l.size), placeLabel(l.area, l.state)].filter(Boolean).join(" · ")}
                     posted={ago(l.published_at)} imageUrl={l.photo_keys?.[0] ? photoUrl(l.photo_keys[0], "small") : undefined}
-                    sold={l.status === "sold"} left={l.quantity > 1 ? l.quantity - l.sold_count : null} />
+                    sold={l.status === "sold"} left={l.quantity > 1 ? l.quantity - l.sold_count : null} seller={l.seller} />
                 ))}
               </div>
             )}

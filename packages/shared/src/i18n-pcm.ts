@@ -1020,6 +1020,8 @@ export const PCM: Catalog = {
   "Protected by NosHen": "NosHen dey protect am",
   "{title}, sold": "{title}, e don sell",
   "Protected": "Protected",
+  "1 deal done": "1 deal don finish",
+  "{n} deals done": "{n} deals don finish",
   "Deal: {item}": "Deal: {item}",
   "Your release code": "Your release code",
   "Release code {digits}": "Release code {digits}",

@@ -1,4 +1,5 @@
 import type { Db } from "./db";
+import { trustLevel } from "@noshen/shared/trust";
 import { isState } from "@noshen/shared/locations";
 import { many, one } from "./db";
 import type { DealState } from "@noshen/shared/deal";
@@ -82,8 +83,23 @@ export async function browse(db: Db, f: BrowseFilters) {
   if (f.verifiedOnly) where.push(`exists (select 1 from kyc_checks k where k.user_id = listings.seller_id and k.result = 'verified')
     and exists (select 1 from bank_accounts b where b.user_id = listings.seller_id and b.is_default and b.removed_at is null)`);
   const order = f.sort === "price_asc" ? "price_kobo asc" : f.sort === "price_desc" ? "price_kobo desc" : "published_at desc";
-  return many(db, `select id, title, price_kobo, area, state, category, condition, size_system, size, photo_keys, published_at, status, quantity, sold_count
-    from listings where ${where.join(" and ")} order by (status = 'sold'), ${order} limit 60`, p);
+  // Each seller's track record once, for the trust badge on the cards.
+  const rows = await many(db, `with picked as (
+      select id, seller_id, title, price_kobo, area, state, category, condition, size_system, size, photo_keys, published_at, status, quantity, sold_count
+        from listings where ${where.join(" and ")} order by (status = 'sold'), ${order} limit 60),
+    sellers as (
+      select s.seller_id,
+             exists (select 1 from kyc_checks k where k.user_id = s.seller_id and k.result = 'verified') as id_verified,
+             (select count(*) from deals d where d.seller_id = s.seller_id and d.state in ('released', 'paid_out')) as completed,
+             (select count(*) from disputes x join deals d on d.id = x.deal_id where d.seller_id = s.seller_id and x.decision = 'refund_buyer') as lost
+        from (select distinct seller_id from picked) s)
+    select picked.*, sellers.id_verified, sellers.completed, sellers.lost
+      from picked join sellers using (seller_id) order by (status = 'sold'), ${order}`, p);
+  return rows.map(({ seller_id, id_verified, completed, lost, ...l }) => {
+    const deals = Number(completed), lostN = Number(lost);
+    const level = trustLevel({ idVerified: !!id_verified, completedDeals: deals, disputesLost: lostN, problemFree: deals + lostN ? Math.round((deals / (deals + lostN)) * 100) : null });
+    return { ...l, seller: { level, deals } };
+  });
 }
 
 /** States with something for sale, busiest first, for the location chips on Browse. */

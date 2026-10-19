@@ -1071,6 +1071,10 @@ describe("a seller's track record", () => {
     }
     const r = await sellerSummary(w.db, seller);
     expect(r).toMatchObject({ completedDeals: 1, disputesLost: 1, problemFree: 50 });
+    // Browse cards carry the same record, for the trust badge.
+    const card = (await browse(w.db, { q: "Phone for released" })).find((l: any) => l.title === "Phone for released");
+    expect(card?.seller).toEqual({ level: "building", deals: 1 });
+    expect(card).not.toHaveProperty("seller_id");
     expect(r.replyMinutes).toBeGreaterThanOrEqual(1);
     expect(new Date(r.memberSince).getTime()).toBeLessThanOrEqual(Date.now());
   });

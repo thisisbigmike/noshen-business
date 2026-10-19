@@ -715,3 +715,8 @@ label[for="photo-pick"][aria-disabled="true"] { opacity: 0.6; pointer-events: no
 /* "Stuck? Chat with us on WhatsApp", at the bottom of each selling step. */
 .sell-help { display: flex; align-items: center; gap: 8px; color: var(--ink-muted); }
 .sell-help svg { flex: none; color: #25d366; }
+
+/* The trust badge with its words, on a seller's card. */
+.trust-chip { display: inline-flex; flex: none; align-items: center; gap: 6px; max-width: 100%; padding: 4px 10px 4px 6px; border-radius: var(--radius-full); background: var(--canvas); color: var(--ink-muted); }
+.trust-chip.trust-building { color: var(--ink); }
+.trust-chip.trust-trusted { background: var(--tint); color: var(--primary-ink); }

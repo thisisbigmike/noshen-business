@@ -8,6 +8,7 @@ import { emailProblem } from "@noshen/shared/validate";
 import { useT, type T } from "./i18n";
 import { msg } from "@noshen/shared/i18n";
 import { shrinkPhotos } from "./shrink";
+import type { TrustLevel } from "@noshen/shared/trust";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -240,12 +241,32 @@ export function ProtectionBadge({ variant = "tint", children }: { variant?: "tin
   return <span className={`nh-badge nh-badge-${variant} label`}><Icon name="shield-check" size={16} />{children ?? t("Protected by NosHen")}</span>;
 }
 
-export function ListingCard({ title, priceKobo, area, posted, imageUrl, href, sold, left }: {
+/**
+ * NosHen's trust badge, the "N hallmark": a grey outline for a new seller, a green outline while they build a track
+ * record, solid green once trusted. The levels differ by fill, not only colour. With `label`, it's announced as that;
+ * without, it's decoration beside words that say the level.
+ */
+export function TrustBadge({ level, size = 16, label }: { level: TrustLevel; size?: number; label?: string }) {
+  const solid = level === "trusted";
+  const ink = level === "new" ? "var(--ink-muted)" : "var(--primary)";
+  // Heavier lines when small, so the N still reads at 16px.
+  const small = size <= 24;
+  return (
+    <svg className="nh-trust" width={size} height={size} viewBox="0 0 56 56" role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
+      <path d="M28 5 L47 12 V27 C47 39 39 47 28 51 C17 47 9 39 9 27 V12 Z" fill={solid ? ink : "none"} stroke={ink} strokeWidth={small ? 4.2 : 2.4} strokeLinejoin="round" />
+      <path d="M21 36 V20 L35 36 V20" fill="none" stroke={solid ? "var(--on-primary)" : ink} strokeWidth={small ? 5 : 3} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function ListingCard({ title, priceKobo, area, posted, imageUrl, href, sold, left, seller }: {
   title: string; priceKobo: number | string; area?: string; posted?: string; imageUrl?: string; href: string;
   /** Every unit has sold: the card says so and dims. */
   sold?: boolean;
   /** Units still for sale, shown when there's more than one to start with. */
   left?: number | null;
+  /** The seller's trust level and completed deals, for the badge under the price. */
+  seller?: { level: TrustLevel; deals: number };
 }) {
   const t = useT();
   const meta = [area, posted].filter(Boolean).join(" · ");
@@ -260,6 +281,12 @@ export function ListingCard({ title, priceKobo, area, posted, imageUrl, href, so
         <p className="nh-listing-title title">{title}</p>
         <p className="nh-listing-price heading">{naira(priceKobo)}</p>
         {meta ? <p className="nh-listing-meta caption"><Icon name="map-pin" size={16} />{meta}</p> : null}
+        {seller ? (
+          <p className={cx("nh-listing-seller caption", seller.level === "trusted" && "trusted")}>
+            <TrustBadge level={seller.level} size={16} />
+            {seller.level === "trusted" ? t("Trusted seller") : seller.level === "new" ? t("New seller") : seller.deals === 1 ? t("1 deal done") : t("{n} deals done", { n: seller.deals })}
+          </p>
+        ) : null}
       </div>
     </Link>
   );

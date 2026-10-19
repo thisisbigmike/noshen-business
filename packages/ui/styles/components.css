@@ -132,6 +132,9 @@
 .nh-listing-title, .nh-listing-price, .nh-listing-meta { margin: 0; }
 .nh-listing-price { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .nh-listing-meta { display: flex; align-items: center; gap: 6px; color: var(--ink-muted); }
+.nh-listing-seller { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-muted); }
+.nh-listing-seller.trusted { color: var(--primary-ink); font-weight: 600; }
+.nh-trust { flex: none; display: block; }
 
 /* Deal card: a soft wash in the money's colour; held money gets a slow light running round the edge. */
 .nh-deal { --wash: var(--canvas); --edge: var(--border); position: relative; isolation: isolate; display: flex; flex-direction: column; gap: var(--space-2); width: 100%; max-width: 360px; padding: var(--space-4); border: 1px solid var(--edge); border-radius: var(--radius-lg); background: linear-gradient(180deg, var(--wash), var(--surface) 72%); color: var(--ink); box-shadow: var(--shadow-sm); transition: transform var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
