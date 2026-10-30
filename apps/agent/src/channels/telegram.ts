@@ -2,6 +2,7 @@ import { Bot, InlineKeyboard } from "grammy";
 import type { Api } from "grammy";
 import { config } from "../config.js";
 import { CommerceAgent, readApprovalReply, type ApprovalDecision } from "../gemini.js";
+import { startLink, unlink, type AgentIdentity } from "../noshen-account.js";
 
 // Telegram rejects messages over 4096 characters; this leaves room for formatting tags.
 const MESSAGE_LIMIT = 3500;
@@ -17,6 +18,8 @@ const TOOL_STATUS: Record<string, string> = {
   search_noshen_help: "📖 Checking NosHen's rules…",
   search_noshen_listings: "🔎 Searching NosHen…",
   search_ebay: "🔎 Searching eBay…",
+  my_wallet: "👛 Checking your wallet…",
+  my_deals: "📋 Checking your deals…",
   jev_risk_evaluator: "🛡️ Checking the deal for fraud…",
 };
 
@@ -32,8 +35,15 @@ interface PendingApproval {
 }
 const pendingApprovals = new Map<number, PendingApproval>();
 
-function sessionFor(chatId: number): CommerceAgent {
-  const agent = sessions.get(chatId) ?? new CommerceAgent();
+/**
+ * The person a chat belongs to: only a private chat, where the chat is the person. In a group, nobody's account is
+ * looked up, whoever asks.
+ */
+const identityOf = (chat: { id: number; type: string }): AgentIdentity | undefined =>
+  chat.type === "private" ? { channel: "telegram", externalId: String(chat.id) } : undefined;
+
+function sessionFor(chatId: number, identity?: AgentIdentity): CommerceAgent {
+  const agent = sessions.get(chatId) ?? new CommerceAgent({ identity });
   sessions.delete(chatId);
   sessions.set(chatId, agent);
   if (sessions.size > MAX_SESSIONS) {
@@ -56,6 +66,7 @@ export async function startTelegramBot() {
       "👋 Hello! I am your NosHen Universal Agentic Commerce Assistant.\n\n" +
       "I find items for sale on NosHen and eBay, and answer questions about how NosHen deals work.\n\n" +
       "Tell me what you're looking for! (e.g. 'Find a clean iPhone 13 in Lagos')\n\n" +
+      "Send /link to connect your NosHen account: then I can show your wallet and your deals.\n\n" +
       "Send /reset any time to start a fresh conversation."
     );
   });
@@ -66,6 +77,27 @@ export async function startTelegramBot() {
     await ctx.reply("🧹 Fresh start. What are you looking for?");
   });
 
+  // Linking this chat to a NosHen account: a one-time link the person opens, signs in and confirms.
+  bot.command("link", async (ctx) => {
+    const who = identityOf(ctx.chat);
+    if (!who) return void (await ctx.reply("Link your NosHen account in a private chat with me, not in a group."));
+    const name = ctx.from?.username ? `@${ctx.from.username}` : ctx.from?.first_name ?? null;
+    const r = await startLink(who, name);
+    if (!r.ok) return void (await ctx.reply(r.data?.message ?? "I couldn't make a link just now. Please try again in a minute."));
+    const text = "Open this link, sign in to NosHen and confirm. It works once, for 10 minutes.";
+    // Telegram only takes https links on buttons; on a test site the link goes in the message instead.
+    await ctx.reply(text, { reply_markup: new InlineKeyboard().url("🔗 Link my NosHen account", r.data.url) })
+      .catch(() => ctx.reply(`${text}\n\n${r.data.url}`));
+  });
+
+  bot.command("unlink", async (ctx) => {
+    const who = identityOf(ctx.chat);
+    if (!who) return void (await ctx.reply("Unlink in a private chat with me, not in a group."));
+    const r = await unlink(who);
+    await ctx.reply(!r.ok ? (r.data?.message ?? "I couldn't do that just now. Please try again in a minute.")
+      : r.data?.unlinked ? "Done: this chat isn't linked to your NosHen account any more." : "This chat wasn't linked to a NosHen account.");
+  });
+
   bot.on("message:text", (ctx) => {
     // A typed yes or no answers the approval the chat is waiting on, instead of starting a new message.
     const pending = pendingApprovals.get(ctx.chat.id);
@@ -74,7 +106,7 @@ export async function startTelegramBot() {
       return;
     }
     // Not awaited: grammY handles updates one at a time, so waiting here would make every other chat wait too.
-    void replyTo(ctx.api, ctx.chat.id, ctx.from.id, ctx.message.text);
+    void replyTo(ctx.api, ctx.chat.id, ctx.from.id, ctx.message.text, identityOf(ctx.chat));
   });
 
   bot.on("callback_query:data", async (ctx) => {
@@ -93,6 +125,8 @@ export async function startTelegramBot() {
     .setMyCommands([
       { command: "start", description: "What I can do" },
       { command: "reset", description: "Start a fresh conversation" },
+      { command: "link", description: "Link your NosHen account" },
+      { command: "unlink", description: "Unlink your NosHen account" },
     ])
     .catch(() => {});
 
@@ -102,7 +136,7 @@ export async function startTelegramBot() {
 }
 
 /** Answers one message, showing the reply as it is written. */
-async function replyTo(api: Api, chatId: number, userId: number, text: string) {
+async function replyTo(api: Api, chatId: number, userId: number, text: string, identity?: AgentIdentity) {
   const startedAt = Date.now();
   let waitingForUser = false;
   const sendTyping = () => {
@@ -113,7 +147,7 @@ async function replyTo(api: Api, chatId: number, userId: number, text: string) {
   let reply = new LiveReply(api, chatId);
 
   try {
-    await sessionFor(chatId).sendMessage(text, {
+    await sessionFor(chatId, identity).sendMessage(text, {
       onEvent: (event) => {
         if (event.type === "tool") reply.setStatus(TOOL_STATUS[event.name] ?? "⏳ Working on it…");
         else if (event.type === "text") reply.addText(event.text);

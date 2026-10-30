@@ -44,7 +44,7 @@ function reasonOf(reason: string) {
   return why;
 }
 
-async function logAction(tx: Tx, staffId: string, action: string, targetType: "user" | "deal" | "listing", targetId: string, reason: string, payload: object = {}) {
+async function logAction(tx: Tx, staffId: string, action: string, targetType: "user" | "deal" | "listing" | "setting", targetId: string, reason: string, payload: object = {}) {
   await tx.db.query("insert into staff_actions (staff_id, action, target_type, target_id, reason, payload) values ($1, $2, $3, $4, $5, $6)",
     [staffId, action, targetType, targetId, reason, JSON.stringify(payload)]);
 }
@@ -284,5 +284,52 @@ export async function noteToBoth(d: Deps, staff: StaffActor, dealId: string, not
     const deal = await lockDeal(tx.db, dealId);
     for (const u of [deal.buyer_id, deal.seller_id]) await notify(d, tx, u, dealId, "staff_note", `Message from NosHen: ${text}`);
     await logAction(tx, staff.id, "note_to_both", "deal", dealId, text);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The NosHen assistant (agent.ts)
+
+/** A setting has no id of its own; the audit log files changes to it under this one. */
+const SETTINGS_TARGET = "00000000-0000-0000-0000-000000000000";
+
+/** Stops the NosHen assistant acting for one person, or lets it again. Their chats stay linked. They're told. */
+export async function setAgentBlocked(d: Deps, staff: StaffActor, userId: string, blocked: boolean, reason: string) {
+  const why = reasonOf(reason);
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    const u = await one<{ agent_blocked_at: Date | null }>(tx.db, "select agent_blocked_at from users where id = $1 for update", [userId]);
+    if (!u) throw new DealError("not_found", "We can't find that person.", 404);
+    if (!!u.agent_blocked_at === blocked) throw new DealError("state", blocked ? "The assistant is already stopped for them." : "The assistant can already act for them.");
+    await tx.db.query("update users set agent_blocked_at = $2 where id = $1", [userId, blocked ? new Date() : null]);
+    await notify(d, tx, userId, null, blocked ? "assistant_blocked" : "assistant_unblocked", blocked
+      ? "NosHen has stopped the assistant (the Telegram bot) acting for your account. Everything else works as before. Contact NosHen support to find out more."
+      : "The NosHen assistant can act for your account again.");
+    await logAction(tx, staff.id, blocked ? "block_assistant" : "unblock_assistant", "user", userId, why);
+  });
+}
+
+/** Unlinks a chat from someone's account. They're told. */
+export async function staffUnlinkAgent(d: Deps, staff: StaffActor, linkId: string, reason: string) {
+  const why = reasonOf(reason);
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    const l = await one<{ user_id: string; external_name: string | null }>(tx.db,
+      "update agent_links set revoked_at = now(), revoked_by = 'staff' where id = $1 and revoked_at is null returning user_id, external_name", [linkId]);
+    if (!l) throw new DealError("not_found", "That chat isn't linked any more.", 404);
+    await notify(d, tx, l.user_id, null, "assistant_unlinked",
+      `NosHen unlinked the Telegram chat${l.external_name ? ` (${l.external_name})` : ""} from your account. Send /link there to link it again.`);
+    await logAction(tx, staff.id, "unlink_assistant", "user", l.user_id, why, { link: linkId });
+  });
+}
+
+/** Switches the NosHen assistant off for everyone, or back on. Admins only. It takes effect at once. */
+export async function setAgentEnabled(d: Deps, staff: StaffActor, enabled: boolean, reason: string) {
+  const why = reasonOf(reason);
+  if (staff.role !== "admin") throw new DealError("forbidden", "Only an admin can switch the assistant on or off.", 403);
+  return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
+    await tx.db.query(
+      `insert into settings (key, value, updated_by, updated_at) values ('agent_enabled', $1, $2, now())
+       on conflict (key) do update set value = excluded.value, updated_by = excluded.updated_by, updated_at = now()`,
+      [JSON.stringify(enabled), staff.id]);
+    await logAction(tx, staff.id, enabled ? "assistant_on" : "assistant_off", "setting", SETTINGS_TARGET, why);
   });
 }

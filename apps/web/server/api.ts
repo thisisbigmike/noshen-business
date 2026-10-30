@@ -5,6 +5,9 @@ import { withApp, partnerFor, cryptoFor, walletsFor, mailFor, pushFor, isDev, is
 import { pushToUser } from "@noshen/engine/core";
 import { handlePartnerEvent } from "@noshen/engine/deals";
 import { handleWalletEvent } from "@noshen/engine/wallets";
+import { agentDeals, agentPerson, agentWallet, logAgentRequest, startAgentLink, unlinkChat, type AgentChannel } from "@noshen/engine/agent";
+import { timingSafeEqual } from "@noshen/engine/crypto";
+import type { Deps } from "@noshen/engine/core";
 import type { WalletEvent } from "@noshen/engine/partner/blockradar";
 import { sweep } from "@noshen/engine/sweep";
 import { dealView, dealsFor } from "@noshen/engine/queries";
@@ -71,6 +74,64 @@ api.post("/api/webhooks/blockradar", async (c) => {
   const result = await withApp((d) => handleWalletEvent(d, event));
   return c.json({ ok: true, result });
 });
+
+// The NosHen assistant's API. The Telegram bot calls it with its own key, for the person whose chat it's in, and
+// gets only what agent.ts allows: linking, and looking things up for a linked person. Every rule is checked there;
+// the bot never reaches the database or the wallets itself.
+const textBytes = (s: string) => new TextEncoder().encode(s);
+api.use("/api/agent/*", async (c, next) => {
+  const key = (env as unknown as Record<string, string | undefined>).AGENT_API_KEY;
+  if (!key) return c.notFound();
+  const given = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  if (!timingSafeEqual(textBytes(given), textBytes(key))) return c.json({ error: "Not allowed." }, 401);
+  await next();
+});
+const agentRefusal = (e: unknown) => (e instanceof DealError ? { error: e.code, message: e.message, status: e.status } : null);
+api.post("/api/agent/link", async (c) => {
+  const b = await c.req.json<{ channel?: string; externalId?: string; externalName?: string }>().catch(() => ({}) as never);
+  try {
+    return c.json(await withApp((d) => startAgentLink(d, b?.channel as AgentChannel, String(b?.externalId ?? ""), b?.externalName ?? null)));
+  } catch (e) {
+    const r = agentRefusal(e);
+    if (r) return c.json(r, 400);
+    throw e;
+  }
+});
+api.post("/api/agent/unlink", async (c) => {
+  const b = await c.req.json<{ channel?: string; externalId?: string }>().catch(() => ({}) as never);
+  try {
+    return c.json({ unlinked: await withApp((d) => unlinkChat(d, b?.channel as AgentChannel, String(b?.externalId ?? ""))) });
+  } catch (e) {
+    const r = agentRefusal(e);
+    if (r) return c.json(r, 400);
+    throw e;
+  }
+});
+/** Looks something up for the person linked to the chat in ?channel=&externalId=, if the assistant may act for them. */
+function forLinkedPerson(action: string, look: (d: Deps, userId: string) => Promise<unknown>) {
+  return async (c: any) => {
+    try {
+      return await withApp(async (d) => {
+        const p = await agentPerson(d, c.req.query("channel") as AgentChannel, c.req.query("externalId") ?? "");
+        if (!p) return c.json({ error: "not_linked", message: "This chat isn't linked to a NosHen account yet. Send /link to link it." }, 403);
+        if (!p.allowed) {
+          await logAgentRequest(d.db, p.linkId, action, false);
+          return c.json({ error: "not_allowed", message: p.why }, 403);
+        }
+        const result = await look(d, p.userId);
+        await logAgentRequest(d.db, p.linkId, action, true);
+        return c.json({ name: p.name, ...(result as object) });
+      });
+    } catch (e) {
+      const r = agentRefusal(e);
+      if (r) return c.json(r, r.status === 503 ? 503 : 400);
+      throw e;
+    }
+  };
+}
+api.get("/api/agent/me", forLinkedPerson("me", async () => ({ linked: true })));
+api.get("/api/agent/wallet", forLinkedPerson("wallet", agentWallet));
+api.get("/api/agent/deals", forLinkedPerson("deals", async (d, userId) => ({ deals: await agentDeals(d, userId) })));
 
 // Phone and computer notifications: a device turns them on (or off) for the signed-in person. Only NosHen's own
 // pages may call these (checked by Origin, on top of the sign-in cookie being same-site).

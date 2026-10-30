@@ -3,7 +3,10 @@ import type { Route } from "./+types/person";
 import { env } from "cloudflare:workers";
 import { messageOf, requireStaff, withApp } from "../../server/web";
 import { staffPerson } from "@noshen/engine/queries";
-import { removeProfilePhoto, setAccountStatus, setDealLimit } from "@noshen/engine/staff";
+import { removeProfilePhoto, setAccountStatus, setAgentBlocked, setDealLimit, staffUnlinkAgent } from "@noshen/engine/staff";
+import { staffAgentView } from "@noshen/engine/agent";
+import { walletActivity, walletBalances } from "@noshen/engine/wallets";
+import { coinAmount, networkOf } from "@noshen/shared/payments";
 import { deletePhoto } from "@noshen/engine/photos";
 import { settingsOf } from "@noshen/engine/core";
 import { Avatar, Icon, Info, Kv, TextField } from "@noshen/ui/ui";
@@ -20,8 +23,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const v = await staffPerson(d.db, params.id);
     if (!v) throw data("Not found", { status: 404 });
-    const s = await settingsOf(d);
-    return { ...v, isAdmin: staff.role === "admin", appUrl: env.APP_URL, standardCap: s.unverified_seller_max_kobo };
+    const [s, assistant, balances, activity] = await Promise.all([
+      settingsOf(d), staffAgentView(d.db, params.id), walletBalances(d, params.id), walletActivity(d, params.id, 10),
+    ]);
+    return { ...v, assistant, wallet: { balances, activity }, isAdmin: staff.role === "admin", appUrl: env.APP_URL, standardCap: s.unverified_seller_max_kobo };
   });
 }
 
@@ -47,6 +52,14 @@ export async function action({ request, params }: Route.ActionArgs): Promise<Act
       const old = await withApp((d) => removeProfilePhoto(d, staff, params.id, reason));
       if (old) await deletePhoto(old).catch((e) => console.error("couldn't delete profile photo", e));
       return { ok: true, intent, message: "Photo removed. They've been told why." };
+    }
+    if (intent === "assistant_block" || intent === "assistant_unblock") {
+      await withApp((d) => setAgentBlocked(d, staff, params.id, intent === "assistant_block", reason));
+      return { ok: true, intent, message: intent === "assistant_block" ? "The assistant can't act for them now. They've been told." : "The assistant can act for them again. They've been told." };
+    }
+    if (intent === "assistant_unlink") {
+      await withApp((d) => staffUnlinkAgent(d, staff, String(f.get("link")), reason));
+      return { ok: true, intent, message: "Chat unlinked. They've been told." };
     }
     if (intent === "standard") {
       await withApp((d) => setDealLimit(d, staff, params.id, null, reason));
@@ -181,6 +194,45 @@ export default function Person({ loaderData: v }: Route.ComponentProps) {
               <TextField label="Limit in naira" name="limit" inputMode="numeric" required placeholder="500000" defaultValue={u.max_deal_kobo ? String(Number(u.max_deal_kobo) / 100) : ""} />
             </ReasonAction>
             {u.max_deal_kobo ? <ReasonAction intent="standard" label="Use the standard rules" help="Removes the limit you set." /> : null}
+          </section>
+
+          <section className="panel" aria-labelledby="wallet-title">
+            <h2 id="wallet-title" className="title">Wallet</h2>
+            {v.wallet.balances.length === 0 ? <p className="caption muted">Nothing held.</p> : (
+              <div>{v.wallet.balances.map((b) => <Kv key={b.coin + b.network} k={networkOf(b.network).name} v={coinAmount(b.micro, b.coin)} />)}</div>
+            )}
+            {v.wallet.activity.length ? (
+              <ul className="mini-list">
+                {v.wallet.activity.map((a) => (
+                  <li key={a.kind + a.id} className="stack" style={{ gap: 2 }}>
+                    <span className="body">{a.kind === "deposit" ? "Deposit" : `Withdrawal to ••${a.to_last4}`} · {coinAmount(a.micro, a.coin)} on {networkOf(a.network).name}</span>
+                    <span className="caption muted">{a.status} · {when(new Date(a.at))}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+
+          <section className="panel" aria-labelledby="assistant-title">
+            <h2 id="assistant-title" className="title">NosHen assistant</h2>
+            {v.assistant.blockedAt ? <Info icon="lock" tone="warn">Stopped by staff {ago(v.assistant.blockedAt)}. It can't act for them, even from a linked chat.</Info> : null}
+            {v.assistant.links.length === 0 ? <p className="caption muted">No Telegram chat linked.</p> : v.assistant.links.map((l) => (
+              <div key={l.id} className="stack" style={{ gap: 6 }}>
+                <span className="body">Telegram{l.external_name ? `: ${l.external_name}` : ""} · linked {ago(l.created_at)}</span>
+                <ReasonAction intent="assistant_unlink" hidden={{ link: l.id }} label="Unlink this chat" danger
+                  help="The chat can't act for them until they link it again with /link. They're told it was unlinked, not your reason." />
+              </div>
+            ))}
+            {v.assistant.blockedAt
+              ? <ReasonAction intent="assistant_unblock" label="Let the assistant act again" help="Their linked chats work again. They're told." />
+              : <ReasonAction intent="assistant_block" label="Stop the assistant for them" danger
+                  help="Their chats stay linked, but the assistant can't look anything up or act for them until you allow it again. They're told it was stopped, not your reason." />}
+            {v.assistant.requests.length ? (
+              <div className="stack" style={{ gap: 2 }}>
+                <p className="label">Latest requests</p>
+                {v.assistant.requests.map((r, i) => <span key={i} className="caption">{r.action}{r.ok ? "" : " (refused)"} · {when(new Date(r.at))}</span>)}
+              </div>
+            ) : null}
           </section>
 
           <section className="panel" aria-labelledby="history-title">

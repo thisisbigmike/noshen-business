@@ -27,6 +27,7 @@ export default [
     route("sell/:id/delivery", "routes/sell-delivery.tsx"),
     route("account", "routes/account.tsx"),
     route("account/verify", "routes/verify.tsx"),
+    route("link/:code", "routes/link.tsx"),
     route("notifications", "routes/notifications.tsx"),
     route("signin", "routes/signin.tsx"),
     route("signout", "routes/signout.tsx"),

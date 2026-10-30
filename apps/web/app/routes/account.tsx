@@ -21,19 +21,20 @@ import { HandlesCard, type Handle } from "../lib/handles";
 import { ProfilePhoto } from "../lib/profile-photo";
 import { deletePhoto, photosFrom, storePhoto } from "@noshen/engine/photos";
 import { addHandle, myHandles, removeHandle, submitHandle } from "@noshen/engine/handles";
+import { agentLinksOf, unlinkAgent } from "@noshen/engine/agent";
 
 export const meta = () => [{ title: "Account · NosHen" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const user = await requireUser(request, d);
-    const [ready, summary, listings, bank, kyc, handles] = await Promise.all([
+    const [ready, summary, listings, bank, kyc, handles, links] = await Promise.all([
       sellerReady(d, user.id), sellerSummary(d.db, user.id), myListings(d.db, user.id),
       one(d.db, "select account_name, account_last4 from bank_accounts where user_id = $1 and is_default and removed_at is null", [user.id]),
       one(d.db, "select type, verified_name from kyc_checks where user_id = $1 and result = 'verified' order by checked_at desc limit 1", [user.id]),
-      myHandles(d.db, user.id),
+      myHandles(d.db, user.id), agentLinksOf(d.db, user.id),
     ]);
-    return { user, ready, summary, listings, bank, kyc, handles: handles as Handle[], shop: `${new URL(request.url).origin}/s/${user.id}` };
+    return { user, ready, summary, listings, bank, kyc, handles: handles as Handle[], links, shop: `${new URL(request.url).origin}/s/${user.id}` };
   });
 }
 
@@ -56,6 +57,8 @@ export async function action({ request }: Route.ActionArgs) {
       if (intent === "handle_add") return void await addHandle(d, user.id, String(f.get("platform") ?? ""), String(f.get("handle") ?? ""));
       if (intent === "handle_submit") return submitHandle(d, user.id, String(f.get("handle")));
       if (intent === "handle_remove") return removeHandle(d, user.id, String(f.get("handle")));
+      // A Telegram chat linked to the NosHen assistant.
+      if (intent === "agent_unlink") return unlinkAgent(d, user.id, String(f.get("link")));
       const visibility = f.get("visibility");
       if (visibility === "public" || visibility === "link") await setVisibility(d, user.id, String(f.get("listing")), visibility);
       else await setListingStatus(d, user.id, String(f.get("listing")), String(f.get("status")) as "paused" | "live" | "removed");
@@ -123,7 +126,7 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
             ))}
           </section>
         ) : null}
-        <ErrorText>{/^(handle|photo)_/.test((actionData as any)?.intent ?? "") ? null : (actionData as any)?.error}</ErrorText>
+        <ErrorText>{/^(handle|photo|agent)_/.test((actionData as any)?.intent ?? "") ? null : (actionData as any)?.error}</ErrorText>
         {x.listings.length ? (
           <section className="card stack" aria-labelledby="shop-link">
             <p className="title" id="shop-link">{t("Your shop link")}</p>
@@ -136,6 +139,21 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
           <HandlesCard handles={x.handles} idOk={x.ready.idOk} error={(actionData as any)?.intent?.startsWith("handle_") ? (actionData as any)?.error : null} />
         ) : null}
         <PushCard />
+        <section className="card stack" aria-labelledby="assistant">
+          <p className="title" id="assistant">{t("NosHen assistant")}</p>
+          <p className="caption muted">{t("The NosHen assistant on Telegram can show your wallet and where your deals stand. Send it /link to connect it to this account.")}</p>
+          {x.links.map((l) => (
+            <div key={l.id} className="kv" style={{ alignItems: "center" }}>
+              <span className="body">{l.external_name ? t("Telegram: {name}", { name: l.external_name }) : t("Telegram chat")}</span>
+              <Form method="post">
+                <input type="hidden" name="intent" value="agent_unlink" />
+                <input type="hidden" name="link" value={l.id} />
+                <Button type="submit">{t("Unlink")}</Button>
+              </Form>
+            </div>
+          ))}
+          <ErrorText>{(actionData as any)?.intent === "agent_unlink" ? (actionData as any)?.error : null}</ErrorText>
+        </section>
         <section className="card stack" aria-labelledby="language">
           <p className="title" id="language">{t("Language")}</p>
           <p className="caption muted">{t("NosHen in English or Pidgin. Your choice is saved on this device.")}</p>

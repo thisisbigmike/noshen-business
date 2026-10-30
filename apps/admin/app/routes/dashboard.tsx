@@ -1,6 +1,6 @@
 import { Link, useSearchParams } from "react-router";
 import type { Route } from "./+types/dashboard";
-import { requireStaff, withApp } from "../../server/web";
+import { messageOf, requireStaff, withApp } from "../../server/web";
 import { adminOverview, staffQueues } from "@noshen/engine/queries";
 import { Icon, Info, MoneyStatus } from "@noshen/ui/ui";
 import type { IconName } from "@noshen/ui/icons";
@@ -10,23 +10,40 @@ import { categoryOf } from "@noshen/shared/categories";
 import { left, when } from "@noshen/shared/time";
 import { waitlistCounts } from "@noshen/engine/waitlist";
 import { marketOf } from "@noshen/shared/locations";
+import { agentOverview } from "@noshen/engine/agent";
+import { setAgentEnabled } from "@noshen/engine/staff";
+import { ReasonAction, type ActionResult } from "../lib/reason-action";
 
 export const meta = () => [{ title: "Dashboard · NosHen staff" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   const staff = await requireStaff(request);
-  const [q, o, waiting] = await withApp((d) => Promise.all([staffQueues(d.db), adminOverview(d.db), waitlistCounts(d.db)]));
+  const [q, o, waiting, assistant] = await withApp((d) => Promise.all([staffQueues(d.db), adminOverview(d.db), waitlistCounts(d.db), agentOverview(d.db)]));
   // Worked out here, in Nigeria time (WAT), so the page reads the same on the server and in the browser.
   const now = new Date();
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Lagos" }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const today = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Lagos" }).format(now);
-  return { q, o, waiting, greeting: `${greeting}, ${firstName(staff.name)}`, today };
+  return { q, o, waiting, assistant, isAdmin: staff.role === "admin", greeting: `${greeting}, ${firstName(staff.name)}`, today };
+}
+
+/** Switching the NosHen assistant off (or on) for everyone. Admins only; it takes effect at once. */
+export async function action({ request }: Route.ActionArgs): Promise<ActionResult> {
+  const staff = await requireStaff(request);
+  const f = await request.formData();
+  const intent = String(f.get("intent"));
+  if (intent !== "assistant_off" && intent !== "assistant_on") return { ok: false, intent, error: "Unknown action." };
+  try {
+    await withApp((d) => setAgentEnabled(d, staff, intent === "assistant_on", String(f.get("reason") ?? "")));
+    return { ok: true, intent, message: intent === "assistant_on" ? "The assistant is on again." : "The assistant is off. It can't act for anyone until it's switched on." };
+  } catch (e) {
+    return { ok: false, intent, error: messageOf(e) };
+  }
 }
 
 const dayLabel = (day: string, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
 
-export default function Dashboard({ loaderData: { q, o, waiting, greeting, today } }: Route.ComponentProps) {
+export default function Dashboard({ loaderData: { q, o, waiting, assistant, isAdmin, greeting, today } }: Route.ComponentProps) {
   const [params] = useSearchParams();
   const decided = params.get("decided");
   const total = q.disputes.length + q.holds.length + q.locked.length + q.stuck.length + q.failed.length;
@@ -185,6 +202,22 @@ export default function Dashboard({ loaderData: { q, o, waiting, greeting, today
           </div>
         </section>
       ) : null}
+
+      <section className="panel" aria-labelledby="assistant-title">
+        <div className="panel-head">
+          <h2 id="assistant-title" className="title">NosHen assistant (Telegram)</h2>
+          <span className={`st-pill ${assistant.enabled ? "ok" : "bad"}`}>{assistant.enabled ? "On" : "Off"}</span>
+        </div>
+        <p className="caption muted">
+          {assistant.links} chat{assistant.links === 1 ? "" : "s"} linked to {assistant.people} account{assistant.people === 1 ? "" : "s"}. {assistant.requests24h} request{assistant.requests24h === 1 ? "" : "s"} in the last 24 hours{assistant.refused24h ? `, ${assistant.refused24h} refused` : ""}.
+          Stop it for one person, or unlink a chat, on their page under People.
+        </p>
+        {isAdmin ? (
+          assistant.enabled
+            ? <ReasonAction intent="assistant_off" label="Switch the assistant off" danger help="It stops acting for everyone at once: no lookups, and later no payments. Linked chats stay linked, so switching it back on needs nothing from people." />
+            : <ReasonAction intent="assistant_on" label="Switch the assistant on" help="It can act again for every linked chat whose account is active and not stopped." />
+        ) : <p className="caption muted">Only an admin can switch it on or off.</p>}
+      </section>
     </>
   );
 }

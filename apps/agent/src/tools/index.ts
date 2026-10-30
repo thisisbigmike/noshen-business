@@ -2,6 +2,7 @@ import { searchEbay } from "./ebay.js";
 import { searchNoshenListings } from "./noshen.js";
 import { evaluateRiskWithJev, jevConfigured } from "../jev.js";
 import { searchKnowledge } from "../knowledge.js";
+import { lookUp, type AgentIdentity } from "../noshen-account.js";
 
 const jevDeclaration = {
   name: "jev_risk_evaluator",
@@ -67,6 +68,18 @@ export const commerceToolDeclarations = [
       required: ["query", "action"],
     },
   },
+  {
+    name: "my_wallet",
+    description:
+      "The person's own NosHen wallet: what they hold (USDT and USDC on Solana, Base and BNB Smart Chain) and their deposit address for each " +
+      "network, with the coins each takes. Works only in a private Telegram chat the person has linked to their NosHen account with /link.",
+  },
+  {
+    name: "my_deals",
+    description:
+      "The person's own latest NosHen deals, as buyer or seller: what each is for, who with, the amount, where it stands, and its link. " +
+      "Works only in a private Telegram chat the person has linked to their NosHen account with /link.",
+  },
   // Jev is offered only with its API key: without one there's no real check to run.
   ...(jevConfigured() ? [jevDeclaration] : []),
 ];
@@ -80,7 +93,8 @@ export function approvalNeeded(name: string, args: Record<string, any>): string 
   return NEEDS_APPROVAL[name]?.(args) ?? null;
 }
 
-export async function executeCommerceTool(name: string, args: Record<string, any>): Promise<unknown> {
+/** `who` is the person the chat belongs to, when the channel knows (a private Telegram chat); account tools need it. */
+export async function executeCommerceTool(name: string, args: Record<string, any>, who?: AgentIdentity): Promise<unknown> {
   switch (name) {
     case "search_noshen_help": {
       const hits = await searchKnowledge(String(args.query ?? ""));
@@ -91,6 +105,10 @@ export async function executeCommerceTool(name: string, args: Record<string, any
       return await searchNoshenListings(args);
     case "search_ebay":
       return await searchEbay(args as any);
+    case "my_wallet":
+      return await lookUp("wallet", who);
+    case "my_deals":
+      return await lookUp("deals", who);
     case "jev_risk_evaluator":
       if (!jevConfigured()) throw new Error("Jev AI isn't connected (no JEV_API_KEY).");
       return await evaluateRiskWithJev(args as any);

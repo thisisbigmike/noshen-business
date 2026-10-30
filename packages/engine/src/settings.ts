@@ -23,6 +23,8 @@ export interface Settings {
   buyer_id_required_above_kobo: number;
   /** NosHen's WhatsApp number for help while selling, in international form (2348012345678), or null to hide the link. */
   support_whatsapp: string | null;
+  /** Whether the NosHen assistant (the Telegram bot) may act for linked accounts at all. Staff switch it off here. */
+  agent_enabled: boolean;
 }
 
 export const DEFAULTS: Settings = {
@@ -41,6 +43,7 @@ export const DEFAULTS: Settings = {
   unverified_seller_max_kobo: 30_000_000,
   buyer_id_required_above_kobo: 50_000_000,
   support_whatsapp: null,
+  agent_enabled: true,
 };
 
 /** Deal rules from the settings table, falling back to the PRD's values. */

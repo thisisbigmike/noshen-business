@@ -21,3 +21,6 @@ GOOGLE_CLIENT_SECRET=
 # BLOCKRADAR_BASE_API_KEY=
 # BLOCKRADAR_BSC_WALLET_ID=
 # BLOCKRADAR_BSC_API_KEY=
+# The NosHen assistant (the Telegram bot in apps/agent) calls this site's /api/agent with this key: a long random
+# secret, the same as NOSHEN_AGENT_KEY in apps/agent/.env. Leave it out to switch the assistant's API off.
+# AGENT_API_KEY=
