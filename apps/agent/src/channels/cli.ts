@@ -2,6 +2,7 @@ import readline from "node:readline";
 import { CommerceAgent, readApprovalReply, type ApprovalDecision } from "../gemini.js";
 import { jevConfigured } from "../jev.js";
 import { ebayConfigured } from "../tools/ebay.js";
+import { config } from "../config.js";
 
 export async function runCLI() {
   const agent = new CommerceAgent();
@@ -20,6 +21,7 @@ export async function runCLI() {
   console.log("  • NosHen listings and help pages (live)");
   console.log(`  • eBay: ${ebayConfigured() ? "live listings" : "search links only (add EBAY_APP_ID and EBAY_CERT_ID for live listings)"}`);
   console.log(`  • Jev AI fraud check: ${jevConfigured() ? "on" : "off (add JEV_API_KEY)"}`);
+  console.log(`  • Your NosHen account: ${config.noshenAgentKey ? "on Telegram, once linked with /link" : "off (add NOSHEN_AGENT_KEY)"}`);
   console.log("=======================================================\n");
   console.log("Type your prompt or question below ('/reset' to start over, 'exit' to quit):\n");
 

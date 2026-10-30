@@ -10,6 +10,7 @@ A shopping assistant for NosHen, powered by **Google Gemini** (`gemini-flash-lit
 2. **NosHen help**: answers about the fee, time limits, paying, release codes, disputes and safety, from NosHen's own help pages.
 3. **eBay (Browse API)**: live listings with price, delivery cost to Nigeria, condition and seller rating. Buying happens on the listing's own eBay page, because eBay doesn't let outside apps check out for a buyer. Without eBay API keys the agent sends a link to the same search on eBay's website.
 4. **Jev AI fraud check**: rates a deal's fraud risk through TypeSafe AI's API. Offered only when `JEV_API_KEY` is set.
+5. **Your own NosHen account**: once someone links their private Telegram chat with `/link`, the agent can show their wallet (balances and deposit addresses) and where their deals stand. It asks the NosHen site's `/api/agent` with its own key; the site checks every rule, and staff can unlink a chat, stop the agent for one person, or switch it off for everyone.
 
 The agent only reads. It can't pay, move money, place orders, or start, check or dispute a NosHen deal: it gives people the link to do those themselves.
 
@@ -31,6 +32,8 @@ GEMINI_API_KEY=AIzaSy...
 *(Optional: for live eBay listings, add `EBAY_APP_ID` and `EBAY_CERT_ID`, the App ID and Cert ID of a Production keyset from [developer.ebay.com](https://developer.ebay.com/my/keys). eBay switches a Production keyset on only after you set up account-deletion notifications or declare that you're exempt. Without the keys the agent sends a link to the same search on eBay's website.)*
 
 *(Optional: add `JEV_API_KEY`, a TypeSafe AI key, to switch on the Jev AI fraud check.)*
+
+*(Optional: add `NOSHEN_AGENT_KEY`, the same long random secret as `AGENT_API_KEY` in `apps/web/.dev.vars`, so people can link their NosHen account with `/link` and look up their wallet and deals. `NOSHEN_API_URL` must point at that site.)*
 
 ### 2. Run the Agent
 
