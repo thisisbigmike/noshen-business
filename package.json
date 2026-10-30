@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "node scripts/dev.mjs web",
     "dev:admin": "node scripts/dev.mjs admin",
+    "agent": "pnpm --filter @noshen/agent start",
+    "agent:dev": "pnpm --filter @noshen/agent dev",
     "build": "pnpm -r --filter \"./apps/*\" build",
     "deploy:web": "pnpm --filter @noshen/web run deploy",
     "deploy:admin": "pnpm --filter @noshen/admin run deploy",

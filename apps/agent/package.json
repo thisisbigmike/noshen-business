@@ -1,0 +1,23 @@
+{
+  "name": "@noshen/agent",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Universal Agentic Commerce Bot powered by Google Gemini, bridging Shopify, Stripe, eBay, AliExpress, Coinbase AgentKit, Skyfire, and NosHen Escrow.",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "telegram": "tsx src/channels/telegram.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^2.32.0",
+    "@noshen/shared": "workspace:*",
+    "dotenv": "^16.4.7",
+    "grammy": "^1.34.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.19.3",
+    "typescript": "^5.9.3"
+  }
+}
