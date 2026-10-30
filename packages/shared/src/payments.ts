@@ -17,7 +17,6 @@ export const NETWORKS = [
   { id: "solana", name: "Solana", standard: "SPL", fees: msg("Lowest network fees"), evm: false, testnet: "Solana devnet", explorer: "Solana Explorer" },
   { id: "bsc", name: "BNB Smart Chain", standard: "BEP-20", fees: msg("Low network fees"), evm: true, testnet: "BNB Smart Chain testnet", explorer: "BscScan" },
   { id: "base", name: "Base", standard: "", fees: msg("Low network fees"), evm: true, testnet: "Base Sepolia", explorer: "BaseScan" },
-  { id: "ethereum", name: "Ethereum", standard: "ERC-20", fees: msg("Higher network fees"), evm: true, testnet: "Ethereum Sepolia", explorer: "Etherscan" },
 ] as const;
 
 export type Network = (typeof NETWORKS)[number]["id"];
@@ -28,7 +27,6 @@ const TEST_EXPLORERS: Record<Network, (kind: "address" | "tx", id: string) => st
   solana: (kind, id) => `https://explorer.solana.com/${kind}/${id}?cluster=devnet`,
   bsc: (kind, id) => `https://testnet.bscscan.com/${kind}/${id}`,
   base: (kind, id) => `https://sepolia.basescan.org/${kind}/${id}`,
-  ethereum: (kind, id) => `https://sepolia.etherscan.io/${kind}/${id}`,
 };
 export const testExplorerLink = (network: Network, kind: "address" | "tx", id: string) => TEST_EXPLORERS[network](kind, id);
 

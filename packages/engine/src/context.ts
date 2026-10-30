@@ -4,8 +4,9 @@ import type { Deps, LiveRooms } from "./core";
 import { FakePartner } from "./partner/fake";
 import { FakeCryptoPartner } from "./partner/fake-crypto";
 import { LazyChainPartner } from "./partner/lazy-chain";
+import { Blockradar, WALLET_NETWORKS, type BlockradarConfig } from "./partner/blockradar";
 import type { SolanaConfig } from "./partner/solana";
-import type { EvmConfig } from "./partner/evm";
+import type { EvmConfig, EvmNetwork } from "./partner/evm";
 import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
 import { ConsoleEmail, NoEmail, type EmailSender } from "./email";
 import { DojahIdProvider, FakeIdProvider, UnconfiguredIdProvider, type IdProvider } from "./idcheck";
@@ -50,13 +51,15 @@ export function cryptoFor(): CryptoPartner | undefined {
 const checkSoon = () => Promise.all([10_000, 30_000].map((ms) => workflowTimers.schedule({ kind: "crypto_watch", at: new Date(Date.now() + ms) })));
 
 /**
- * NosHen's own wallet on BNB Smart Chain, Base and Ethereum test networks, for each one set up (pnpm evm:setup puts
+ * NosHen's own wallet on the BNB Smart Chain and Base test networks, for each one set up (pnpm evm:setup puts
  * the networks, RPCs and test tokens in EVM_TESTNETS; the keys are secrets). Networks not set up stay pretend.
  */
 function evmConfig(): EvmConfig | undefined {
   const e = env as unknown as Record<string, unknown>;
-  const networks = e.EVM_TESTNETS as EvmConfig["networks"] | undefined;
-  if (!e.EVM_WALLET || !e.EVM_DEPOSIT_SECRET || !networks || !Object.keys(networks).length) return undefined;
+  // Only the networks NosHen still takes: settings written before Ethereum was dropped may still list it.
+  const listed = (e.EVM_TESTNETS ?? {}) as Record<string, EvmConfig["networks"][EvmNetwork]>;
+  const networks = Object.fromEntries(Object.entries(listed).filter(([n]) => n === "bsc" || n === "base")) as EvmConfig["networks"];
+  if (!e.EVM_WALLET || !e.EVM_DEPOSIT_SECRET || !Object.keys(networks).length) return undefined;
   return { networks, walletKey: String(e.EVM_WALLET), depositSecret: String(e.EVM_DEPOSIT_SECRET),
     demoWalletKey: e.EVM_DEMO_WALLET ? String(e.EVM_DEMO_WALLET) : undefined };
 }
@@ -129,6 +132,21 @@ export function staffAlertsFor(): Deps["staffAlerts"] {
  * DOJAH_APP_ID and DOJAH_SECRET_KEY; anything else is the pretend check, where any 11 digits pass. Dojah without
  * its keys never lets anyone through.
  */
+/**
+ * Everyone's NosHen wallet (Blockradar): each network whose master wallet is set up, from BLOCKRADAR_<NETWORK>_WALLET_ID
+ * and BLOCKRADAR_<NETWORK>_API_KEY (SOLANA, BASE, BSC; the keys are secrets). With none set up there are no wallets.
+ */
+export function walletsFor(): Blockradar | undefined {
+  const e = env as unknown as Record<string, string | undefined>;
+  const wallets: BlockradarConfig["wallets"] = {};
+  for (const n of WALLET_NETWORKS) {
+    const walletId = e[`BLOCKRADAR_${n.toUpperCase()}_WALLET_ID`];
+    const apiKey = e[`BLOCKRADAR_${n.toUpperCase()}_API_KEY`];
+    if (walletId && apiKey) wallets[n] = { walletId, apiKey };
+  }
+  return Object.keys(wallets).length ? new Blockradar({ wallets }) : undefined;
+}
+
 export function idsFor(): IdProvider {
   const e = env as unknown as { ID_PROVIDER?: string; DOJAH_APP_ID?: string; DOJAH_SECRET_KEY?: string };
   if (e.ID_PROVIDER !== "dojah" && e.ID_PROVIDER !== "dojah-sandbox") return new FakeIdProvider();
@@ -141,6 +159,7 @@ export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
     db,
     partner: partnerFor(),
     crypto: cryptoFor(),
+    wallets: walletsFor(),
     mail,
     push: pushFor(),
     live: liveFor(),

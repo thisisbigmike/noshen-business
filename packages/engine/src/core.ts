@@ -1,6 +1,6 @@
 import type { Db, Tx } from "./db";
 import { one } from "./db";
-import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
+import type { CryptoPartner, PaymentsPartner, PartnerEvent, WalletProvider } from "./partner/types";
 import type { EmailSender } from "./email";
 import { sendPush, type PushConfig } from "./push";
 import type { IdProvider } from "./idcheck";
@@ -28,6 +28,8 @@ export interface Deps {
   partner: PaymentsPartner;
   /** Paying with USDT. Missing when no crypto partner is set up: then buyers pay by bank transfer only. */
   crypto?: CryptoPartner;
+  /** Everyone's NosHen wallet: fixed deposit addresses and coin balances. Missing when no wallet provider is set up. */
+  wallets?: WalletProvider;
   mail: EmailSender;
   /** Phone and computer notifications. Missing when no keys are set up: then updates are in the app (and email). */
   push?: PushConfig;

@@ -16,3 +16,4 @@ worker-configuration.d.ts
 .evm-testnet.vars
 .evm-testnet-keys.txt
 /brand/
+.cache/

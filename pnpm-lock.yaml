@@ -258,6 +258,9 @@ importers:
       '@google/genai':
         specifier: ^2.32.0
         version: 2.32.0(supports-color@10.2.2)
+      '@noshen/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@noshen/shared':
         specifier: workspace:*
         version: link:../../packages/shared

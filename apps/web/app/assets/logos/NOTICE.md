@@ -1,6 +1,6 @@
 # Coin and network logos
 
-`usdt.svg`, `usdc.svg`, `bsc.svg` and `ethereum.svg` come unchanged (apart from removing a class name) from
+`usdt.svg`, `usdc.svg` and `bsc.svg` come unchanged (apart from removing a class name) from
 [web3icons](https://web3icons.io) (`@web3icons/core` 4.0.58, "background" style).
 
 `solana.svg` is Solana's logomark as traced by [Simple Icons](https://simpleicons.org) (`simple-icons` 16.35.0,

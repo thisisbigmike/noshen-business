@@ -1,5 +1,6 @@
 import type { Db } from "./db";
-import { DEFAULT_FEE, type FeeRule } from "@noshen/shared/money";
+import { DEFAULT_FEE, naira, type FeeRule } from "@noshen/shared/money";
+import { QUOTE_MINUTES } from "@noshen/shared/payments";
 
 export interface Settings {
   deal_min_kobo: number;
@@ -24,7 +25,7 @@ export interface Settings {
   support_whatsapp: string | null;
 }
 
-const DEFAULTS: Settings = {
+export const DEFAULTS: Settings = {
   deal_min_kobo: 500_000,
   deal_max_kobo: null,
   fee: DEFAULT_FEE,
@@ -48,4 +49,23 @@ export async function loadSettings(db: Db): Promise<Settings> {
   const s: any = { ...DEFAULTS };
   for (const r of rows) if (r.key in DEFAULTS) s[r.key] = r.value;
   return s as Settings;
+}
+
+/**
+ * The numbers the legal and help pages quote ({{fee_min}}, {{payment_hours}} and so on), from the deal rules,
+ * so the pages and the commerce agent never disagree with the app.
+ */
+export function legalVars(s: Settings): Record<string, string> {
+  return {
+    deal_min: naira(s.deal_min_kobo),
+    deal_top: s.deal_max_kobo === null ? "there's no top price" : `the top price is ${naira(s.deal_max_kobo)}`,
+    fee_percent: String(s.fee.percent), fee_min: naira(s.fee.min_kobo), fee_max: naira(s.fee.max_kobo),
+    request_hours: String(s.request_ttl_hours), payment_hours: String(s.payment_ttl_hours),
+    handover_hours: String(s.handover_window_hours), delivery_hours: String(s.delivery_confirm_hours),
+    evidence_hours: String(s.evidence_window_hours), decision_hours: String(s.dispute_decision_hours), stage_hours: String(s.stage_confirm_hours),
+    code_attempts: String(s.release_code.max_attempts), code_lock_minutes: String(s.release_code.lock_minutes),
+    unverified_seller_max: naira(s.unverified_seller_max_kobo),
+    buyer_id_above: naira(s.buyer_id_required_above_kobo),
+    usdt_quote_minutes: String(QUOTE_MINUTES),
+  };
 }

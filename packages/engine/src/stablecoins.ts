@@ -49,7 +49,7 @@ export async function cryptoPaymentFor(d: Deps, buyerId: string, dealId: string,
 export async function prepareCryptoPayment(d: Deps, buyerId: string, dealId: string, coin: string, network: string, opts: { refresh?: boolean } = {}) {
   if (!d.crypto) throw new DealError("no_crypto", "Paying with USDT or USDC isn't available yet. Pay by bank transfer instead.");
   if (!isCoin(coin)) throw new DealError("coin", "Choose USDT or USDC.");
-  if (!isNetwork(network)) throw new DealError("network", "Choose Solana, BNB Smart Chain, Base or Ethereum.");
+  if (!isNetwork(network)) throw new DealError("network", "Choose Solana, BNB Smart Chain or Base.");
   const partner = d.crypto;
   return inTx(d.db, { type: "buyer", id: buyerId }, async (tx) => {
     const now = nowOf(d);

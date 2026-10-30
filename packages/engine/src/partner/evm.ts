@@ -2,7 +2,7 @@ import {
   createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi, parseAbiItem, toHex, type Address, type Chain, type Hex,
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { baseSepolia, bscTestnet, sepolia } from "viem/chains";
+import { baseSepolia, bscTestnet } from "viem/chains";
 import { QUOTE_MINUTES, coinMicroFor, koboForCoin, testExplorerLink, type Coin, type Network } from "@noshen/shared/payments";
 import { addMinutes } from "@noshen/shared/time";
 import { hmac } from "../crypto";
@@ -10,8 +10,8 @@ import { FAKE_RATE_KOBO } from "./fake-crypto";
 import type { CryptoMode, CryptoPartner, CryptoRefund, PartnerEvent, WatchedDeposit } from "./types";
 
 /** The Ethereum-style networks NosHen pays on, and the test network each one runs on for now. */
-export type EvmNetwork = "bsc" | "base" | "ethereum";
-const CHAINS: Record<EvmNetwork, Chain> = { bsc: bscTestnet, base: baseSepolia, ethereum: sepolia };
+export type EvmNetwork = "bsc" | "base";
+const CHAINS: Record<EvmNetwork, Chain> = { bsc: bscTestnet, base: baseSepolia };
 export const isEvmNetwork = (n: string): n is EvmNetwork => n in CHAINS;
 
 const ERC20 = parseAbi([
@@ -89,7 +89,7 @@ function parseRef(ref: string): { network: EvmNetwork; coin: Coin; dealId: strin
 }
 
 /**
- * NosHen's own wallet on BNB Smart Chain, Base and Ethereum (their test networks for now), in place of a crypto
+ * NosHen's own wallet on BNB Smart Chain and Base (their test networks for now), in place of a crypto
  * partner: the same idea as the Solana wallet. Each deal gets its own address (a key made from the deposit secret
  * and the deal, the same address on every network), the buyer pays it directly, and NosHen reads the token's
  * transfer events to see the payment. Refunds and the move into NosHen's wallet at release are sent from the

@@ -49,7 +49,7 @@ function partner(opts: { demo?: boolean } = {}) {
   return { p, ...net, wallet: privateKeyToAccount(wallet).address };
 }
 
-describe("NosHen's wallet on BNB, Base and Ethereum test networks", () => {
+describe("NosHen's wallet on the BNB and Base test networks", () => {
   it("gives each deal and coin its own address, the same on every network, and starts reading just before it opened", async () => {
     const { p } = partner();
     const a = await p.openDeposit("deal-1", "usdc", "base");
@@ -61,7 +61,6 @@ describe("NosHen's wallet on BNB, Base and Ethereum test networks", () => {
     expect(new Set([a.address, other.address, usdt.address]).size).toBe(3);
     expect(a.ref).toBe(evmDepositRef("base", "usdc", "deal-1"));
     expect(a.cursor).toBe("9950");
-    await expect(p.openDeposit("deal-1", "usdc", "ethereum")).rejects.toThrow(/can't take ethereum/);
     await expect(p.openDeposit("deal-1", "usdc", "solana")).rejects.toThrow(/can't take solana/);
   });
 
@@ -143,7 +142,7 @@ describe("the wallets, loaded only when first needed", () => {
     const lazy = new LazyChainPartner(new FakeCryptoPartner("x"), solana, evm, async () => {});
     expect(lazy.watches).toEqual(["solana", "base"]);
     expect([lazy.mode("solana"), lazy.mode("base"), lazy.mode("bsc")]).toEqual(["devnet", "devnet", "pretend"]);
-    expect([lazy.providerFor("solana"), lazy.providerFor("base"), lazy.providerFor("ethereum")]).toEqual([SOLANA_DEVNET, EVM_TESTNET, "fake-crypto"]);
+    expect([lazy.providerFor("solana"), lazy.providerFor("base"), lazy.providerFor("bsc")]).toEqual([SOLANA_DEVNET, EVM_TESTNET, "fake-crypto"]);
     expect(new SolanaPartner(solana).name).toBe(SOLANA_DEVNET);
     expect(new EvmPartner(evm).name).toBe(EVM_TESTNET);
     expect(lazy.explorer("base", "tx", "0xabc")).toBe(new EvmPartner(evm).explorer("base", "tx", "0xabc"));

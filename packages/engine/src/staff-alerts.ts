@@ -2,7 +2,7 @@ import type { Tx } from "./db";
 import type { Deps } from "./core";
 import { sendPush } from "./push";
 
-export type StaffAlertKind = "dispute" | "dispute_ready" | "review_hold" | "payout_failed" | "code_locked" | "listing_check" | "unmatched_payment" | "delivery_late" | "handle_check";
+export type StaffAlertKind = "dispute" | "dispute_ready" | "review_hold" | "payout_failed" | "code_locked" | "listing_check" | "unmatched_payment" | "delivery_late" | "handle_check" | "wallet_check";
 
 /**
  * Tells NosHen staff something needs a reviewer: written to the outbox in the same transaction (so it's never

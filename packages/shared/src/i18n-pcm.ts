@@ -1216,7 +1216,6 @@ export const PCM: Catalog = {
   // packages/shared/src/payments.ts
   "Lowest network fees": "Network fee wey low pass",
   "Low network fees": "Network fee wey low",
-  "Higher network fees": "Network fee wey high",
   "From any Nigerian bank app. Usually shows in minutes.": "From any Nigerian bank app. E dey usually show inside few minutes.",
   "From a Nigerian bank account. Usually shows in minutes.": "From Nigerian bank account. E dey usually show inside few minutes.",
   "Only if you have a Nigerian bank account.": "Only if you get Nigerian bank account.",

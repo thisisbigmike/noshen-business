@@ -12,3 +12,12 @@ GOOGLE_CLIENT_SECRET=
 # secret key from the Dojah dashboard, Developers → Configuration. Sandbox and live keys are different.
 # DOJAH_APP_ID=
 # DOJAH_SECRET_KEY=
+# Everyone's NosHen wallet, through Blockradar: each network's master wallet id and its API key (the key also signs
+# the webhooks). Use testnet master wallets here; leave a network out to switch it off. Webhook URL in the Blockradar
+# dashboard: <APP_URL>/api/webhooks/blockradar
+# BLOCKRADAR_SOLANA_WALLET_ID=
+# BLOCKRADAR_SOLANA_API_KEY=
+# BLOCKRADAR_BASE_WALLET_ID=
+# BLOCKRADAR_BASE_API_KEY=
+# BLOCKRADAR_BSC_WALLET_ID=
+# BLOCKRADAR_BSC_API_KEY=

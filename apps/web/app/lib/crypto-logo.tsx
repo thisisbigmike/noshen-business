@@ -5,10 +5,9 @@ import usdc from "../assets/logos/usdc.svg";
 import solana from "../assets/logos/solana.svg";
 import bsc from "../assets/logos/bsc.svg";
 import base from "../assets/logos/base.svg";
-import ethereum from "../assets/logos/ethereum.svg";
 
 const COIN: Record<Coin, string> = { usdt, usdc };
-const NETWORK: Record<Network, string> = { solana, bsc, base, ethereum };
+const NETWORK: Record<Network, string> = { solana, bsc, base };
 
 export const CoinLogo = ({ coin, size = 20 }: { coin: Coin; size?: number }) => (
   <img className="coin-logo" src={COIN[coin]} alt="" width={size} height={size} aria-hidden="true" />

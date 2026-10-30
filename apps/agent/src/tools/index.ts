@@ -1,171 +1,98 @@
-import { shopifySearchAndBuy } from "./shopify.js";
-import { stripeAgentPay } from "./stripe.js";
-import { ebayBrowseAndOrder } from "./ebay.js";
-import { aliexpressSource } from "./aliexpress.js";
-import { coinbaseAgentTransfer } from "./coinbase.js";
-import { skyfirePayMerchant } from "./skyfire.js";
-import { noshenEscrow } from "./noshen.js";
-import { verifyDeliveryProof } from "./vision.js";
-import { evaluateRiskWithJev } from "../jev.js";
+import { searchEbay } from "./ebay.js";
+import { searchNoshenListings } from "./noshen.js";
+import { evaluateRiskWithJev, jevConfigured } from "../jev.js";
+import { searchKnowledge } from "../knowledge.js";
+
+const jevDeclaration = {
+  name: "jev_risk_evaluator",
+  description:
+    "Rate a deal's fraud risk with Jev AI: price far below market, counterfeit signs, fake-seller patterns. Use it when a price looks too good to be true " +
+    "or before recommending a deal from an unknown seller. Returns a verdict (APPROVE, REVIEW or BLOCK_SCAM), the risk level (low, medium or high) and the reason.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      title: { type: "STRING", description: "Item title or deal description" },
+      priceUsd: { type: "NUMBER", description: "Quoted price in USD" },
+      platform: { type: "STRING", description: "Marketplace or source (e.g. noshen, ebay, jiji)" },
+      sellerDetails: { type: "STRING", description: "Seller reputation or location notes" },
+    },
+    required: ["title", "priceUsd", "platform"],
+  },
+};
 
 export const commerceToolDeclarations = [
   {
-    name: "jev_risk_evaluator",
-    description: "Use Jev AI (TypeSafe AI System One decision model) for sub-second fraud scoring, counterfeit detection, and price anomaly risk evaluation.",
+    name: "search_noshen_help",
+    description:
+      "Search NosHen's own rules and help pages: how a protected deal works, the fee, time limits, paying by bank transfer or USDT/USDC, " +
+      "release codes, delivery, reporting a problem and refunds, prohibited items, safety tips, accounts and privacy. " +
+      "Use it for every question about how NosHen works or what its rules are, before answering. Returns the matching passages with the page they come from.",
     parameters: {
       type: "OBJECT",
       properties: {
-        title: { type: "STRING", description: "Item title or deal description" },
-        priceUsd: { type: "NUMBER", description: "Quoted price in USD" },
-        platform: { type: "STRING", description: "Marketplace or source (e.g. noshen, ebay, jiji, shopify)" },
-        sellerDetails: { type: "STRING", description: "Seller reputation or location notes" },
+        query: { type: "STRING", description: "The question in plain English, e.g. 'how long does the seller have to accept a request'" },
       },
-      required: ["title", "priceUsd", "platform"],
+      required: ["query"],
     },
   },
   {
-    name: "shopify_search_and_buy",
-    description: "Search Shopify stores and generate programmatic Agentic Commerce Protocol (ACP) checkout sessions.",
+    name: "search_noshen_listings",
+    description:
+      "Search live listings for sale on NosHen, the Nigerian marketplace where the buyer's money is held until they have the item. " +
+      "Matches words in listing titles. Returns each listing's price in naira as the site shows it, seller, details, its link, " +
+      "and the link that starts a protected deal on it in the NosHen app. Also opens one listing from its link or ID.",
     parameters: {
       type: "OBJECT",
       properties: {
-        query: { type: "STRING", description: "Search keyword or product name" },
-        action: { type: "STRING", enum: ["search", "create_checkout"], description: "Whether to search or create checkout" },
-        storeDomain: { type: "STRING", description: "Optional Shopify store domain" },
-        variantId: { type: "STRING", description: "Product variant ID if checking out" },
-        quantity: { type: "NUMBER", description: "Item quantity" },
+        query: { type: "STRING", description: "Words from the item's title, e.g. 'iphone 13', or a listing's link or ID" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "search_ebay",
+    description:
+      "Search live eBay listings (action browse) or look at one listing (action get_item). Returns up to 5 listings with price in US dollars, " +
+      "delivery cost, condition, seller rating and the listing's eBay link, plus a link to the same search on eBay's website. " +
+      "The agent can't buy on eBay: to buy, the user opens the listing's link and checks out on eBay.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        query: { type: "STRING", description: "What to search for, e.g. 'thinkpad t480'" },
+        action: { type: "STRING", enum: ["browse", "get_item"], description: "browse searches listings; get_item looks at one listing" },
+        maxPrice: { type: "NUMBER", description: "Highest price in US dollars" },
+        condition: { type: "STRING", enum: ["NEW", "USED", "REFURBISHED"], description: "Only items in this condition" },
+        itemId: { type: "STRING", description: "For get_item: the itemId from a search, or the listing's eBay link or number" },
       },
       required: ["query", "action"],
     },
   },
-  {
-    name: "stripe_agent_pay",
-    description: "Use Stripe Agent Toolkit to create payment intents, links, or checkout sessions across Stripe-enabled merchants.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        amount: { type: "NUMBER", description: "Payment amount in main currency units (e.g. 50.00)" },
-        currency: { type: "STRING", description: "ISO 3-letter currency code (e.g. USD, EUR, NGN)" },
-        description: { type: "STRING", description: "Payment description / item purpose" },
-        customerEmail: { type: "STRING", description: "Optional customer email" },
-      },
-      required: ["amount", "currency", "description"],
-    },
-  },
-  {
-    name: "ebay_browse_and_order",
-    description: "Search eBay Buy API for verified listings, refurbished items, and initiate orders without CAPTCHAs.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        query: { type: "STRING", description: "Search query for eBay" },
-        action: { type: "STRING", enum: ["browse", "get_item", "create_order"], description: "Browse or order action" },
-        maxPrice: { type: "NUMBER", description: "Maximum price filter in USD" },
-        condition: { type: "STRING", enum: ["NEW", "USED", "REFURBISHED"], description: "Item condition filter" },
-        itemId: { type: "STRING", description: "eBay item ID if creating an order" },
-      },
-      required: ["query", "action"],
-    },
-  },
-  {
-    name: "aliexpress_source",
-    description: "Source products from AliExpress / Alibaba wholesale suppliers with trade assurance protection.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        keyword: { type: "STRING", description: "Product keyword to source" },
-        action: { type: "STRING", enum: ["search_suppliers", "create_sourcing_order"], description: "Search or place order" },
-        minQuantity: { type: "NUMBER", description: "Minimum quantity needed" },
-        shipToCountry: { type: "STRING", description: "Destination country code (e.g. US, NG, GB)" },
-        productId: { type: "STRING", description: "Product ID for order creation" },
-      },
-      required: ["keyword", "action"],
-    },
-  },
-  {
-    name: "coinbase_agent_transfer",
-    description: "Execute on-chain crypto payment or transfer using Coinbase AgentKit on Base, Solana, or Ethereum.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        toAddress: { type: "STRING", description: "Recipient blockchain wallet or contract address" },
-        amount: { type: "NUMBER", description: "Amount of crypto to transfer" },
-        token: { type: "STRING", enum: ["USDC", "USDT", "ETH"], description: "Token to send (defaults to USDC)" },
-        network: { type: "STRING", enum: ["base", "ethereum", "solana"], description: "Target blockchain network" },
-        memo: { type: "STRING", description: "Optional transaction memo or order reference" },
-      },
-      required: ["toAddress", "amount"],
-    },
-  },
-  {
-    name: "skyfire_pay_merchant",
-    description: "Settle instant payments to web services and merchants using the Skyfire agent payment network.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        receiverServiceUrl: { type: "STRING", description: "URL or receiver ID of the service/merchant" },
-        amount: { type: "NUMBER", description: "Payment amount in USDC" },
-        purpose: { type: "STRING", description: "What the payment is for" },
-      },
-      required: ["receiverServiceUrl", "amount", "purpose"],
-    },
-  },
-  {
-    name: "noshen_escrow",
-    description: "Manage physical P2P escrow contracts via NosHen. Locks crypto/fiat, bridges to domestic sellers, verifies handover.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        action: {
-          type: "STRING",
-          enum: ["search_listings", "create_escrow", "get_deposit_address", "check_status", "release_payout", "dispute"],
-          description: "Escrow operation to perform",
-        },
-        query: { type: "STRING", description: "Listing search query" },
-        priceUsdc: { type: "NUMBER", description: "Price in USDC" },
-        priceKobo: { type: "NUMBER", description: "Price in Nigerian Kobo (100 kobo = ₦1)" },
-        dealId: { type: "STRING", description: "Deal ID for status/release/dispute" },
-        releaseCode: { type: "STRING", description: "6-digit release code for handover" },
-        deliveryState: { type: "STRING", description: "State or region for delivery" },
-        reason: { type: "STRING", description: "Reason if disputing" },
-      },
-      required: ["action"],
-    },
-  },
-  {
-    name: "verify_delivery_proof",
-    description: "Use Gemini Multimodal Vision to inspect courier receipts, tracking slips, and packing proof.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        waybillImageUrl: { type: "STRING", description: "URL or path of courier receipt" },
-        packingPhotoUrl: { type: "STRING", description: "URL or path of packed parcel photo" },
-        expectedItem: { type: "STRING", description: "Expected product description" },
-        expectedRecipient: { type: "STRING", description: "Recipient name or destination" },
-      },
-    },
-  },
+  // Jev is offered only with its API key: without one there's no real check to run.
+  ...(jevConfigured() ? [jevDeclaration] : []),
 ];
 
-export async function executeCommerceTool(name: string, args: Record<string, any>) {
+// Actions that change something in the world (moving money, placing an order) run only after the user says yes.
+// Each entry returns the action in plain words for the user to approve. No tool does that yet: every tool only reads.
+const NEEDS_APPROVAL: Record<string, (args: Record<string, any>) => string | null> = {};
+
+/** The action in plain words for the user to approve, or null when the call is safe to run straight away. */
+export function approvalNeeded(name: string, args: Record<string, any>): string | null {
+  return NEEDS_APPROVAL[name]?.(args) ?? null;
+}
+
+export async function executeCommerceTool(name: string, args: Record<string, any>): Promise<unknown> {
   switch (name) {
-    case "shopify_search_and_buy":
-      return await shopifySearchAndBuy(args as any);
-    case "stripe_agent_pay":
-      return await stripeAgentPay(args as any);
-    case "ebay_browse_and_order":
-      return await ebayBrowseAndOrder(args as any);
-    case "aliexpress_source":
-      return await aliexpressSource(args as any);
-    case "coinbase_agent_transfer":
-      return await coinbaseAgentTransfer(args as any);
-    case "skyfire_pay_merchant":
-      return await skyfirePayMerchant(args as any);
-    case "noshen_escrow":
-      return await noshenEscrow(args as any);
-    case "verify_delivery_proof":
-      return await verifyDeliveryProof(args as any);
+    case "search_noshen_help": {
+      const hits = await searchKnowledge(String(args.query ?? ""));
+      if (hits.length === 0) return { success: false, message: "NosHen's help pages don't cover this." };
+      return { success: true, message: hits.map((h) => `[${h.source}]\n${h.text}`).join("\n\n") };
+    }
+    case "search_noshen_listings":
+      return await searchNoshenListings(args);
+    case "search_ebay":
+      return await searchEbay(args as any);
     case "jev_risk_evaluator":
+      if (!jevConfigured()) throw new Error("Jev AI isn't connected (no JEV_API_KEY).");
       return await evaluateRiskWithJev(args as any);
     default:
       throw new Error(`Unknown commerce tool: ${name}`);

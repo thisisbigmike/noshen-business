@@ -1,5 +1,5 @@
-// Sets up NosHen's wallet on the BNB Smart Chain, Base and Ethereum test networks (BNB testnet, Base Sepolia,
-// Ethereum Sepolia): NosHen's wallet (pays gas, mints the test tokens, receives released coin), the demo wallet,
+// Sets up NosHen's wallet on the BNB Smart Chain and Base test networks (BNB testnet, Base Sepolia):
+// NosHen's wallet (pays gas, mints the test tokens, receives released coin), the demo wallet,
 // the secret that turns each deal into its own address, and NosHen's test USDC and USDT on each network that has gas.
 // Safe to run again: it keeps what's there and only does what's missing.
 //
@@ -8,12 +8,11 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import solc from "solc";
 import { createPublicClient, createWalletClient, formatEther, http, parseAbi } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { baseSepolia, bscTestnet, sepolia } from "viem/chains";
+import { baseSepolia, bscTestnet } from "viem/chains";
 
 const NETWORKS = {
   bsc: { chain: bscTestnet, rpcUrl: "https://bsc-testnet-rpc.publicnode.com", coin: "tBNB", explorer: "https://testnet.bscscan.com" },
   base: { chain: baseSepolia, rpcUrl: "https://base-sepolia-rpc.publicnode.com", coin: "Base Sepolia ETH", explorer: "https://sepolia.basescan.org" },
-  ethereum: { chain: sepolia, rpcUrl: "https://ethereum-sepolia-rpc.publicnode.com", coin: "Sepolia ETH", explorer: "https://sepolia.etherscan.io" },
 };
 const FILE = new URL("../../../.evm-testnet.vars", import.meta.url);
 const ERC20 = parseAbi(["function mint(address to, uint256 value)", "function balanceOf(address) view returns (uint256)", "function symbol() view returns (string)"]);

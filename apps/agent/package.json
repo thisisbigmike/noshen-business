@@ -2,15 +2,17 @@
   "name": "@noshen/agent",
   "version": "1.0.0",
   "type": "module",
-  "description": "Universal Agentic Commerce Bot powered by Google Gemini, bridging Shopify, Stripe, eBay, AliExpress, Coinbase AgentKit, Skyfire, and NosHen Escrow.",
+  "description": "NosHen shopping assistant powered by Google Gemini: live NosHen and eBay listings, and answers from NosHen's help pages.",
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "telegram": "tsx src/channels/telegram.ts",
+    "telegram": "tsx src/index.ts --telegram",
+    "eval": "tsx src/eval.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^2.32.0",
+    "@noshen/engine": "workspace:*",
     "@noshen/shared": "workspace:*",
     "dotenv": "^16.4.7",
     "grammy": "^1.34.0"

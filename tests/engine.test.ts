@@ -513,7 +513,7 @@ describe("paying with USDT or USDC", () => {
     expect(addressProblem("usdt", "solana", SOL)).toBeNull();
     expect(addressProblem("usdc", "solana", EVM)).toMatch(/isn't a Solana address/);
     expect(addressProblem("usdc", "base", EVM)).toBeNull();
-    expect(addressProblem("usdt", "ethereum", SOL)).toMatch(/starts with 0x/);
+    expect(addressProblem("usdt", "bsc", SOL)).toMatch(/starts with 0x/);
     expect(addressProblem("usdt", "bsc", "0x" + "0".repeat(40))).toMatch(/can't receive/);
     expect(addressProblem("usdc", "base", "")).toMatch(/your USDC address on Base/);
   });
@@ -617,16 +617,16 @@ describe("paying with USDT or USDC", () => {
 
   it("gets a new amount only once the old one runs out, and keeps the address", async () => {
     const { buyer, dealId } = await acceptedDeal();
-    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "ethereum");
-    const first = await depositOf(dealId, "usdt", "ethereum");
-    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "ethereum", { refresh: true });
-    expect((await depositOf(dealId, "usdt", "ethereum")).quote_expires_at.getTime()).toBe(first.quote_expires_at.getTime());
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "bsc");
+    const first = await depositOf(dealId, "usdt", "bsc");
+    await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "bsc", { refresh: true });
+    expect((await depositOf(dealId, "usdt", "bsc")).quote_expires_at.getTime()).toBe(first.quote_expires_at.getTime());
     w.clock.now = new Date(w.clock.now.getTime() + 31 * 60_000);
     try {
-      await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "ethereum"); // opening the page again never changes the amount
-      expect((await depositOf(dealId, "usdt", "ethereum")).quote_expires_at.getTime()).toBe(first.quote_expires_at.getTime());
-      await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "ethereum", { refresh: true });
-      const again = await depositOf(dealId, "usdt", "ethereum");
+      await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "bsc"); // opening the page again never changes the amount
+      expect((await depositOf(dealId, "usdt", "bsc")).quote_expires_at.getTime()).toBe(first.quote_expires_at.getTime());
+      await prepareCryptoPayment(w.d, buyer, dealId, "usdt", "bsc", { refresh: true });
+      const again = await depositOf(dealId, "usdt", "bsc");
       expect(again.quote_expires_at.getTime()).toBeGreaterThan(first.quote_expires_at.getTime());
       expect(again.address).toBe(first.address);
     } finally {

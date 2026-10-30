@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import { env } from "cloudflare:workers";
 import { createAuth } from "./auth";
-import { withApp, partnerFor, cryptoFor, mailFor, pushFor, isDev, isLocal } from "@noshen/engine/context";
+import { withApp, partnerFor, cryptoFor, walletsFor, mailFor, pushFor, isDev, isLocal } from "@noshen/engine/context";
 import { pushToUser } from "@noshen/engine/core";
 import { handlePartnerEvent } from "@noshen/engine/deals";
+import { handleWalletEvent } from "@noshen/engine/wallets";
+import type { WalletEvent } from "@noshen/engine/partner/blockradar";
 import { sweep } from "@noshen/engine/sweep";
 import { dealView, dealsFor } from "@noshen/engine/queries";
 import { DealError } from "@noshen/engine/core";
@@ -50,6 +52,23 @@ api.post("/api/webhooks/crypto", async (c) => {
     throw e;
   }
   const result = await withApp((d) => handlePartnerEvent(d, event, "crypto"));
+  return c.json({ ok: true, result });
+});
+
+// The wallet provider's webhook (deposits into people's NosHen wallets, withdrawals sent or failed). Each master
+// wallet signs with its own API key. It sends again until it gets a 200, so the same event may come more than once.
+api.post("/api/webhooks/blockradar", async (c) => {
+  const wallets = walletsFor();
+  if (!wallets) return c.notFound();
+  const raw = await c.req.text();
+  let event: WalletEvent;
+  try {
+    event = await wallets.verifyWebhook(raw, c.req.header("x-blockradar-signature") ?? null);
+  } catch (e) {
+    if (e instanceof WebhookSignatureError) return c.json({ error: "bad signature" }, 401);
+    throw e;
+  }
+  const result = await withApp((d) => handleWalletEvent(d, event));
   return c.json({ ok: true, result });
 });
 

@@ -9,7 +9,7 @@ export const SOLANA_DEVNET = "solana-devnet";
 export const EVM_TESTNET = "evm-testnet";
 
 /**
- * NosHen's own wallets (Solana, and BNB/Base/Ethereum), loaded only when first needed. Their libraries are large, and
+ * NosHen's own wallets (Solana, and BNB/Base), loaded only when first needed. Their libraries are large, and
  * loading them on every request cost most pages their CPU time; most requests only ask which networks are real and
  * for a link, which this answers from the settings alone. Anything that touches a chain loads the real wallets first.
  */

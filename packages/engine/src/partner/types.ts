@@ -108,3 +108,26 @@ export interface CryptoPartner {
   /** A link to an address or transaction on the network's explorer, where there is one. */
   explorer?(network: Network, kind: "address" | "tx", id: string): string | null;
 }
+
+// ---------------------------------------------------------------------------
+// The wallet provider: holds the keys behind everyone's NosHen wallet, receives deposits at each person's fixed
+// addresses, and sends withdrawals. NosHen keeps the balances itself (wallets.ts).
+
+export interface WalletProvider {
+  readonly name: string;
+  /** The networks whose wallets are set up. */
+  networks(): Network[];
+  /** A new fixed address for one person on a network. An EVM address also receives on every other EVM network. */
+  createAddress(network: Network, name: string, metadata: Record<string, string>): Promise<{ providerRef: string; address: string }>;
+  /** Sends coin out. `reference` is NosHen's id for the withdrawal, so a lost answer can still be matched later. */
+  withdraw(network: Network, w: { coin: Coin; address: string; amountMicro: number; reference: string; note?: string }): Promise<{ providerRef: string; hash: string | null }>;
+  /** Checks an address against sanctions lists and the issuers' blocklists. */
+  screen(network: Network, address: string): Promise<{ ok: boolean }>;
+}
+
+export class WalletProviderError extends Error {
+  /** True when the provider answered and refused, so nothing was sent; false when the answer never came. */
+  constructor(message: string, readonly refused: boolean) {
+    super(message);
+  }
+}
