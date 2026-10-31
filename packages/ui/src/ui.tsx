@@ -22,17 +22,20 @@ export function Icon({ name, size = 20, label, className }: { name: IconName; si
   );
 }
 
-/** The favicon's shield on a rounded square, then the name. */
+// The logo's outlines: an n and a u hooked together (buyer and seller), then the drawn name.
+const LOGO_N = "M29 137 V101 A72 72 0 0 1 173 101 V137 H137 V101 A36 36 0 0 0 65 101 V137 Z";
+const LOGO_U = "M227 119 V155 A72 72 0 0 1 83 155 V119 H119 V155 A36 36 0 0 0 191 155 V119 Z";
+const LOGO_NAME = "M0 0 V-168 H34 L104 -46.76 V-168 H131 V0 H97 L27 -121.24 V0 Z M147 -60 A62 62 0 1 0 271 -60 A62 62 0 1 0 147 -60 Z M172 -60 A37 37 0 1 1 246 -60 A37 37 0 1 1 172 -60 Z M366.62 -105.55 A42 35 0 1 0 331 -52 L331 -78 A16 9 0 1 1 344.57 -91.77 Z M292.84 -19.86 A45 38 0 1 0 331 -78 L331 -52 A19 12 0 1 1 314.89 -33.64 Z M394 0 V-168 H421 V0 Z M499 0 V-168 H526 V0 Z M420 -98 V-74 H500 V-98 Z M665.02 -71 A62 62 0 1 0 651.49 -20.15 L632.34 -36.22 A37 37 0 1 1 640.41 -66.56 Z M566 -71 V-49 H665.02 V-71 Z M683 0 V-120 H735 A52 52 0 0 1 787 -68 V0 H761 V-68 A26 26 0 0 0 709 -68 V0 Z";
+
+/** The NosHen logo: the hooked n and u, then the name. Drawn as outlines, so it never depends on a font. */
 export function Wordmark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   return (
     <span className={`nh-wordmark nh-wordmark-${size}`}>
-      <svg className="nh-wordmark-mark" viewBox="0 0 32 32" aria-hidden="true">
-        <rect width="32" height="32" rx="9" fill="var(--primary)" />
-        <g transform="translate(4 4)" fill="none" stroke="var(--on-primary)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          {ICONS["shield-check"].map((d) => <path key={d} d={d} />)}
-        </g>
+      <svg className="nh-wordmark-logo" viewBox="29 29 883.6 198" role="img" aria-label="NosHen">
+        <path className="nh-wordmark-n" d={LOGO_N} />
+        <path className="nh-wordmark-u" d={LOGO_U} />
+        <path className="nh-wordmark-name" d={LOGO_NAME} transform="translate(283 195.2) scale(0.8)" />
       </svg>
-      NosHen
     </span>
   );
 }

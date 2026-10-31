@@ -5,9 +5,13 @@
 
 .nh-icon { display: block; flex: none; }
 
-/* Wordmark: a shield mark and the name set in type. */
-.nh-wordmark { display: inline-flex; align-items: center; gap: 0.32em; font-family: var(--font-display); font-weight: 600; line-height: 1; letter-spacing: -0.02em; color: var(--primary-ink); }
-.nh-wordmark-mark { width: 1.08em; height: 1.08em; flex: none; }
+/* Wordmark: the hooked n and u, then the drawn name. Green n, teal u and ink name on light; white n on dark. */
+.nh-wordmark { --nh-logo-n: #0f6e56; --nh-logo-u: #14b8a6; --nh-logo-name: var(--ink); display: inline-flex; align-items: center; line-height: 1; }
+[data-theme="dark"] .nh-wordmark { --nh-logo-n: #ffffff; }
+.nh-wordmark-logo { display: block; height: 1.12em; width: auto; aspect-ratio: 883.6 / 198; flex: none; }
+.nh-wordmark-n { fill: var(--nh-logo-n); }
+.nh-wordmark-u { fill: var(--nh-logo-u); }
+.nh-wordmark-name { fill: var(--nh-logo-name); }
 .nh-wordmark-sm { font-size: 17px; }
 .nh-wordmark-md { font-size: 22px; }
 .nh-wordmark-lg { font-size: 40px; }

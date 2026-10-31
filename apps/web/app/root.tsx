@@ -15,6 +15,7 @@ import { cleanCountry } from "@noshen/shared/payments";
 import { PrefsProvider, useLite, useT } from "@noshen/ui/i18n";
 
 export const links: Route.LinksFunction = () => [
+  { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
   { rel: "manifest", href: "/manifest.webmanifest" },
   { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
