@@ -39,10 +39,10 @@ async function heldDeal(price = 250_000, handover: "meetup" | "delivery" = "meet
 }
 
 describe("fees", () => {
-  it("charges 1.5% between ₦500 and ₦7,500", () => {
+  it("charges 1.5% between ₦500 and ₦10,000", () => {
     expect(feeFor(45_000_000)).toBe(675_000);       // ₦450,000 → ₦6,750
     expect(feeFor(2_000_000)).toBe(50_000);         // ₦20,000 → ₦500 minimum
-    expect(feeFor(200_000_000)).toBe(750_000);      // ₦2,000,000 → ₦7,500 maximum
+    expect(feeFor(200_000_000)).toBe(1_000_000);    // ₦2,000,000 → ₦10,000 maximum
     expect(naira(45_675_000)).toBe("₦456,750");
   });
 });

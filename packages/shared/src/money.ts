@@ -17,10 +17,10 @@ export function naira(kobo: Kobo | string | bigint): string {
 export interface FeeRule {
   percent: number;   // 1.5
   min_kobo: Kobo;    // 50000 (₦500)
-  max_kobo: Kobo;    // 750000 (₦7,500)
+  max_kobo: Kobo;    // 1000000 (₦10,000)
 }
 
-export const DEFAULT_FEE: FeeRule = { percent: 1.5, min_kobo: 50000, max_kobo: 750000 };
+export const DEFAULT_FEE: FeeRule = { percent: 1.5, min_kobo: 50000, max_kobo: 1000000 };
 
 /** NosHen's fee on a price: a percentage, rounded to the nearest kobo, kept between the minimum and maximum. */
 export function feeFor(priceKobo: Kobo, rule: FeeRule = DEFAULT_FEE): Kobo {

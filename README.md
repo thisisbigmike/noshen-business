@@ -30,7 +30,7 @@ NosHen takes the risk out of the first step. The buyer pays NosHen, the money is
 
 If something is wrong, the buyer **reports a problem** before release. The money freezes, both sides add photos and notes for 24 hours, and a NosHen reviewer decides within 72 hours: refund the buyer or release to the seller, with the reason sent to both.
 
-**Fee:** 1.5% of the price, at least ₦500 and at most ₦7,500. The buyer or the seller can pay it.
+**Fee:** 1.5% of the price, at least ₦500 and at most ₦10,000. The buyer or the seller can pay it.
 
 **Delivery:** the seller sets two prices on the listing, one within the item's state and one to other states (or free, or not offered), so buyers see the full cost before they ask. The fee for the buyer's state is fixed on the deal, held with the price, paid to the seller with it, and refunded with it. NosHen's fee is on the price only.
 
