@@ -17,7 +17,7 @@ import { FakeCryptoPartner } from "@noshen/engine/partner/fake-crypto";
 import { koboForCoin, type Network } from "@noshen/shared/payments";
 import { WebhookSignatureError, type PartnerEvent } from "@noshen/engine/partner/types";
 import { optionalUser } from "./web";
-import { servePhoto } from "@noshen/engine/photos";
+import { servePhoto, serveVideo } from "@noshen/engine/photos";
 import { one } from "@noshen/engine/db";
 
 /**
@@ -195,6 +195,8 @@ api.get("/api/deals/:id/live", async (c) => {
 });
 
 api.get("/photos/*", (c) => servePhoto(decodeURIComponent(c.req.path.slice("/photos/".length)), c.req.query("size") === "small"));
+api.get("/videos/*", (c) => serveVideo(c.req.raw, decodeURIComponent(c.req.path.slice("/videos/".length)),
+  c.req.query("poster") ? "poster" : c.req.query("size") === "small" ? "small" : undefined));
 
 api.get("/api/me", async (c) => {
   const u = await optionalUser(c.req.raw);

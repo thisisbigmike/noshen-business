@@ -10,7 +10,7 @@ import { CONDITIONS, firstName } from "@noshen/shared/deal";
 import { categoryOf, isService } from "@noshen/shared/categories";
 import type { Stage } from "@noshen/shared/stages";
 import { ago } from "@noshen/shared/time";
-import { photoUrl } from "@noshen/shared/photos";
+import { clock, photoUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
 import { sizeLabel, sizeRuleFor } from "@noshen/shared/sizes";
 import { overLimit, sellerLimit } from "@noshen/engine/deals";
@@ -20,6 +20,7 @@ import { SellerRecord } from "../lib/track-record";
 import { useLite, useT } from "@noshen/ui/i18n";
 import { DeliveryCard } from "../lib/delivery";
 import { StagesCard } from "../lib/stages";
+import { VideoSlide } from "../lib/listing-video";
 import { deliverySummary } from "@noshen/shared/delivery";
 
 export const handle = { tabs: false };
@@ -66,13 +67,26 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   const lite = useLite();
   const [photo, setPhoto] = useState(0);
   const photos: string[] = l.photo_keys ?? [];
+  // The video, when there is one, is the second slide: the cover photo still comes first.
+  const video = l.video_key ? { key: l.video_key as string, seconds: l.video_seconds === null ? null : Number(l.video_seconds) } : null;
+  const slides: ({ kind: "photo"; key: string; i: number } | { kind: "video"; key: string })[] = photos.map((key, i) => ({ kind: "photo", key, i }));
+  if (video) slides.splice(Math.min(1, slides.length), 0, { kind: "video", key: video.key });
+  const videoAt = slides.findIndex((s) => s.kind === "video");
+  const slideOf = (photoIndex: number) => Math.max(0, slides.findIndex((s) => s.kind === "photo" && s.i === photoIndex));
+  const playVideo = useRef<(() => void) | null>(null);
   // Tapping a photo opens it full size; closing comes back to the photo they ended on.
   const [viewing, setViewing] = useState<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const closeViewer = (at: number) => {
     setViewing(null);
     const el = trackRef.current;
-    if (el) el.scrollTo({ left: at * el.clientWidth });
+    if (el) el.scrollTo({ left: slideOf(at) * el.clientWidth });
+  };
+  // "Watch video" on another slide: glide to the video and start it, while the tap still counts as the buyer's.
+  const watchVideo = () => {
+    const el = trackRef.current;
+    if (el) el.scrollTo({ left: videoAt * el.clientWidth, behavior: "smooth" });
+    playVideo.current?.();
   };
   const sellerName = firstName(seller.name);
   const condition = CONDITIONS.find(([k]) => k === l.condition);
@@ -113,15 +127,26 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
         <div className="two-col">
           <div className="stack-4">
             <div className="carousel bleed">
-              <div className="track" ref={trackRef} tabIndex={0} role="region" aria-label={t("Photos, {n} in all. Use the arrow keys to move between them, and Enter to see one full size.", { n: photos.length || 0 })} onScroll={(e) => setPhoto(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}>
-                {photos.length ? photos.map((k, i) => (
-                  <button key={k} type="button" className="photo-open" aria-label={t("Photo {n} of {total}. See it full size", { n: i + 1, total: photos.length })} onClick={() => setViewing(i)}>
-                    <img src={photoUrl(k, lite ? "small" : undefined)} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" />
+              <div className="track" ref={trackRef} tabIndex={0} role="region" onScroll={(e) => setPhoto(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}
+                aria-label={video
+                  ? t("Photos and a video, {n} in all. Use the arrow keys to move between them, and Enter to see a photo full size or play the video.", { n: slides.length })
+                  : t("Photos, {n} in all. Use the arrow keys to move between them, and Enter to see one full size.", { n: photos.length || 0 })}>
+                {slides.length ? slides.map((s) => s.kind === "video" ? (
+                  <VideoSlide key={s.key} videoKey={s.key} seconds={video?.seconds ?? null} lite={lite} title={l.title} playRef={playVideo}
+                    backdrop={photos[0] ? photoUrl(photos[0], "small") : undefined} />
+                ) : (
+                  <button key={s.key} type="button" className="photo-open" aria-label={t("Photo {n} of {total}. See it full size", { n: s.i + 1, total: photos.length })} onClick={() => setViewing(s.i)}>
+                    <img src={photoUrl(s.key, lite ? "small" : undefined)} alt="" loading={s.i === 0 ? "eager" : "lazy"} decoding="async" />
                   </button>
                 )) : <div className="nh-listing-photo" style={{ width: "100%" }}><Icon name="camera" size={32} label={t("No photo yet")} /></div>}
               </div>
-              {photos.length ? <span className="count caption">{photo + 1} / {photos.length}</span> : null}
-              {photos.length > 1 ? <span className="dots" aria-hidden="true">{photos.map((k, i) => <span key={k} className={i === photo ? "on" : undefined} />)}</span> : null}
+              {slides.length ? <span className={`count caption${photo === videoAt ? " on-video" : ""}`}>{photo + 1} / {slides.length}</span> : null}
+              {video && photo !== videoAt ? (
+                <button type="button" className="video-jump caption" onClick={watchVideo}>
+                  <Icon name="player-play" size={14} className="filled" />{video.seconds !== null ? `${t("Watch video")} · ${clock(video.seconds)}` : t("Watch video")}
+                </button>
+              ) : null}
+              {slides.length > 1 ? <span className={`dots${photo === videoAt ? " on-video" : ""}`} aria-hidden="true">{slides.map((s, i) => <span key={s.key} className={[i === photo && "on", s.kind === "video" && "video"].filter(Boolean).join(" ") || undefined} />)}</span> : null}
             </div>
             <div className="stack mobile-only">
               <h1 className="title">{l.title}</h1>

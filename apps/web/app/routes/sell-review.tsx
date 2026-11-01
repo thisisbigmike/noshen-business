@@ -12,7 +12,7 @@ import { CONDITIONS } from "@noshen/shared/deal";
 import { categoryOf, isService } from "@noshen/shared/categories";
 import type { Stage } from "@noshen/shared/stages";
 import { feeFor, naira } from "@noshen/shared/money";
-import { photoUrl } from "@noshen/shared/photos";
+import { clock, photoUrl, posterUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
 import { overLimit, sellerLimitText } from "@noshen/shared/limits";
 import { sizeLabel, sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
@@ -91,9 +91,16 @@ export default function SellReview({ loaderData: { listing: l, fee, limit, ready
 
         <section className="card flat review-preview" aria-label={t("How buyers see it")}>
           <div className="review-photos" tabIndex={0} role="region" aria-label={t("{n} photos (scrolls sideways)", { n: photos.length })}>
-            {photos.map((k, i) => (
-              <div key={k} className="review-photo"><img src={photoUrl(k, "small")} alt={t("Photo {n}", { n: i + 1 })} />{i === 0 ? <span className="tag">{t("Cover")}</span> : null}</div>
-            ))}
+            {photos.map((k, i) => [
+              <div key={k} className="review-photo"><img src={photoUrl(k, "small")} alt={t("Photo {n}", { n: i + 1 })} />{i === 0 ? <span className="tag">{t("Cover")}</span> : null}</div>,
+              // The video comes second, as on the listing.
+              i === 0 && l.video_key ? (
+                <div key="video" className="review-photo review-video" style={{ backgroundImage: `url("${posterUrl(l.video_key)}")` }} role="img" aria-label={t("Your video")}>
+                  <span className="review-video-play" aria-hidden="true"><Icon name="player-play" size={18} className="filled" /></span>
+                  {l.video_seconds !== null ? <span className="tag">{clock(l.video_seconds)}</span> : null}
+                </div>
+              ) : null,
+            ])}
           </div>
           <div className="stack" style={{ padding: "var(--space-4)" }}>
             <p className="title">{l.title}</p>

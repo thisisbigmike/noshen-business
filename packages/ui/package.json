@@ -10,10 +10,12 @@
     "./styles/*": "./styles/*",
     "./recover": "./src/recover.tsx",
     "./i18n": "./src/i18n.tsx",
-    "./shrink": "./src/shrink.ts"
+    "./shrink": "./src/shrink.ts",
+    "./shrink-video": "./src/shrink-video.ts"
   },
   "dependencies": {
-    "@noshen/shared": "workspace:*"
+    "@noshen/shared": "workspace:*",
+    "mediabunny": "1.61.6"
   },
   "peerDependencies": {
     "react": "^19.2.8",

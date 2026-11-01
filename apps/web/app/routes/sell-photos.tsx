@@ -3,14 +3,15 @@ import { Form, Link, data, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/sell-photos";
 import { requireUser, withApp, messageOf } from "../../server/web";
 import { saveDraft } from "@noshen/engine/sellers";
-import { storePhoto } from "@noshen/engine/photos";
+import { deleteVideo, storePhoto, storeVideo } from "@noshen/engine/photos";
 import { one } from "@noshen/engine/db";
 import { BottomAction, Button, ErrorText, Icon, TopBar } from "@noshen/ui/ui";
 import { categoryOf } from "@noshen/shared/categories";
-import { photoUrl } from "@noshen/shared/photos";
+import { clock, MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS, photoUrl, posterUrl, videoUrl } from "@noshen/shared/photos";
 import { useT } from "@noshen/ui/i18n";
 import { msg } from "@noshen/shared/i18n";
 import { shrinkPhotos } from "@noshen/ui/shrink";
+import { shrinkVideo } from "@noshen/ui/shrink-video";
 import { MAX_PHOTOS, MIN_PHOTOS, photoShots } from "@noshen/shared/photo-shots";
 import { SellSteps } from "../lib/sell-steps";
 import { SellHelp } from "../lib/sell-help";
@@ -22,8 +23,8 @@ export const meta = () => [{ title: "Photos · Sell · NosHen" }];
 
 /** The seller's draft, or a 404. A listing that's already published goes to its share screen. */
 async function draftFor(d: Parameters<Parameters<typeof withApp>[0]>[0], userId: string, id: string) {
-  const l = await one<{ id: string; seller_id: string; status: string; category: string; photo_keys: string[] | null }>(d.db,
-    "select id, seller_id, status, category, photo_keys from listings where id = $1", [id]);
+  const l = await one<{ id: string; seller_id: string; status: string; category: string; photo_keys: string[] | null; video_key: string | null; video_seconds: number | null }>(d.db,
+    "select id, seller_id, status, category, photo_keys, video_key, video_seconds from listings where id = $1", [id]);
   if (!l || l.seller_id !== userId) throw data("Not found", { status: 404 });
   if (l.status !== "draft") throw redirect(`/sell/${l.id}/share`);
   return l;
@@ -33,7 +34,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const user = await requireUser(request, d);
     const l = await draftFor(d, user.id, params.id);
-    return { draftId: l.id, category: l.category, photos: (l.photo_keys ?? []) as string[], help: (await settingsOf(d)).support_whatsapp };
+    return {
+      draftId: l.id, category: l.category, photos: (l.photo_keys ?? []) as string[], video: l.video_key, videoSeconds: l.video_seconds,
+      help: (await settingsOf(d)).support_whatsapp,
+    };
   });
 }
 
@@ -57,6 +61,23 @@ export async function action({ request, params }: Route.ActionArgs) {
         await d.db.query("update listings set photo_keys = $2 where id = $1", [draft.id, keys]);
         return { ok: true };
       }
+      if (intent === "video") {
+        const file = (k: string) => { const f = form.get(k); return f instanceof File && f.size > 0 ? f : null; };
+        const video = file("video");
+        if (!video) return { error: msg("Choose a video.") };
+        const key = await storeVideo(`listings/${user.id}`, video, file("video_small"), file("video_poster"));
+        const s = Number(form.get("video_seconds") || NaN);
+        await d.db.query("update listings set video_key = $2, video_seconds = $3 where id = $1",
+          [draft.id, key, Number.isFinite(s) ? Math.min(600, Math.max(0, Math.round(s))) : null]);
+        // A draft's video was never shown to a buyer, so the one it replaces can go.
+        if (draft.video_key) await deleteVideo(draft.video_key);
+        return { ok: true };
+      }
+      if (intent === "remove-video") {
+        await d.db.query("update listings set video_key = null, video_seconds = null where id = $1", [draft.id]);
+        if (draft.video_key) await deleteVideo(draft.video_key);
+        return { ok: true };
+      }
       if (intent === "next") {
         if (keys.length < MIN_PHOTOS) return { error: msg("Add at least 3 photos.") };
         throw redirect(`/sell/${draft.id}/details`);
@@ -71,16 +92,23 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 /** The file input every "take a photo" control opens (the boxes and the bottom button are labels for it). */
 const PICK = "photo-pick";
+/** The file input the "Add a video" box opens. */
+const VIDEO_PICK = "video-pick";
 
 /**
  * Step 2 of selling: the three photos a buyer will want for this kind of item, one at a time, then up to five
- * more. Each is made smaller on the phone first (see @noshen/ui/shrink), then sent.
+ * more, and a short video if the seller likes. Each is made smaller on the phone first (see @noshen/ui/shrink and
+ * @noshen/ui/shrink-video), then sent.
  */
 export default function SellPhotos({ loaderData: x, actionData }: Route.ComponentProps) {
   const t = useT();
   const nav = useNavigation();
   const [shrinking, setShrinking] = useState(false);
-  const busy = nav.state !== "idle" || shrinking;
+  // How much of the chosen video the phone has converted (0 to 1), while it works on it.
+  const [prep, setPrep] = useState<number | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const busy = nav.state !== "idle" || shrinking || prep !== null;
+  const sendingVideo = nav.state === "submitting" && nav.formData?.get("intent") === "video";
   const n = x.photos.length;
   const shots = photoShots(x.category);
   const remove = (k: string, i: number) => (
@@ -112,6 +140,40 @@ export default function SellPhotos({ loaderData: x, actionData }: Route.Componen
             input.form?.requestSubmit();
           }} />
           <input type="file" name="photos_small" multiple hidden tabIndex={-1} aria-hidden="true" />
+        </Form>
+
+        <Form method="post" encType="multipart/form-data" className="sr-only">
+          <input type="hidden" name="intent" value="video" />
+          <input id={VIDEO_PICK} type="file" name="video" accept="video/*" aria-label={t("Add a video")} onChange={async (e) => {
+            const input = e.currentTarget;
+            const form = input.form;
+            const chosen = input.files?.[0];
+            if (!chosen || !form || prep !== null) return;
+            setVideoError(null);
+            setPrep(0);
+            const out = await shrinkVideo(chosen, setPrep).finally(() => setPrep(null));
+            if (out.file.size > MAX_VIDEO_BYTES) {
+              input.value = "";
+              setVideoError(t("That video is too big to send. Try a shorter one, under 50 MB."));
+              return;
+            }
+            // The converted video, its light copy and its still frame go in the form in place of what was chosen.
+            const put = (el: HTMLInputElement | null, f: File | null) => {
+              if (!el || typeof DataTransfer !== "function") return;
+              const files = new DataTransfer();
+              if (f) files.items.add(f);
+              el.files = files.files;
+            };
+            put(input, out.file);
+            put(form.querySelector<HTMLInputElement>("input[name=video_small]"), out.small);
+            put(form.querySelector<HTMLInputElement>("input[name=video_poster]"), out.poster);
+            const seconds = form.querySelector<HTMLInputElement>("input[name=video_seconds]");
+            if (seconds) seconds.value = out.seconds === null ? "" : String(out.seconds);
+            form.requestSubmit();
+          }} />
+          <input type="file" name="video_small" hidden tabIndex={-1} aria-hidden="true" />
+          <input type="file" name="video_poster" hidden tabIndex={-1} aria-hidden="true" />
+          <input type="hidden" name="video_seconds" />
         </Form>
 
         <ol className="shot-list">
@@ -152,12 +214,39 @@ export default function SellPhotos({ loaderData: x, actionData }: Route.Componen
           </section>
         ) : null}
 
+        {n >= MIN_PHOTOS ? (
+          <section className="stack" aria-labelledby="video-head">
+            <p id="video-head" className="label">{t("Video (optional)")}</p>
+            {x.video ? (
+              <div className="sell-video">
+                <video src={videoUrl(x.video)} poster={posterUrl(x.video)} controls playsInline preload="metadata" aria-label={t("Your video")} />
+                {x.videoSeconds !== null ? <span className="tag">{clock(x.videoSeconds)}</span> : null}
+                <Form method="post" className="shot-remove">
+                  <input type="hidden" name="intent" value="remove-video" />
+                  <button className="icon-btn" aria-label={t("Remove the video")} disabled={busy}><Icon name="x" size={16} /></button>
+                </Form>
+              </div>
+            ) : (
+              <label htmlFor={VIDEO_PICK} className={`sell-video-add${prep !== null || sendingVideo ? " working" : ""}`} aria-disabled={busy || undefined}>
+                <span className="sell-video-icon" aria-hidden="true"><Icon name="video" size={22} /></span>
+                <span className="sell-video-text">
+                  <span className="label">{prep !== null ? t("Getting your video ready… {n}%", { n: Math.round(prep * 100) }) : sendingVideo ? t("Sending your video…") : t("Add a video")}</span>
+                  <span className="caption muted">{t("Up to {n} seconds. Show it working and all round it: buyers trust what they can see.", { n: MAX_VIDEO_SECONDS })}</span>
+                </span>
+                {prep !== null || sendingVideo ? (
+                  <span className={`sell-video-bar${sendingVideo ? " sending" : ""}`} aria-hidden="true"><span style={{ width: `${Math.round((prep ?? 1) * 100)}%` }} /></span>
+                ) : null}
+              </label>
+            )}
+          </section>
+        ) : null}
+
         <ul className="photo-tips" aria-label={t("Photo tips")}>
           <li><Icon name="sun" size={18} />{t("Daylight, no filters")}</li>
           <li><Icon name="photo" size={18} />{t("Front, back and sides")}</li>
           <li><Icon name="eye" size={18} />{t("Show any damage")}</li>
         </ul>
-        <ErrorText>{(actionData as any)?.error}</ErrorText>
+        <ErrorText>{videoError ?? (actionData as any)?.error}</ErrorText>
         <SellHelp whatsapp={x.help} step={t("Photos")} />
         <BottomAction>
           {n < MIN_PHOTOS ? (

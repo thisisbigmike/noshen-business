@@ -8,7 +8,7 @@ import { Button, ErrorText, Info, Kv, MoneyStatus, TextArea } from "@noshen/ui/u
 import { naira } from "@noshen/shared/money";
 import { CONDITIONS, disputeReasonLabel, firstName } from "@noshen/shared/deal";
 import { left, when } from "@noshen/shared/time";
-import { photoUrl } from "@noshen/shared/photos";
+import { photoUrl, posterUrl, videoUrl } from "@noshen/shared/photos";
 import { categoryOf } from "@noshen/shared/categories";
 import { placeLabel, stateLabel } from "@noshen/shared/locations";
 
@@ -74,6 +74,10 @@ export default function Dispute({ loaderData: v, actionData }: Route.ComponentPr
           <div className="card stack">
             <p className="label">Listing when bought</p>
             <div className="photo-grid">{(v.listing.photo_keys ?? []).slice(0, 3).map((k: string) => <div key={k} className="photo-slot"><img src={photoUrl(k)} alt="Listing photo" /></div>)}</div>
+            {v.listing.video_key ? (
+              <video src={videoUrl(v.listing.video_key)} poster={posterUrl(v.listing.video_key)} controls playsInline preload="metadata" aria-label="Listing video"
+                style={{ width: "100%", maxHeight: 320, borderRadius: 12, background: "#0b1412" }} />
+            ) : null}
             <p className="body">{v.listing.title}</p>
             <p className="caption muted">{naira(v.listing.price_kobo)} · {CONDITIONS.find(([c]) => c === v.listing.condition)?.[1]} condition · {placeLabel(v.listing.area, v.listing.state)}</p>
             {v.listing.description ? <p className="body">“{v.listing.description}”</p> : null}

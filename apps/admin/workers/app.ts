@@ -32,7 +32,7 @@ export default {
     const gate = await accessGate(request);
     if (gate instanceof Response) return harden(gate);
     const { pathname } = new URL(gate.url);
-    if (pathname.startsWith("/api/") || pathname.startsWith("/photos/")) return harden(await api.fetch(gate, env, ctx));
+    if (pathname.startsWith("/api/") || pathname.startsWith("/photos/") || pathname.startsWith("/videos/")) return harden(await api.fetch(gate, env, ctx));
     return harden(await pages(gate));
   },
 

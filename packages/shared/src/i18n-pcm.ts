@@ -166,6 +166,15 @@ export const PCM: Catalog = {
   "{rate} per {coin} (test rate). The exact amount is fixed for {minutes} minutes when you pick a network.": "{rate} for one {coin} (test rate). The exact amount go stay fixed for {minutes} minutes when you pick network.",
   "{rate} per {coin}. The exact amount is fixed for {minutes} minutes when you pick a network.": "{rate} for one {coin}. The exact amount go stay fixed for {minutes} minutes when you pick network.",
   "{coin} on {network}": "{coin} for {network}",
+  // apps/web/app/lib/listing-video.tsx
+  "Video of {title}": "Video of {title}",
+  "Play the video, {time} long": "Play the video, e long reach {time}",
+  "Play the video": "Play the video",
+  "Video": "Video",
+  "Play": "Play",
+  "Turn the sound on": "On the sound",
+  "Turn the sound off": "Off the sound",
+  "Full screen": "Full screen",
   // apps/web/app/lib/prefs.tsx
   "Language": "Language",
   "Read NosHen in {language}": "Read NosHen for {language}",
@@ -739,6 +748,8 @@ export const PCM: Catalog = {
   "Buy with protection": "Buy am with protection",
   "{title} · {price}. {place}. Your money is held until you have it.": "{title} · {price}. {place}. We go hold your money until e reach your hand.",
   "Photos, {n} in all. Use the arrow keys to move between them, and Enter to see one full size.": "Photos, {n} in all. Use the arrow keys to move from one to another, and Enter to see one full size.",
+  "Photos and a video, {n} in all. Use the arrow keys to move between them, and Enter to see a photo full size or play the video.": "Photos and one video, {n} in all. Use the arrow keys to move from one to another, and Enter to see photo full size or play the video.",
+  "Watch video": "Watch the video",
   "Photo {n} of {total}. See it full size": "Photo {n} of {total}. See am full size",
   "No photo yet": "No photo yet",
   "This is {seller}'s protected checkout link. Book here and you go straight to paying: NosHen holds the money and pays {seller} stage by stage, as you release each one.": "This na {seller} protected checkout link. Book here and you go go straight to pay: NosHen go hold the money and pay {seller} stage by stage, as you dey release each one.",
@@ -902,6 +913,15 @@ export const PCM: Catalog = {
   "Show any damage": "Show any damage",
   "Take photo {n} of 3": "Snap photo {n} of 3",
   "Next: details": "Next: details",
+  "Choose a video.": "Choose one video.",
+  "Add a video": "Add video",
+  "That video is too big to send. Try a shorter one, under 50 MB.": "That video too big to send. Try shorter one, wey no pass 50 MB.",
+  "Video (optional)": "Video (if you want)",
+  "Your video": "Your video",
+  "Remove the video": "Remove the video",
+  "Getting your video ready… {n}%": "We dey prepare your video… {n}%",
+  "Sending your video…": "E dey send your video…",
+  "Up to {n} seconds. Show it working and all round it: buyers trust what they can see.": "Reach {n} seconds. Show am as e dey work and all the sides: buyers dey trust wetin dem fit see.",
   // apps/web/app/routes/sell-review.tsx
   "Tick the box to confirm the item is yours to sell and described honestly.": "Tick the box to confirm say the item na your own to sell and say you describe am true true.",
   "Edit {what}": "Change {what}",
@@ -1340,6 +1360,8 @@ export const PCM: Catalog = {
   // packages/engine/src/photos.ts
   "Use a JPEG, PNG, WebP or HEIC photo.": "Use JPEG, PNG, WebP or HEIC photo.",
   "Photos must be under 8 MB.": "Photo no suppose pass 8 MB.",
+  "Use an MP4, MOV or WebM video.": "Use MP4, MOV or WebM video.",
+  "Videos must be under 50 MB.": "Video no suppose pass 50 MB.",
   // packages/engine/src/waitlist.ts
   "Choose a country NosHen is coming to.": "Choose country wey NosHen dey come.",
   // Categories, conditions, problems, deal states, sizes and legal page names

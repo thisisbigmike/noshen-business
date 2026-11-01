@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { createAuth } from "./auth";
 import { staffOf } from "./web";
-import { servePhoto } from "@noshen/engine/photos";
+import { servePhoto, serveVideo } from "@noshen/engine/photos";
 import { env } from "cloudflare:workers";
 import { pushFor, withApp } from "@noshen/engine/context";
 import { sendPush } from "@noshen/engine/push";
@@ -57,6 +57,16 @@ api.get("/photos/*", async (c) => {
   const res = await servePhoto(decodeURIComponent(c.req.path.slice("/photos/".length)));
   const headers = new Headers(res.headers);
   // Evidence can be private: only this staff member's browser may keep a copy.
+  headers.set("cache-control", "private, max-age=3600");
+  return new Response(res.body, { status: res.status, headers });
+});
+
+api.get("/videos/*", async (c) => {
+  const st = await staffOf(c.req.raw);
+  if (!st || typeof st === "string" || !st.twoFactorEnabled) return c.text("Not found", 404);
+  const res = await serveVideo(c.req.raw, decodeURIComponent(c.req.path.slice("/videos/".length)), c.req.query("poster") ? "poster" : undefined);
+  const headers = new Headers(res.headers);
+  // As with photos: only this staff member's browser may keep a copy.
   headers.set("cache-control", "private, max-age=3600");
   return new Response(res.body, { status: res.status, headers });
 });

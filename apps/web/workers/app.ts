@@ -32,7 +32,7 @@ export default {
     if (pathname === `/${GOOGLE_SITE_VERIFICATION}`) {
       return new Response(`google-site-verification: ${GOOGLE_SITE_VERIFICATION}`, { headers: { "content-type": "text/html; charset=utf-8" } });
     }
-    const res = pathname.startsWith("/api/") || pathname.startsWith("/photos/") ? await api.fetch(request, env, ctx) : await pages(withCountry(request));
+    const res = pathname.startsWith("/api/") || pathname.startsWith("/photos/") || pathname.startsWith("/videos/") ? await api.fetch(request, env, ctx) : await pages(withCountry(request));
     if (!isDemo()) return res;
     // A demo with pretend payments stays out of search results, so nobody mistakes it for the real service.
     const out = new Response(res.body, res);

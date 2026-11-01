@@ -8,7 +8,7 @@ import { staffListings } from "@noshen/engine/queries";
 import { deleteSoldListings, moderateListing } from "@noshen/engine/staff";
 import { Button, CheckedForm, ErrorText, Icon, Info, Select, TextArea, useEscape } from "@noshen/ui/ui";
 import { CATEGORIES, categoryOf } from "@noshen/shared/categories";
-import { photoUrl } from "@noshen/shared/photos";
+import { photoUrl, videoUrl } from "@noshen/shared/photos";
 import { naira } from "@noshen/shared/money";
 import { ago } from "@noshen/shared/time";
 import { placeLabel } from "@noshen/shared/locations";
@@ -47,7 +47,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 };
 const FILTERS = ["", "live", "blocked", "paused", "sold", "removed"];
 
-type Row = { id: string; title: string; category: string; price_kobo: string; status: string; area: string | null; state: string | null; photo_keys: string[] | null; published_at: string | null; created_at: string; seller_id: string; seller: string; quantity?: number; sold_count?: number; seller_email: string; open_deals: string };
+type Row = { id: string; title: string; category: string; price_kobo: string; status: string; area: string | null; state: string | null; photo_keys: string[] | null; video_key: string | null; published_at: string | null; created_at: string; seller_id: string; seller: string; quantity?: number; sold_count?: number; seller_email: string; open_deals: string };
 
 export default function Listings({ loaderData: { rows, counts, f, appUrl } }: Route.ComponentProps) {
   const [params] = useSearchParams();
@@ -133,7 +133,7 @@ export default function Listings({ loaderData: { rows, counts, f, appUrl } }: Ro
                         <span className="thumb">{l.photo_keys?.[0] ? <img src={photoUrl(l.photo_keys[0])} alt="" loading="lazy" /> : <Icon name={cat.icon} size={20} />}</span>
                         <div style={{ minWidth: 0 }}>
                           <p className="body">{l.title}</p>
-                          <p className="caption muted">{cat.label}{l.area || l.state ? ` · ${placeLabel(l.area, l.state)}` : ""}{open ? ` · ${open} open deal${open === 1 ? "" : "s"}` : ""}</p>
+                          <p className="caption muted">{cat.label}{l.area || l.state ? ` · ${placeLabel(l.area, l.state)}` : ""}{open ? ` · ${open} open deal${open === 1 ? "" : "s"}` : ""}{l.video_key ? <> · <a href={videoUrl(l.video_key)} target="_blank" rel="noreferrer" className="ink-link">Video</a></> : null}</p>
                         </div>
                       </div>
                     </td>

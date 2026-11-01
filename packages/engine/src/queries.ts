@@ -420,7 +420,7 @@ export async function staffListings(db: Db, f: { q?: string; status?: string; ca
   if (isCategory(f.cat)) { p.push(f.cat); where.push(`l.category = $${p.length}`); }
   if (f.q?.trim()) { p.push(`%${f.q.trim()}%`); where.push(`(l.title ilike $${p.length} or u.full_name ilike $${p.length})`); }
   const rows = await many(db,
-    `select l.id, l.title, l.category, l.price_kobo, l.status, l.area, l.state, l.photo_keys, l.published_at, l.created_at,
+    `select l.id, l.title, l.category, l.price_kobo, l.status, l.area, l.state, l.photo_keys, l.video_key, l.published_at, l.created_at,
             u.id as seller_id, u.full_name as seller, u.email as seller_email, l.quantity, l.sold_count,
             (select count(*) from deals d where d.listing_id = l.id and d.state in ('requested', 'accepted', 'held', 'disputed')) as open_deals
      from listings l join users u on u.id = l.seller_id
