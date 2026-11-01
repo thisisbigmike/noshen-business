@@ -15,5 +15,4 @@ worker-configuration.d.ts
 .solana-devnet-keys.txt
 .evm-testnet.vars
 .evm-testnet-keys.txt
-/brand/
 .cache/

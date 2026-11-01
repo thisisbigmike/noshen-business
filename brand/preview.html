@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NosHen — New Logo Concepts Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #091310;
+      --card-bg: #0f1e1a;
+      --card-border: #1a332d;
+      --text-main: #f0fdf9;
+      --text-muted: #99b6ad;
+      --accent: #14b8a6;
+      --mint: #34d399;
+    }
+    body {
+      margin: 0;
+      padding: 40px 24px;
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    }
+    .header {
+      max-width: 1100px;
+      margin: 0 auto 48px;
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 38px;
+      font-weight: 800;
+      margin: 0 0 12px;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #34d399 0%, #14b8a6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header p {
+      color: var(--text-muted);
+      font-size: 17px;
+      max-width: 620px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 32px;
+      max-width: 1100px;
+      margin: 0 auto 56px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent);
+    }
+    .card-badge {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(20, 184, 166, 0.15);
+      color: var(--mint);
+      border: 1px solid rgba(20, 184, 166, 0.3);
+    }
+    .icon-preview {
+      width: 140px;
+      height: 140px;
+      margin: 16px auto 28px;
+      border-radius: 32px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      transition: transform 0.2s;
+    }
+    .icon-preview:hover {
+      transform: scale(1.05);
+    }
+    .icon-preview svg {
+      width: 100%;
+      height: 100%;
+      border-radius: 32px;
+    }
+    .card h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 8px;
+      letter-spacing: -0.02em;
+    }
+    .card .concept-subtitle {
+      color: var(--mint);
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .card p {
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0 0 24px;
+      flex-grow: 1;
+    }
+    .lockup-preview {
+      background: rgba(0,0,0,0.25);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .lockup-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+    .lockup-text {
+      font-family: 'Sora', sans-serif;
+      font-weight: 800;
+      font-size: 26px;
+      letter-spacing: -0.04em;
+      color: #fff;
+    }
+    .scales {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 16px 0 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin-top: 20px;
+    }
+    .scale-item {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .scale-item img, .scale-item svg {
+      margin-bottom: 6px;
+      border-radius: 6px;
+    }
+    .comparison-section {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 32px;
+      text-align: center;
+    }
+    .comparison-section h3 {
+      font-size: 20px;
+      margin: 0 0 20px;
+    }
+    .comparison-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .comparison-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .comparison-box span {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .old-badge {
+      color: #f87171 !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>NosHen Brand Identity Exploration</h1>
+    <p>Replacing the generic shield with a distinctive, high-trust symbol designed for African commerce, crypto escrow, and autonomous agent settlement.</p>
+  </div>
+
+  <div class="grid">
+
+    <!-- CONCEPT 1 -->
+    <div class="card">
+      <div class="card-badge">Top Pick</div>
+      <div class="icon-preview">
+        <img src="concept-1-interlocking-n.svg" alt="Concept 1" width="140" height="140">
+      </div>
+      <h2>1. The Interlocking N</h2>
+      <div class="concept-subtitle">The Escrow Handshake Monogram</div>
+      <p>Two curved geometric bands interlock at a central pivot node to form the letter <b>N</b>. Represents the buyer's locked deposit and the seller's verified item meeting in the middle. Ultra-clean, modern fintech aesthetic.</p>
+      
+      <div class="lockup-preview">
+        <img class="lockup-icon" src="concept-1-interlocking-n.svg">
+        <div class="lockup-text">noshen</div>
+      </div>
+
+      <div class="scales">
+        <div class="scale-item">
+          <img src="concept-1-interlocking-n.svg" width="48" height="48" style="border-radius: 12px;">
+          <div>App Icon (48px)</div>
+        </div>
+        <div class="scale-item">
+          <img src="concept-1-interlocking-n.svg" width="28" height="28" style="border-radius: 7px;">
+          <div>Card Badge (28px)</div>
+        </div>
+        <div class="scale-item">
+          <img src="concept-1-interlocking-n.svg" width="18" height="18" style="border-radius: 4px;">
+          <div>Favicon (18px)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONCEPT 2 -->
+    <div class="card">
+      <div class="card-badge">Cryptographic</div>
+      <div class="icon-preview">
+        <img src="concept-2-split-vault.svg" alt="Concept 2" width="140" height="140">
+      </div>
+      <h2>2. The Split Vault</h2>
+      <div class="concept-subtitle">Dual-Lock Escrow & Release Code</div>
+      <p>A modern angular shield split into two interlocking facets (Deposit & Item) guarding a central golden keyhole. Highlights NosHen's unique 6-digit release code mechanic and cryptographic certainty.</p>
+
+      <div class="lockup-preview">
+        <img class="lockup-icon" src="concept-2-split-vault.svg">
+        <div class="lockup-text">noshen</div>
+      </div>
+
+      <div class="scales">
+        <div class="scale-item">
+          <img src="concept-2-split-vault.svg" width="48" height="48" style="border-radius: 12px;">
+          <div>App Icon (48px)</div>
+        </div>
+        <div class="scale-item">
+          <img src="concept-2-split-vault.svg" width="28" height="28" style="border-radius: 7px;">
+          <div>Card Badge (28px)</div>
+        </div>
+        <div class="scale-item">
+          <img src="concept-2-split-vault.svg" width="18" height="18" style="border-radius: 4px;">
+          <div>Favicon (18px)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONCEPT 3 -->
+    <div class="card">
+      <div class="card-badge">Cultural Heritage</div>
+      <div class="icon-preview">
+        <img src="concept-3-cowrie-knot.svg" alt="Concept 3" width="140" height="140">
+      </div>
+      <h2>3. The Cowrie Trust Knot</h2>
+      <div class="concept-subtitle">Historic African Currency & Wealth</div>
+      <p>A stylized geometric homage to the cowrie shell—West Africa's ancient currency and symbol of value—fused with digital trust rungs and gold accents. Grounded in trade heritage with unmistakable personality.</p>
+
+      <div class="lockup-preview">
+        <img class="lockup-icon" src="concept-3-cowrie-knot.svg">
+        <div class="lockup-text">noshen</div>
+      </div>
+
+      <div class="scales">
+        <div class="scale-item">
+          <img src="concept-3-cowrie-knot.svg" width="48" height="48" style="border-radius: 12px;">
+          <div>App Icon (48px)</div>
+        </div>
+        <div class="scale-item">
+          <img src="concept-3-cowrie-knot.svg" width="28" height="28" style="border-radius: 7px;">
+          <div>Card Badge (28px)</div>
+        </div>
+        <div class="scale-item">
+          <img src="concept-3-cowrie-knot.svg" width="18" height="18" style="border-radius: 4px;">
+          <div>Favicon (18px)</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="comparison-section">
+    <h3>Before vs. After Comparison</h3>
+    <div class="comparison-row">
+      <div class="comparison-box">
+        <img src="noshen-mark.svg" width="96" height="96" style="border-radius: 22px;">
+        <span class="old-badge">Previous: Generic Tabler Shield Icon</span>
+      </div>
+      <div style="font-size: 28px; color: var(--mint);">➔</div>
+      <div class="comparison-box">
+        <img src="concept-1-interlocking-n.svg" width="96" height="96" style="border-radius: 22px;">
+        <span style="color: var(--mint); font-weight: 600;">Proposed: Bespoke NosHen Escrow Mark</span>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
