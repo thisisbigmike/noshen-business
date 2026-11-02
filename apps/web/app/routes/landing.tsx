@@ -113,14 +113,15 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
           <Link to="/privacy" className="caption">{t("Privacy Policy")}</Link>
           <Link to="/cookies" className="caption">{t("Cookie Policy")}</Link>
         </nav>
-        <div className="footer-bottom row-between wrap">
+        <nav className="stack" aria-label={t("Socials")}>
+          <p className="label">{t("Socials")}</p>
+          <a href="https://x.com/useNosHen" target="_blank" rel="noopener noreferrer" className="caption footer-social">
+            <Icon name="brand-x" size={16} />
+            <span>X (@useNosHen)</span>
+          </a>
+        </nav>
+        <div className="footer-bottom">
           <p className="caption muted">{t("© {year} NosHen. Money is held by a licensed partner bank; NosHen is not a bank.", { year: new Date().getFullYear() })}</p>
-          <div className="row" style={{ gap: 16 }}>
-            <a href="https://x.com/useNosHen" target="_blank" rel="noopener noreferrer" className="caption footer-social" aria-label="X (@useNosHen)">
-              <Icon name="brand-x" size={16} />
-              <span>@useNosHen</span>
-            </a>
-          </div>
         </div>
       </div>
     </footer>

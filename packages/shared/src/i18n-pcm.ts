@@ -634,6 +634,7 @@ export const PCM: Catalog = {
   "Protected Deal Terms": "Protected Deal Terms",
   "Privacy Policy": "Privacy Policy",
   "Cookie Policy": "Cookie Policy",
+  "Socials": "Socials",
   "© {year} NosHen. Money is held by a licensed partner bank; NosHen is not a bank.": "© {year} NosHen. Na licensed partner bank dey hold the money; NosHen no be bank.",
   "The problem": "The wahala",
   "Nobody wants to go first": "Nobody wan go first",

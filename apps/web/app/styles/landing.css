@@ -276,7 +276,7 @@
   .bento-answer .body { flex: 1 1 50%; }
   .dark-steps { grid-template-columns: repeat(2, 1fr); }
   .lp-split { grid-template-columns: 1fr 1fr; gap: 48px; }
-  .footer-grid { grid-template-columns: 2fr 1fr 1fr 1fr; }
+  .footer-grid { grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr; }
   .footer-brand { grid-column: auto; }
   .lp-h2 { font-size: 40px; line-height: 46px; }
   .final-title { font-size: 48px; line-height: 54px; }
