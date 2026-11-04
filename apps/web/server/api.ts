@@ -10,23 +10,58 @@ import { timingSafeEqual } from "@noshen/engine/crypto";
 import type { Deps } from "@noshen/engine/core";
 import type { WalletEvent } from "@noshen/engine/partner/blockradar";
 import { sweep } from "@noshen/engine/sweep";
-import { dealView, dealsFor } from "@noshen/engine/queries";
-import { DealError } from "@noshen/engine/core";
+import { browse, dealView, dealsFor, listingView } from "@noshen/engine/queries";
+import { checkSeller } from "@noshen/engine/handles";
+import { DealError, settingsOf } from "@noshen/engine/core";
 import { FakePartner } from "@noshen/engine/partner/fake";
 import { FakeCryptoPartner } from "@noshen/engine/partner/fake-crypto";
 import { koboForCoin, type Network } from "@noshen/shared/payments";
 import { WebhookSignatureError, type PartnerEvent } from "@noshen/engine/partner/types";
 import { optionalUser } from "./web";
 import { servePhoto, serveVideo } from "@noshen/engine/photos";
-import { one } from "@noshen/engine/db";
+import { many, one } from "@noshen/engine/db";
+import { CATEGORIES, categoryOf, isCategory } from "@noshen/shared/categories";
+import { CONDITIONS, firstName } from "@noshen/shared/deal";
+import { isState, placeLabel } from "@noshen/shared/locations";
+import { feeFor, naira } from "@noshen/shared/money";
+import { photoUrl } from "@noshen/shared/photos";
+import { profileUrl } from "@noshen/shared/social";
+import { cryptoQuotes } from "@noshen/engine/stablecoins";
 
 /**
- * The JSON API: sign-in (Better Auth), the partner's webhook, photos, and read endpoints for
- * future native apps. The web pages call the same engine directly from their loaders and actions.
+ * Per-isolate sliding-window rate limiter by client IP and bucket.
+ * Protects sign-in OTP endpoints and public agent discovery APIs from brute-force or scraping floods.
+ */
+const rateWindows = new Map<string, { count: number; resetAt: number }>();
+function checkRateLimit(ip: string, bucket: string, maxPerMinute: number): boolean {
+  const now = Date.now();
+  if (rateWindows.size > 5000) {
+    for (const [k, v] of rateWindows) if (v.resetAt <= now) rateWindows.delete(k);
+  }
+  const key = `${bucket}:${ip}`;
+  const cur = rateWindows.get(key);
+  if (!cur || cur.resetAt <= now) {
+    rateWindows.set(key, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  cur.count += 1;
+  return cur.count <= maxPerMinute;
+}
+const clientIp = (c: { req: { header: (k: string) => string | undefined } }) =>
+  c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+
+/**
+ * The JSON API: sign-in (Better Auth), the partner's webhook, photos, public AI/agent discovery, and read endpoints.
+ * The web pages call the same engine directly from their loaders and actions.
  */
 export const api = new Hono();
 
-api.on(["GET", "POST"], "/api/auth/*", async (c) => (await createAuth(mailFor())).handler(c.req.raw));
+api.on(["GET", "POST"], "/api/auth/*", async (c) => {
+  if (c.req.method === "POST" && !checkRateLimit(clientIp(c), "auth", 25)) {
+    return c.json({ error: "Too many sign-in attempts. Please wait a minute and try again." }, 429);
+  }
+  return (await createAuth(mailFor())).handler(c.req.raw);
+});
 
 // The partner's webhook: verify the signature first, store the event once, then process it.
 api.post("/api/webhooks/partner", async (c) => {
@@ -214,13 +249,335 @@ api.get("/api/deals/:id", async (c) => {
   if (!u) return c.json({ error: "signed out" }, 401);
   const v = await withApp((d) => dealView(d.db, c.req.param("id")));
   if (!v || (v.deal.buyer_id !== u.id && v.deal.seller_id !== u.id)) return c.json({ error: "not found" }, 404);
+  const isBuyer = v.deal.buyer_id === u.id;
   const { deal, listing, payments, events, messages, dispute } = v;
-  return c.json({ deal, listing: { id: listing.id, title: listing.title }, payments, events, messages, dispute });
+  // Redact sender_name unless the signed-in caller is the buyer, and never expose collection account details to the seller.
+  const safeDeal = {
+    id: deal.id, listing_id: deal.listing_id, buyer_id: deal.buyer_id, seller_id: deal.seller_id,
+    price_kobo: deal.price_kobo, fee_kobo: deal.fee_kobo, fee_payer: deal.fee_payer,
+    amount_due_kobo: deal.amount_due_kobo, seller_share_kobo: deal.seller_share_kobo,
+    handover: deal.handover, state: deal.state, kind: deal.kind, review_hold: deal.review_hold,
+    request_expires_at: deal.request_expires_at, payment_due_at: deal.payment_due_at,
+    handover_due_at: deal.handover_due_at, delivered_at: deal.delivered_at, release_due_at: deal.release_due_at,
+    created_at: deal.created_at, updated_at: deal.updated_at, closed_at: deal.closed_at,
+  };
+  const safePayments = payments.map((p: any) => ({
+    ...p,
+    sender_name: isBuyer ? p.sender_name : undefined,
+  }));
+  return c.json({ deal: safeDeal, listing: { id: listing.id, title: listing.title }, payments: safePayments, events, messages, dispute });
 });
 
 // ---------------------------------------------------------------------------
-// Development tools: only with the fake partner.
+// Search Engine, LLM & AI Agent Discovery (/robots.txt, /sitemap.xml, /llms.txt, /api/public/*)
+// Strict security: read-only, rate-limited, public listings only, zero PII or IMEI/serial exposure.
 // ---------------------------------------------------------------------------
+
+const xmlEscape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+
+api.get("/robots.txt", (c) => {
+  const origin = new URL(c.req.url).origin;
+  const rules = [
+    "Allow: /",
+    "Allow: /browse",
+    "Allow: /l/",
+    "Allow: /s/",
+    "Allow: /check",
+    "Allow: /api/public/",
+    "Allow: /llms.txt",
+    "Allow: /sitemap.xml",
+    "Disallow: /deals",
+    "Disallow: /d/",
+    "Disallow: /account",
+    "Disallow: /sell",
+    "Disallow: /link/",
+    "Disallow: /signin",
+    "Disallow: /signout",
+    "Disallow: /notifications",
+    "Disallow: /prefs",
+    "Disallow: /waitlist",
+    "Disallow: /l/*/buy",
+    "Disallow: /api/auth/",
+    "Disallow: /api/deals",
+    "Disallow: /api/me",
+    "Disallow: /api/push/",
+    "Disallow: /api/webhooks/",
+    "Disallow: /api/agent/",
+    "Disallow: /api/dev/",
+  ].join("\n");
+  const bots = ["*", "Googlebot", "Google-Extended", "Bingbot", "OAI-SearchBot", "ChatGPT-User", "GPTBot", "ClaudeBot", "Claude-Web", "PerplexityBot", "Applebot-Extended"];
+  const body = bots.map((b) => `User-agent: ${b}\n${rules}`).join("\n\n") + `\n\nSitemap: ${origin}/sitemap.xml\n`;
+  return c.text(body, 200, { "Cache-Control": "public, max-age=3600" });
+});
+
+api.get("/sitemap.xml", async (c) => {
+  if (!checkRateLimit(clientIp(c), "sitemap", 20)) return c.text("Too many requests", 429);
+  const origin = new URL(c.req.url).origin;
+  const { items, shops } = await withApp(async (d) => {
+    const items = await many<{ id: string; updated_at: Date }>(
+      d.db,
+      `select l.id, l.updated_at from listings l join users u on u.id = l.seller_id
+        where l.status = 'live' and l.visibility = 'public' and u.status = 'active'
+        order by l.published_at desc limit 500`,
+    );
+    const shops = await many<{ seller_id: string; last_mod: Date }>(
+      d.db,
+      `select l.seller_id, max(l.updated_at) as last_mod from listings l join users u on u.id = l.seller_id
+        where l.status = 'live' and l.visibility = 'public' and u.status = 'active'
+        group by l.seller_id order by max(l.updated_at) desc limit 200`,
+    );
+    return { items, shops };
+  });
+  const staticPaths = ["/", "/browse", "/check", "/safety", "/terms", "/deal-terms", "/privacy", "/cookies", "/prohibited-items"];
+  const catPaths = CATEGORIES.map((cat) => `/browse?cat=${encodeURIComponent(cat.key)}`);
+  const urls = [
+    ...staticPaths.map((p) => `<url><loc>${xmlEscape(`${origin}${p}`)}</loc><changefreq>daily</changefreq></url>`),
+    ...catPaths.map((p) => `<url><loc>${xmlEscape(`${origin}${p}`)}</loc><changefreq>hourly</changefreq></url>`),
+    ...items.map((x) => `<url><loc>${xmlEscape(`${origin}/l/${x.id}`)}</loc><lastmod>${new Date(x.updated_at).toISOString()}</lastmod><changefreq>daily</changefreq></url>`),
+    ...shops.map((s) => `<url><loc>${xmlEscape(`${origin}/s/${s.seller_id}`)}</loc><lastmod>${new Date(s.last_mod).toISOString()}</lastmod><changefreq>daily</changefreq></url>`),
+  ];
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
+  return new Response(xml, { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=900" } });
+});
+
+api.get("/llms.txt", (c) => {
+  const origin = new URL(c.req.url).origin;
+  const md = `# NosHen — Escrow-Protected Commerce & Seller Verification
+
+> Your money is held until you have the item. Across Nigeria (Naira bank transfer + USDT/USDC on Solana, Base, and BNB Smart Chain), with global stablecoin checkout from anywhere.
+
+## Overview for AI Assistants (ChatGPT, Gemini, Claude, Perplexity) & Shopping Agents
+NosHen protects online deals between strangers so neither the buyer nor the seller has to take the risk first:
+1. **Buyer requests or opens a checkout link** and pays into NosHen (licensed partner bank in NGN or on-chain USDT/USDC on Solana, Base, or BNB Smart Chain).
+2. **Money is held**: the seller sees the funds are held in NosHen, so there are no fake transfer alerts, and the seller cannot touch the money yet.
+3. **Buyer checks the item**: at the meet-up or upon delivery (with built-in IMEI, serial number, and chassis/VIN checks).
+4. **Release code or 72-hour human review**: if happy, the buyer gives their 6-digit release code (or confirms delivery) and the seller is paid within minutes. If something is wrong, the buyer reports a problem before releasing and a human reviewer decides within 72 hours.
+
+## Public Web URLs
+- Home & Fee Calculator: ${origin}/
+- Browse & Search Listings: ${origin}/browse?q={query}&cat={category}&state={state}&min={min_naira}&max={max_naira}&verified={1_or_0}&sort={price_asc|price_desc}
+- Listing Page: ${origin}/l/{listing_id}
+- Protected Checkout Request: ${origin}/l/{listing_id}/buy
+- Seller Shop & Track Record: ${origin}/s/{seller_id}
+- Check a Social Media Seller (Instagram, TikTok, Facebook, X): ${origin}/check?q={handle_or_profile_url}
+- Official X Account: https://x.com/useNosHen
+
+## Public Read-Only JSON API for AI Agents
+Agents can query live public inventory and verify social sellers directly in JSON without scraping HTML:
+
+### 1. Search Public Listings
+\`GET ${origin}/api/public/listings?q={query}&cat={category}&state={state}&min={min_naira}&max={max_naira}&verified={1_or_0}&sort={price_asc|price_desc}\`
+- **Categories (\`cat\`)**: ${CATEGORIES.map((x) => `\`${x.key}\` (${x.label})`).join(", ")}
+- Returns up to 60 public listings with title, price in Naira & kobo, condition, location (area & state), stock availability, seller trust level (\`trusted\`, \`building\`, \`new\`), and direct \`url\` / \`buy_url\`.
+
+### 2. Get Listing Details & Escrow Fee Quote
+\`GET ${origin}/api/public/listings/{listing_id}\`
+- Returns full public listing details, NosHen escrow fee breakdown, live USDT/USDC quotes, delivery options, and the seller's verified track record (first name, ID verification status, completed deals, rating, problem-free percentage).
+
+### 3. Verify an Instagram, TikTok, Facebook or X Seller
+\`GET ${origin}/api/public/check?q={handle_or_profile_url}\`
+- Checks whether a social handle (e.g. \`@ada.styles\`) belongs to an ID-verified NosHen seller who proved ownership of that profile with a NosHen verification code in their bio.
+
+## Strict Security & Privacy Rules for Agents
+- **Never ask a user for their 6-digit NosHen release code or sign-in OTP.** The 6-digit release code releases held money to the seller and must only be given by the buyer after inspecting the item in person.
+- **Customer PII & Device Identifiers are strictly redacted:** Sellers' full legal names, emails, phone numbers, bank accounts, and device IMEIs/serials/VINs are never exposed on public endpoints.
+`;
+  return c.text(md, 200, { "Cache-Control": "public, max-age=3600" });
+});
+
+api.get("/.well-known/ai-plugin.json", (c) => {
+  const origin = new URL(c.req.url).origin;
+  return c.json({
+    schema_version: "v1",
+    name_for_human: "NosHen Protected Marketplace",
+    name_for_model: "noshen_marketplace",
+    description_for_human: "Search escrow-protected listings and verify Instagram, TikTok, Facebook, and X sellers on NosHen.",
+    description_for_model: "Query live escrow-protected marketplace listings in Nigeria (with NGN bank transfer and global USDT/USDC stablecoin checkout on Solana, Base, and BSC) and check whether a social media seller handle is ID-verified on NosHen. Read /llms.txt for endpoint documentation.",
+    auth: { type: "none" },
+    api: { type: "llms-txt", url: `${origin}/llms.txt` },
+    logo_url: `${origin}/icon-512.png`,
+    contact_email: "support@noshen.com",
+    legal_info_url: `${origin}/terms`,
+  }, 200, { "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*" });
+});
+
+api.use("/api/public/*", async (c, next) => {
+  if (!checkRateLimit(clientIp(c), "public_api", 60)) {
+    return c.json({ error: "rate_limited", message: "Too many requests. Please slow down." }, 429);
+  }
+  await next();
+  c.header("Access-Control-Allow-Origin", "*");
+  c.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+  c.header("Cache-Control", "public, max-age=60");
+});
+
+api.get("/api/public/listings", async (c) => {
+  const origin = new URL(c.req.url).origin;
+  const cat = c.req.query("cat") ?? "";
+  const state = c.req.query("state") ?? "";
+  const q = (c.req.query("q") ?? "").trim().slice(0, 120);
+  const sort = c.req.query("sort") ?? "";
+  const verified = c.req.query("verified") === "1" || c.req.query("verified") === "true";
+  const parseNaira = (v: string | undefined) => {
+    const n = Number((v ?? "").replace(/[^\d]/g, ""));
+    return n > 0 && Number.isSafeInteger(n * 100) ? n * 100 : undefined;
+  };
+  const minKobo = parseNaira(c.req.query("min"));
+  const maxKobo = parseNaira(c.req.query("max"));
+  const cond = c.req.queries("cond")?.filter((x) => CONDITIONS.some(([k]) => k === x)) ?? [];
+
+  const rows = await withApp((d) => browse(d.db, {
+    cat: isCategory(cat) ? cat : "",
+    state: isState(state) ? state : "",
+    q,
+    sort,
+    minKobo,
+    maxKobo,
+    conditions: cond,
+    verifiedOnly: verified,
+  }));
+
+  return c.json({
+    marketplace: "NosHen",
+    escrow_protection: "Money is held by a licensed partner bank or on-chain escrow until the buyer inspects the item and releases it.",
+    count: rows.length,
+    listings: rows.map((l: any) => {
+      const priceKobo = Number(l.price_kobo);
+      const qty = Number(l.quantity ?? 1);
+      const sold = Number(l.sold_count ?? 0);
+      return {
+        id: l.id,
+        title: l.title,
+        category: l.category,
+        category_label: categoryOf(l.category).label,
+        condition: l.condition,
+        size: l.size ?? null,
+        price_kobo: priceKobo,
+        price_naira: priceKobo / 100,
+        price_formatted: naira(priceKobo),
+        currency: "NGN",
+        area: l.area,
+        state: l.state,
+        location: placeLabel(l.area, l.state),
+        status: l.status,
+        available_quantity: l.status === "live" ? Math.max(0, qty - sold) : 0,
+        published_at: l.published_at,
+        photo_url: l.photo_keys?.[0] ? `${origin}${photoUrl(l.photo_keys[0])}` : null,
+        url: `${origin}/l/${l.id}`,
+        buy_url: l.status === "live" ? `${origin}/l/${l.id}/buy` : null,
+        seller: {
+          trust_level: l.seller.level,
+          completed_deals: l.seller.deals,
+        },
+      };
+    }),
+  });
+});
+
+api.get("/api/public/listings/:id", async (c) => {
+  const origin = new URL(c.req.url).origin;
+  const id = c.req.param("id");
+  return withApp(async (d) => {
+    const v = await listingView(d.db, id);
+    // Only public live or sold listings are accessible via the public discovery API; link-only listings stay private to people with the link.
+    if (!v || v.listing.visibility !== "public" || !["live", "sold"].includes(v.listing.status)) {
+      return c.json({ error: "not_found", message: "Listing not found." }, 404);
+    }
+    const l = v.listing;
+    const s = await settingsOf(d);
+    const priceKobo = Number(l.price_kobo);
+    const feeKobo = feeFor(priceKobo, s.fee);
+    const quotes = await cryptoQuotes(d, priceKobo + feeKobo).catch(() => null);
+    const qty = Number(l.quantity ?? 1);
+    const sold = Number(l.sold_count ?? 0);
+    return c.json({
+      id: l.id,
+      title: l.title,
+      description: l.description ?? null,
+      category: l.category,
+      category_label: categoryOf(l.category).label,
+      condition: l.condition,
+      size: l.size ?? null,
+      price_kobo: priceKobo,
+      price_naira: priceKobo / 100,
+      price_formatted: naira(priceKobo),
+      noshen_fee_kobo: feeKobo,
+      noshen_fee_formatted: naira(feeKobo),
+      total_buyer_pays_kobo: priceKobo + feeKobo,
+      total_buyer_pays_formatted: naira(priceKobo + feeKobo),
+      currency: "NGN",
+      stablecoin_quotes: quotes ? {
+        rate_formatted: naira(quotes.usdt.rateKobo),
+        usdt_amount: (quotes.usdt.micro / 1_000_000).toFixed(2),
+        usdc_amount: (quotes.usdc.micro / 1_000_000).toFixed(2),
+        networks: ["solana", "base", "bsc"],
+      } : null,
+      area: l.area,
+      state: l.state,
+      location: placeLabel(l.area, l.state),
+      delivery: {
+        meetup_free: true,
+        local_delivery_kobo: l.delivery_local_kobo !== null ? Number(l.delivery_local_kobo) : null,
+        other_states_delivery_kobo: l.delivery_other_kobo !== null ? Number(l.delivery_other_kobo) : null,
+      },
+      has_verified_identifier_on_file: Boolean(l.imei_or_serial),
+      status: l.status,
+      available_quantity: l.status === "live" ? Math.max(0, qty - sold) : 0,
+      published_at: l.published_at,
+      photos: (l.photo_keys ?? []).map((k: string) => `${origin}${photoUrl(k)}`),
+      url: `${origin}/l/${l.id}`,
+      buy_url: l.status === "live" ? `${origin}/l/${l.id}/buy` : null,
+      seller: {
+        id: v.seller.id,
+        first_name: firstName(v.seller.name),
+        id_verified: v.seller.idVerified,
+        completed_sales: v.seller.completedDeals,
+        problem_free_percent: v.seller.problemFree,
+        rating: v.seller.rating,
+        rating_count: v.seller.ratingCount,
+        shop_url: `${origin}/s/${v.seller.id}`,
+      },
+    });
+  });
+});
+
+api.get("/api/public/check", async (c) => {
+  const origin = new URL(c.req.url).origin;
+  const q = (c.req.query("q") ?? "").trim().slice(0, 200);
+  if (!q) return c.json({ error: "missing_query", message: "Pass ?q=@handle or a profile URL." }, 400);
+  const res = await withApp((d) => checkSeller(d.db, q));
+  if (!res.query) return c.json({ valid_handle: false, verified: false, matches: [] });
+  return c.json({
+    valid_handle: true,
+    query: res.query,
+    verified: res.matches.length > 0,
+    matches: res.matches.map((m) => ({
+      platform: m.platform,
+      handle: m.handle,
+      profile_url: profileUrl(m.platform, m.handle),
+      seller: {
+        id: m.seller.id,
+        first_name: firstName(m.seller.name),
+        id_verified: m.seller.idVerified,
+        completed_sales: m.seller.completedDeals,
+        problem_free_percent: m.seller.problemFree,
+        rating: m.seller.rating,
+        rating_count: m.seller.ratingCount,
+        shop_url: `${origin}/s/${m.seller.id}`,
+      },
+    })),
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Development tools: only with the fake partner and same-origin requests.
+// ---------------------------------------------------------------------------
+api.use("/api/dev/*", async (c, next) => {
+  if (!isDev()) return c.notFound();
+  const origin = c.req.header("origin");
+  if (origin && origin !== new URL(env.APP_URL).origin) return c.json({ error: "Not allowed." }, 403);
+  await next();
+});
 
 /**
  * Pretends to be the buyer's bank: sends a signed "money received" webhook for a deal. With pretend payments

@@ -35,11 +35,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const mine = user?.id === v.listing.seller_id;
     // Sellers who haven't verified can only take deals up to a limit. Say so here, before a buyer starts, not at the last step.
     const limit = await sellerLimit(d.db, v.listing.seller_id, s);
-    return { ...v, fee: feeFor(price, s.fee), mine, limit: overLimit(price, limit) ? limit : null, sendHours: s.handover_window_hours, origin: new URL(request.url).origin };
+    // Security: never send the raw IMEI/VIN/serial or the seller's full surname in the public page payload before payment.
+    const safeListing = { ...v.listing, imei_or_serial: v.listing.imei_or_serial ? "REDACTED" : null };
+    const safeSeller = { ...v.seller, name: firstName(v.seller.name) };
+    return { listing: safeListing, seller: safeSeller, fee: feeFor(price, s.fee), mine, limit: overLimit(price, limit) ? limit : null, sendHours: s.handover_window_hours, origin: new URL(request.url).origin };
   });
 }
 
-// Link previews on WhatsApp and Facebook (PRD R4): photo, price and "Protected by NosHen".
+// Link previews on WhatsApp and Facebook (PRD R4): photo, price and "Protected by NosHen", plus Schema.org JSON-LD for search & AI agents.
 export const meta: Route.MetaFunction = ({ loaderData: d }) => {
   if (!d) return [{ title: "Listing not found · NosHen" }];
   const l = d.listing;
@@ -48,15 +51,52 @@ export const meta: Route.MetaFunction = ({ loaderData: d }) => {
     ? `${placeLabel(l.area, l.state)}. Protected by NosHen: paid stage by stage, as the work is done.`
     : `${placeLabel(l.area, l.state)}. Protected by NosHen: your money is held until you have the item.`;
   const img = l.photo_keys?.[0] ? `${d.origin}${photoUrl(l.photo_keys[0])}` : undefined;
+  const isPublic = l.visibility === "public";
+  const schemaCondition = l.condition === "new" ? "https://schema.org/NewCondition" : "https://schema.org/UsedCondition";
+  const ldJson = {
+    "@context": "https://schema.org",
+    "@type": isService(l.category) ? "Service" : "Product",
+    name: l.title,
+    description: l.description ? `${l.description} — ${desc}` : desc,
+    ...(img ? { image: (l.photo_keys ?? []).map((k: string) => `${d.origin}${photoUrl(k)}`) } : {}),
+    category: categoryOf(l.category).label,
+    ...(!isService(l.category) ? { itemCondition: schemaCondition } : {}),
+    offers: {
+      "@type": "Offer",
+      url: `${d.origin}/l/${l.id}`,
+      priceCurrency: "NGN",
+      price: (Number(l.price_kobo) / 100).toFixed(2),
+      availability: l.status === "live" ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      areaServed: placeLabel(l.area, l.state),
+      seller: {
+        "@type": "Person",
+        name: firstName(d.seller.name),
+        url: `${d.origin}/s/${d.seller.id}`,
+      },
+    },
+    ...(d.seller.rating !== null && d.seller.ratingCount > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: d.seller.rating,
+            ratingCount: d.seller.ratingCount,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
+  };
   return [
     { title: `${title} · NosHen` },
     { name: "description", content: desc },
+    ...(!isPublic ? [{ name: "robots", content: "noindex, nofollow" }] : []),
     { property: "og:title", content: title },
     { property: "og:description", content: desc },
     { property: "og:type", content: "product" },
     { property: "og:url", content: `${d.origin}/l/${l.id}` },
     ...(img ? [{ property: "og:image", content: img }] : []),
     { name: "twitter:card", content: "summary_large_image" },
+    ...(isPublic ? [{ "script:ld+json": ldJson }] : []),
   ];
 };
 

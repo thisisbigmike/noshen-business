@@ -20,7 +20,7 @@ export const handle = { tabs: false };
 export async function loader({ request, params }: Route.LoaderArgs) {
   const shop = await withApp(async (d) => {
     const s = await sellerShop(d.db, params.id);
-    return s ? { ...s, handles: await verifiedHandles(d.db, s.summary.id) } : null;
+    return s ? { summary: { ...s.summary, name: firstName(s.summary.name) }, listings: s.listings, handles: await verifiedHandles(d.db, s.summary.id) } : null;
   });
   if (!shop) throw data("Not found", { status: 404 });
   return { ...shop, origin: new URL(request.url).origin };

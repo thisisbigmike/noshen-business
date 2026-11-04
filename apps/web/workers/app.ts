@@ -1,6 +1,6 @@
 import { createRequestHandler } from "react-router";
 import { api } from "../server/api";
-import { isDemo, withApp } from "@noshen/engine/context";
+import { withApp } from "@noshen/engine/context";
 import { sweep } from "@noshen/engine/sweep";
 import { watchCrypto } from "@noshen/engine/stablecoins";
 
@@ -15,6 +15,34 @@ const pages = createRequestHandler(() => import("virtual:react-router/server-bui
 // not as a file in public/, because static files ending in .html are redirected to the address without it.
 const GOOGLE_SITE_VERIFICATION = "google246ad6ce9be68826.html";
 
+/** Routes that belong to a signed-in person or an active deal: never indexed, never cached by shared proxies, no referrer leaks. */
+function isPrivatePath(pathname: string): boolean {
+  if (pathname === "/deals" || pathname === "/account" || pathname === "/sell" || pathname === "/signin" || pathname === "/signout" || pathname === "/notifications" || pathname === "/prefs" || pathname === "/waitlist") return true;
+  if (pathname.startsWith("/d/") || pathname.startsWith("/account/") || pathname.startsWith("/sell/") || pathname.startsWith("/link/")) return true;
+  if (/^\/l\/[^/]+\/buy\/?$/.test(pathname)) return true;
+  if (pathname.startsWith("/api/") && !pathname.startsWith("/api/public/")) return true;
+  return false;
+}
+
+/** Strict security headers on every customer-site response to protect buyers, sellers and their deal data. */
+function harden(res: Response, pathname: string): Response {
+  const out = new Response(res.body, res);
+  out.headers.set("X-Frame-Options", "DENY");
+  out.headers.set("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'");
+  out.headers.set("X-Content-Type-Options", "nosniff");
+  out.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+  out.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  out.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  if (isPrivatePath(pathname)) {
+    out.headers.set("Referrer-Policy", "no-referrer");
+    out.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+    out.headers.set("Cache-Control", "private, no-store");
+  } else {
+    out.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  }
+  return out;
+}
+
 /**
  * The visitor's country from Cloudflare, as a header the pages can read (the pay screen puts the ways to pay
  * that suit it first). Always set here, so a visitor can't send their own.
@@ -25,19 +53,24 @@ function withCountry(request: Request) {
   return req;
 }
 
+const isApiOrDiscovery = (pathname: string) =>
+  pathname.startsWith("/api/") ||
+  pathname.startsWith("/photos/") ||
+  pathname.startsWith("/videos/") ||
+  pathname === "/robots.txt" ||
+  pathname === "/sitemap.xml" ||
+  pathname === "/llms.txt" ||
+  pathname === "/.well-known/ai-plugin.json";
+
 /** The customer site: buying, selling and deals. Staff work happens on the separate staff site (apps/admin). */
 export default {
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);
     if (pathname === `/${GOOGLE_SITE_VERIFICATION}`) {
-      return new Response(`google-site-verification: ${GOOGLE_SITE_VERIFICATION}`, { headers: { "content-type": "text/html; charset=utf-8" } });
+      return harden(new Response(`google-site-verification: ${GOOGLE_SITE_VERIFICATION}`, { headers: { "content-type": "text/html; charset=utf-8" } }), pathname);
     }
-    const res = pathname.startsWith("/api/") || pathname.startsWith("/photos/") || pathname.startsWith("/videos/") ? await api.fetch(request, env, ctx) : await pages(withCountry(request));
-    if (!isDemo()) return res;
-    // A demo with pretend payments stays out of search results, so nobody mistakes it for the real service.
-    const out = new Response(res.body, res);
-    out.headers.set("X-Robots-Tag", "noindex, nofollow");
-    return out;
+    const res = isApiOrDiscovery(pathname) ? await api.fetch(request, env, ctx) : await pages(withCountry(request));
+    return harden(res, pathname);
   },
 
   // Every 15 minutes: act on any deadline whose timer didn't fire (TRD: stuck-deal watch).

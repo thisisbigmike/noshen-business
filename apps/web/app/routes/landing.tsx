@@ -24,6 +24,7 @@ export const handle = { tabs: false };
 export const meta: Route.MetaFunction = ({ loaderData }) => {
   const title = "NosHen: buy and sell anything in Nigeria, protected";
   const desc = "Your money is held by a licensed partner bank until you have the item. The seller is paid when you give them your release code.";
+  const origin = loaderData?.origin ?? "https://noshen-web.usenoshen.workers.dev";
   return [
     { title },
     { name: "description", content: desc },
@@ -31,6 +32,30 @@ export const meta: Route.MetaFunction = ({ loaderData }) => {
     { property: "og:description", content: desc },
     { property: "og:type", content: "website" },
     ...(loaderData ? [{ property: "og:url", content: loaderData.origin }] : []),
+    {
+      "script:ld+json": [
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "NosHen",
+          url: origin,
+          description: desc,
+          potentialAction: {
+            "@type": "SearchAction",
+            target: `${origin}/browse?q={search_term_string}`,
+            "query-input": "required name=search_term_string",
+          },
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "NosHen",
+          url: origin,
+          logo: `${origin}/icon-512.png`,
+          sameAs: ["https://x.com/useNosHen"],
+        },
+      ],
+    },
   ];
 };
 

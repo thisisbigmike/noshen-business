@@ -18,7 +18,11 @@ export const meta: Route.MetaFunction = () => [
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") ?? "").slice(0, 200);
-  const result = q.trim() ? await withApp((d) => checkSeller(d.db, q)) : null;
+  const raw = q.trim() ? await withApp((d) => checkSeller(d.db, q)) : null;
+  const result = raw ? {
+    ...raw,
+    matches: raw.matches.map((m) => ({ ...m, seller: { ...m.seller, name: firstName(m.seller.name) } })),
+  } : null;
   return { q, result, origin: url.origin };
 }
 

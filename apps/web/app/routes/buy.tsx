@@ -27,7 +27,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     if (!v || v.listing.status !== "live") throw data("Not found", { status: 404 });
     if (v.listing.seller_id === user.id) throw redirect(`/l/${params.id}`);
     const s = await settingsOf(d);
-    return { ...v, fee: feeFor(Number(v.listing.price_kobo), s.fee), sendHours: s.handover_window_hours };
+    const safeListing = { ...v.listing, imei_or_serial: v.listing.imei_or_serial ? "REDACTED" : null };
+    const safeSeller = { ...v.seller, name: firstName(v.seller.name) };
+    return { listing: safeListing, seller: safeSeller, fee: feeFor(Number(v.listing.price_kobo), s.fee), sendHours: s.handover_window_hours };
   });
 }
 
