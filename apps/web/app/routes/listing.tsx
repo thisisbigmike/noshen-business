@@ -48,8 +48,9 @@ export const meta: Route.MetaFunction = ({ loaderData: d }) => {
   const l = d.listing;
   const title = `${l.title} · ${naira(l.price_kobo)}`;
   const desc = isService(l.category)
-    ? `${placeLabel(l.area, l.state)}. Protected by NosHen: paid stage by stage, as the work is done.`
-    : `${placeLabel(l.area, l.state)}. Protected by NosHen: your money is held until you have the item.`;
+    ? `${placeLabel(l.area, l.state)}. Escrow-protected on NosHen: paid stage by stage, as the work is done.`
+    : `${placeLabel(l.area, l.state)}. Escrow-protected on NosHen: your money is held in escrow until you inspect the item and give your release code.`;
+  const keywords = `${l.title}, buy ${l.title} in ${placeLabel(l.area, l.state)}, ${categoryOf(l.category).label} escrow Nigeria, NosHen escrow marketplace`;
   const img = l.photo_keys?.[0] ? `${d.origin}${photoUrl(l.photo_keys[0])}` : undefined;
   const isPublic = l.visibility === "public";
   const schemaCondition = l.condition === "new" ? "https://schema.org/NewCondition" : "https://schema.org/UsedCondition";
@@ -87,8 +88,9 @@ export const meta: Route.MetaFunction = ({ loaderData: d }) => {
       : {}),
   };
   return [
-    { title: `${title} · NosHen` },
+    { title: `${title} · Escrow-Protected on NosHen` },
     { name: "description", content: desc },
+    { name: "keywords", content: keywords },
     ...(!isPublic ? [{ name: "robots", content: "noindex, nofollow" }] : []),
     { property: "og:title", content: title },
     { property: "og:description", content: desc },

@@ -14,6 +14,8 @@ const pages = createRequestHandler(() => import("virtual:react-router/server-bui
 // Google Search Console ownership check for this address (needed for Google sign-in branding). Answered here,
 // not as a file in public/, because static files ending in .html are redirected to the address without it.
 const GOOGLE_SITE_VERIFICATION = "google246ad6ce9be68826.html";
+// Bing / IndexNow ownership verification key for instant search engine indexing (powers ChatGPT Search & Bing).
+const INDEXNOW_KEY = "9f4e2a8c1d7b4e6f8a0c3e5b7d9f1a2c";
 
 /** Routes that belong to a signed-in person or an active deal: never indexed, never cached by shared proxies, no referrer leaks. */
 function isPrivatePath(pathname: string): boolean {
@@ -68,6 +70,9 @@ export default {
     const { pathname } = new URL(request.url);
     if (pathname === `/${GOOGLE_SITE_VERIFICATION}`) {
       return harden(new Response(`google-site-verification: ${GOOGLE_SITE_VERIFICATION}`, { headers: { "content-type": "text/html; charset=utf-8" } }), pathname);
+    }
+    if (pathname === `/${INDEXNOW_KEY}.txt`) {
+      return harden(new Response(INDEXNOW_KEY, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=86400" } }), pathname);
     }
     const res = isApiOrDiscovery(pathname) ? await api.fetch(request, env, ctx) : await pages(withCountry(request));
     return harden(res, pathname);

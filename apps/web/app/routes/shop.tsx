@@ -28,8 +28,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export const meta: Route.MetaFunction = ({ loaderData: d }) => {
   if (!d) return [{ title: "Shop not found · NosHen" }];
-  const title = `${firstName(d.summary.name)}'s shop on NosHen`;
-  const desc = `${d.summary.completedDeals} sales completed. Every deal protected: your money is held until you have the item.`;
+  const title = `${firstName(d.summary.name)}'s Verified Escrow Shop on NosHen`;
+  const desc = `${d.summary.completedDeals} escrow sales completed in Nigeria. Every deal is escrow-protected: your money is held until you have the item.`;
   const img = d.listings[0]?.photo_keys?.[0] ? `${d.origin}${photoUrl(d.listings[0].photo_keys[0])}` : undefined;
   return [
     { title }, { name: "description", content: desc },

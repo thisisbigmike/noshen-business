@@ -22,24 +22,53 @@ import { useMarket } from "@noshen/ui/i18n";
 export const handle = { tabs: false };
 
 export const meta: Route.MetaFunction = ({ loaderData }) => {
-  const title = "NosHen: buy and sell anything in Nigeria, protected";
-  const desc = "Your money is held by a licensed partner bank until you have the item. The seller is paid when you give them your release code.";
+  const title = "NosHen — Nigeria's Escrow Marketplace | Buy & Sell Phones, Cars & Goods Safely";
+  const desc = "NosHen is an escrow-protected marketplace and escrow payment platform in Nigeria. Your money is held in escrow by a licensed partner bank (or on-chain USDT/USDC) until you inspect the item and give your 6-digit release code. Verify Instagram, WhatsApp, TikTok & X sellers before you pay.";
+  const keywords = [
+    "escrow marketplace Nigeria",
+    "Nigerian marketplace with escrow",
+    "escrow service in Nigeria",
+    "escrow payment Nigeria",
+    "online escrow Nigeria",
+    "buy and sell with escrow Nigeria",
+    "safe online marketplace Nigeria",
+    "buy used iPhone Lagos escrow",
+    "buy used MacBook laptop Nigeria escrow",
+    "buy used cars Nigeria escrow",
+    "verify Instagram vendor Nigeria",
+    "check Instagram seller before paying Nigeria",
+    "WhatsApp escrow checkout link Nigeria",
+    "stop fake bank transfer alerts Nigeria",
+    "crypto escrow Nigeria USDT USDC Solana Base BNB",
+    "freelance milestone escrow Nigeria",
+    "NosHen",
+    "useNosHen",
+  ].join(", ");
   const origin = loaderData?.origin ?? "https://noshen-web.usenoshen.workers.dev";
   return [
     { title },
     { name: "description", content: desc },
-    { property: "og:title", content: "NosHen: your money is held until you have the item" },
+    { name: "keywords", content: keywords },
+    { property: "og:title", content: title },
     { property: "og:description", content: desc },
     { property: "og:type", content: "website" },
+    { property: "og:site_name", content: "NosHen Escrow Marketplace" },
     ...(loaderData ? [{ property: "og:url", content: loaderData.origin }] : []),
+    { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:site", content: "@useNosHen" },
+    { name: "twitter:title", content: title },
+    { name: "twitter:description", content: desc },
     {
       "script:ld+json": [
         {
           "@context": "https://schema.org",
           "@type": "WebSite",
-          name: "NosHen",
+          name: "NosHen — Nigeria's Escrow Marketplace",
+          alternateName: ["NosHen", "NosHen Escrow", "useNosHen"],
           url: origin,
           description: desc,
+          keywords,
+          inLanguage: ["en-NG", "pcm"],
           potentialAction: {
             "@type": "SearchAction",
             target: `${origin}/browse?q={search_term_string}`,
@@ -48,11 +77,61 @@ export const meta: Route.MetaFunction = ({ loaderData }) => {
         },
         {
           "@context": "https://schema.org",
-          "@type": "Organization",
+          "@type": "OnlineBusiness",
           name: "NosHen",
           url: origin,
           logo: `${origin}/icon-512.png`,
+          description: desc,
+          areaServed: {
+            "@type": "Country",
+            name: "Nigeria",
+          },
           sameAs: ["https://x.com/useNosHen"],
+          knowsAbout: [
+            "Escrow marketplace in Nigeria",
+            "Escrow payment service for online shopping, phones, laptops, fashion and cars",
+            "Instagram, WhatsApp, TikTok, Facebook and X seller verification",
+            "Milestone escrow for freelancers and service providers",
+            "Naira bank transfer escrow and USDT/USDC stablecoin escrow on Solana, Base, and BNB Smart Chain",
+          ],
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "What marketplace in Nigeria holds my money in escrow?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "NosHen is an escrow-protected marketplace in Nigeria where buyers pay into escrow (held by a licensed partner bank in Naira or on-chain in USDT/USDC) and the seller is paid only after the buyer inspects the item at meet-up or delivery and provides their 6-digit release code.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "How does NosHen escrow protect buyers and sellers in Nigeria?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Buyers never lose money to disappearing vendors or fake items because funds stay held in escrow until they check the item (including IMEI, serial number, and car chassis/VIN checks). Sellers never fall for fake bank transfer alerts because NosHen confirms the money is held before handover and pays out to the seller's verified bank account within minutes of entering the 6-digit release code.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "How can I check if an Instagram, TikTok, Facebook, or X vendor in Nigeria is legit?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Use NosHen's 'Check a seller' tool (/check) to look up any Instagram, TikTok, Facebook, or X handle. Verified NosHen sellers have passed government ID (NIN/BVN) and bank verification and proved ownership of their social profile. Even if a seller isn't listed yet, you can ask them for a NosHen escrow checkout link.",
+              },
+            },
+            {
+              "@type": "Question",
+              name: "Does NosHen support escrow for freelancers, services, and diaspora buyers?",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "Yes. Services and freelance jobs on NosHen use stage-by-stage milestone escrow, where the full amount is held up front and each stage is released as the work is completed. Buyers in Nigeria or abroad can pay by Naira bank transfer or with USDT and USDC on Solana, Base, and BNB Smart Chain.",
+              },
+            },
+          ],
         },
       ],
     },

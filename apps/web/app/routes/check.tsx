@@ -9,10 +9,19 @@ import { platformOf, profileUrl } from "@noshen/shared/social";
 import { SellerRecord } from "../lib/track-record";
 import { CopyButton } from "../lib/copy-button";
 
-export const meta: Route.MetaFunction = () => [
-  { title: "Check a seller · NosHen" },
-  { name: "description", content: "Found a seller on Instagram, TikTok, Facebook or X? Check them on NosHen before you pay." },
-];
+export const meta: Route.MetaFunction = () => {
+  const title = "Check an Instagram, TikTok, Facebook or X Seller in Nigeria · NosHen Escrow";
+  const desc = "Verify any Instagram, TikTok, Facebook or X vendor in Nigeria before you pay. See if they are ID-verified on NosHen with a real escrow track record, or request an escrow-protected checkout link.";
+  const keywords = "verify Instagram vendor Nigeria, check Instagram seller Nigeria, check TikTok vendor Nigeria, avoid Instagram scam Nigeria, social media escrow Nigeria, NosHen seller check";
+  return [
+    { title },
+    { name: "description", content: desc },
+    { name: "keywords", content: keywords },
+    { property: "og:title", content: title },
+    { property: "og:description", content: desc },
+    { property: "og:type", content: "website" },
+  ];
+};
 
 /** "Check a seller": a handle or profile link in, the verified NosHen seller behind it (if any) out. A plain GET. */
 export async function loader({ request }: Route.LoaderArgs) {

@@ -19,10 +19,45 @@ import { AbroadNote, ComingSoon, CountrySwitch } from "../lib/country";
 import { marketOf } from "@noshen/shared/locations";
 import { useMarket } from "@noshen/ui/i18n";
 
-export const meta: Route.MetaFunction = () => [
-  { title: "NosHen: buy and sell anything in Nigeria, protected" },
-  { name: "description", content: "Every deal is protected: your money is held until you have the item." },
-];
+export const meta: Route.MetaFunction = ({ loaderData }) => {
+  const cat = loaderData?.f?.cat && isCategory(loaderData.f.cat) ? categoryOf(loaderData.f.cat).label : null;
+  const place = loaderData?.f?.state ? stateLabel(loaderData.f.state) : "Nigeria";
+  const q = loaderData?.f?.q?.trim();
+  const title = q
+    ? `${q} for sale in ${place} with Escrow · NosHen`
+    : cat
+      ? `Buy ${cat} in ${place} with Escrow Protection · NosHen Marketplace`
+      : `Browse Escrow-Protected Listings in ${place} · NosHen Marketplace`;
+  const desc = "Shop verified sellers across Nigeria with NosHen escrow protection. Your money is held in escrow by a licensed partner bank (or USDT/USDC) until you inspect the item and give your 6-digit release code.";
+  const keywords = "escrow marketplace Nigeria, buy used iPhone Lagos escrow, buy laptops Nigeria escrow, buy cars Nigeria escrow, verified sellers Nigeria, safe online shopping Nigeria, NosHen browse";
+  return [
+    { title },
+    { name: "description", content: desc },
+    { name: "keywords", content: keywords },
+    { property: "og:title", content: title },
+    { property: "og:description", content: desc },
+    { property: "og:type", content: "website" },
+    ...(loaderData?.listings?.length
+      ? [
+          {
+            "script:ld+json": {
+              "@context": "https://schema.org",
+              "@type": "ItemList",
+              name: title,
+              description: desc,
+              numberOfItems: loaderData.listings.length,
+              itemListElement: loaderData.listings.slice(0, 20).map((l: any, idx: number) => ({
+                "@type": "ListItem",
+                position: idx + 1,
+                name: `${l.title} (${naira(l.price_kobo)}) — ${placeLabel(l.area, l.state)}`,
+                url: `https://noshen-web.usenoshen.workers.dev/l/${l.id}`,
+              })),
+            },
+          },
+        ]
+      : []),
+  ];
+};
 
 export async function loader({ request }: Route.LoaderArgs) {
   const u = new URL(request.url);
