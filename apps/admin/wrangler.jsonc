@@ -57,9 +57,9 @@
       "vars": {
         "APP_URL": "https://noshen-web.usenoshen.workers.dev",
         "ADMIN_URL": "https://noshen-admin.usenoshen.workers.dev",
-        // From Cloudflare Zero Trust → Access → Applications. Until both are set, the site refuses every request.
-        "ACCESS_TEAM_DOMAIN": "noshen.cloudflareaccess.com",
-        "ACCESS_AUD": "ee45dbece759baf5ffc2ff131b610d06541356effbc7415900ca399bb84fecdb",
+        // Direct staff sign-in (/signin + mandatory 2FA TOTP). Set both to re-enable Cloudflare Access in front.
+        "ACCESS_TEAM_DOMAIN": "",
+        "ACCESS_AUD": "",
         "PARTNER": "fake",
         "PARTNER_BANK_NAME": "Test Bank (demo)",
         "EMAIL": "none",

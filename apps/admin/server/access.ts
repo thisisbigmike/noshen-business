@@ -19,21 +19,16 @@ const page = (status: number, title: string, text: string) => new Response(
   { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 
 /**
- * Lets a request through to the staff site only if Cloudflare Access did. Returns the request to serve
- * (with the Access email attached) or the refusal to send. Locally (http) Access isn't used; on a real
- * https address the site stays locked until ACCESS_TEAM_DOMAIN and ACCESS_AUD are set.
+ * Optional Cloudflare Access gate. When ACCESS_TEAM_DOMAIN and ACCESS_AUD are both configured, only requests
+ * carrying a valid Cloudflare Access JWT are allowed through. When left blank, traffic goes straight to NosHen's
+ * built-in staff sign-in (/signin: staff-only email + password + mandatory authenticator 2FA).
  */
 export async function accessGate(request: Request): Promise<Request | Response> {
   const req = new Request(request);
   req.headers.delete(ACCESS_EMAIL_HEADER);
   const team = env.ACCESS_TEAM_DOMAIN?.trim();
   const aud = env.ACCESS_AUD?.trim();
-  if (!team || !aud) {
-    if (new URL(env.ADMIN_URL).protocol === "https:") {
-      return page(503, "Staff site locked", "Cloudflare Access isn't set up for this site yet, so it refuses every request. Set ACCESS_TEAM_DOMAIN and ACCESS_AUD (see the README) and deploy again.");
-    }
-    return req;
-  }
+  if (!team || !aud) return req;
   const token = request.headers.get("cf-access-jwt-assertion");
   let email: string | null = null;
   if (token) {
