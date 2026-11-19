@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Form, Link, useLocation, useSearchParams } from "react-router";
 import type { Route } from "./+types/browse";
 import { withApp } from "../../server/web";
 import { browse, statesWithListings } from "@noshen/engine/queries";
-import { Button, Icon, ListingCard, Select, Wordmark, useEscape } from "@noshen/ui/ui";
+import { Button, Icon, ListingCard, Select, Wordmark, useEscape, useSlideIndicator } from "@noshen/ui/ui";
 import { sizeLabel, sizeRuleFor } from "@noshen/shared/sizes";
 import { CONDITIONS } from "@noshen/shared/deal";
 import { naira } from "@noshen/shared/money";
@@ -110,10 +110,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
     <div className="stack-4">
       <div className="stack">
         <p className="label">{t("Category")}</p>
-        <div className="chips cat-chips">
-          <Link to={link("cat", "")} className="chip" preventScrollReset aria-current={!f.cat ? "true" : undefined}><Icon name="layout-grid" size={16} />{t("All")}</Link>
-          {CATEGORIES.map((c) => <Link key={c.key} to={link("cat", c.key)} className="chip" preventScrollReset aria-current={f.cat === c.key ? "true" : undefined}><Icon name={c.icon} size={16} />{t(c.label)}</Link>)}
-        </div>
+        <CategoryChips cat={f.cat} link={link} />
       </div>
       <Form method="get" className="stack" preventScrollReset>
         {f.cat ? <input type="hidden" name="cat" value={f.cat} /> : null}
@@ -221,6 +218,20 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
   );
 }
 
+/** Category chip bar with a sliding active pill (each instance tracks its own layout). */
+function CategoryChips({ cat, link }: { cat: string; link: (k: string, v: string) => string }) {
+  const t = useT();
+  const ref = useRef<HTMLDivElement>(null);
+  const slide = useSlideIndicator(ref, cat);
+  return (
+    <div ref={ref} className="chips cat-chips" {...slide.props}>
+      {slide.pill}
+      <Link to={link("cat", "")} className="chip" preventScrollReset aria-current={!cat ? "true" : undefined}><Icon name="layout-grid" size={16} />{t("All")}</Link>
+      {CATEGORIES.map((c) => <Link key={c.key} to={link("cat", c.key)} className="chip" preventScrollReset aria-current={cat === c.key ? "true" : undefined}><Icon name={c.icon} size={16} />{t(c.label)}</Link>)}
+    </div>
+  );
+}
+
 /** The URL with every Filters-panel choice taken off (category, place, search and sort stay). */
 function clearedParams(params: URLSearchParams) {
   const p = new URLSearchParams(params);
@@ -240,6 +251,8 @@ function FiltersSheet({ f, more, rule, onClose }: { f: BrowseData["f"]; more: Br
   const [min, setMin] = useState(more.min ? String(more.min) : "");
   const [max, setMax] = useState(more.max ? String(more.max) : "");
   const [kind, setKind] = useState(more.sk || rule?.systems[0]?.id || "");
+  const presetsRef = useRef<HTMLDivElement>(null);
+  const presetsSlide = useSlideIndicator(presetsRef, `${min}:${max}`);
   const sizes = rule?.systems.find((x) => x.id === kind);
   const keep = { cat: f.cat, state: f.state, q: f.q, sort: f.sort };
   const clear = `?${new URLSearchParams(Object.entries(keep).filter(([, v]) => v) as [string, string][]).toString()}`;
@@ -265,7 +278,8 @@ function FiltersSheet({ f, more, rule, onClose }: { f: BrowseData["f"]; more: Br
             <span className="muted" aria-hidden="true">{t("to")}</span>
             <label className="price-input"><span className="caption muted">{t("Max")}</span><input name="max" inputMode="numeric" placeholder={t("Any")} value={max} onChange={(e) => setMax(e.target.value.replace(/[^\d]/g, ""))} /></label>
           </div>
-          <div className="size-kinds">
+          <div ref={presetsRef} className="size-kinds" {...presetsSlide.props}>
+            {presetsSlide.pill}
             {PRICE_PRESETS.map(([label, lo, hi]) => (
               <button key={label} type="button" className="chip" aria-pressed={min === (lo ? String(lo) : "") && max === (hi ? String(hi) : "")}
                 onClick={() => { setMin(lo ? String(lo) : ""); setMax(hi ? String(hi) : ""); }}>{t(label)}</button>
@@ -286,9 +300,10 @@ function FiltersSheet({ f, more, rule, onClose }: { f: BrowseData["f"]; more: Br
           <fieldset className="filter-section">
             <legend className="label">{t(rule.label)}</legend>
             {rule.systems.length > 1 ? (
-              <div className="size-kinds" role="radiogroup" aria-label={t("Kind of {what}", { what: t(rule.label).toLowerCase() })}>
+              <div className="seg" role="radiogroup" aria-label={t("Kind of {what}", { what: t(rule.label).toLowerCase() })}
+                style={{ ["--seg-n" as string]: rule.systems.length, ["--seg-i" as string]: Math.max(0, rule.systems.findIndex((x) => x.id === kind)) }}>
                 {rule.systems.map((x) => (
-                  <label key={x.id} className="chip kind-chip"><input type="radio" name="sk" value={x.id} checked={kind === x.id} onChange={() => setKind(x.id)} className="sr-only" />{t(x.label)}</label>
+                  <label key={x.id}><input type="radio" name="sk" value={x.id} checked={kind === x.id} onChange={() => setKind(x.id)} className="sr-only" />{t(x.label)}</label>
                 ))}
               </div>
             ) : <input type="hidden" name="sk" value={sizes.id} />}

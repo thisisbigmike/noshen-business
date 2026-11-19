@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Form, Link, useFetcher, useSearchParams } from "react-router";
 import type { Route } from "./+types/listings";
@@ -6,7 +6,7 @@ import { env } from "cloudflare:workers";
 import { messageOf, requireStaff, withApp } from "../../server/web";
 import { staffListings } from "@noshen/engine/queries";
 import { deleteSoldListings, moderateListing } from "@noshen/engine/staff";
-import { Button, CheckedForm, ErrorText, Icon, Info, Select, TextArea, useEscape } from "@noshen/ui/ui";
+import { Button, CheckedForm, ErrorText, Icon, Info, Select, TextArea, useEscape, useSlideIndicator } from "@noshen/ui/ui";
 import { CATEGORIES, categoryOf } from "@noshen/shared/categories";
 import { photoUrl, videoUrl } from "@noshen/shared/photos";
 import { naira } from "@noshen/shared/money";
@@ -67,6 +67,8 @@ export default function Listings({ loaderData: { rows, counts, f, appUrl } }: Ro
     setTarget(null);
   }, [fetcher.state, fetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const chipsRef = useRef<HTMLElement>(null);
+  const chipsSlide = useSlideIndicator(chipsRef, f.status);
   const total = Object.values(counts).reduce((a, n) => a + n, 0);
   const withParam = (k: string, v: string) => {
     const p = new URLSearchParams(params);
@@ -106,7 +108,8 @@ export default function Listings({ loaderData: { rows, counts, f, appUrl } }: Ro
           <Button size="sm" variant="danger" onClick={() => { setDone(null); setTarget({ row: { id: "all", title: "all sold listings", seller: "" } as Row, act: "delete_all" }); }}>Delete all sold ({counts.sold})</Button>
         </div>
       ) : null}
-      <nav className="chips" aria-label="Filter by status">
+      <nav ref={chipsRef} className="chips" aria-label="Filter by status" {...chipsSlide.props}>
+        {chipsSlide.pill}
         {FILTERS.map((s) => (
           <Link key={s || "all"} to={withParam("status", s)} className="chip" aria-current={f.status === s ? "true" : undefined} preventScrollReset>
             {s ? STATUS[s].label : "All"}<span className="chip-count">{s ? counts[s] ?? 0 : total}</span>

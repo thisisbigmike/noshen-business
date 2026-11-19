@@ -1,10 +1,11 @@
-import { Form, NavLink, Outlet } from "react-router";
+import { useRef } from "react";
+import { Form, NavLink, Outlet, useLocation } from "react-router";
 import type { Route } from "./+types/_layout";
 import { requireStaff, withApp } from "../../server/web";
 import { staffCounts } from "@noshen/engine/queries";
 import { useLive } from "../lib/live";
 import { StaffPushSwitch, useStaffLive } from "../lib/push";
-import { Button, Icon, Wordmark } from "@noshen/ui/ui";
+import { Button, Icon, Wordmark, useSlideIndicator } from "@noshen/ui/ui";
 import type { IconName } from "@noshen/ui/icons";
 import { ThemeToggle } from "@noshen/ui/theme";
 
@@ -31,6 +32,11 @@ export default function StaffLayout({ loaderData: { staff, counts } }: Route.Com
   useLive(15_000);
   // …and at once when a staff alert arrives on this device.
   useStaffLive();
+  const { pathname } = useLocation();
+  const sideRef = useRef<HTMLElement>(null);
+  const pillsRef = useRef<HTMLElement>(null);
+  const sideSlide = useSlideIndicator(sideRef, pathname);
+  const pillsSlide = useSlideIndicator(pillsRef, pathname);
   const initials = staff.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const link = (l: (typeof SECTIONS)[number]["links"][number]) => {
     const n = l.count?.(counts) ?? 0;
@@ -45,7 +51,8 @@ export default function StaffLayout({ loaderData: { staff, counts } }: Route.Com
     <div className="console">
       <aside className="console-nav" aria-label="Staff console">
         <div className="console-brand"><Wordmark size="md" /><span className="console-tag">Staff</span></div>
-        <nav className="console-links" aria-label="Console">
+        <nav ref={sideRef} className="console-links" aria-label="Console" {...sideSlide.props}>
+          {sideSlide.pill}
           {SECTIONS.map((s) => (
             <div key={s.title} className="console-group"><p className="console-group-title">{s.title}</p>{s.links.map(link)}</div>
           ))}
@@ -67,7 +74,7 @@ export default function StaffLayout({ loaderData: { staff, counts } }: Route.Com
         <div className="row-between"><div className="console-brand"><Wordmark size="sm" /><span className="console-tag">Staff</span></div>
           <div className="row"><ThemeToggle /><Form method="post" action="/signout"><button type="submit" className="icon-btn" aria-label="Sign out"><Icon name="logout" /></button></Form></div>
         </div>
-        <nav className="console-pills" aria-label="Console">{SECTIONS.flatMap((s) => s.links).map(link)}</nav>
+        <nav ref={pillsRef} className="console-pills" aria-label="Console" {...pillsSlide.props}>{pillsSlide.pill}{SECTIONS.flatMap((s) => s.links).map(link)}</nav>
         <StaffPushSwitch />
       </header>
 

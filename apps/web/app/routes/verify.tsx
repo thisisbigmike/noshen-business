@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/verify";
 import { requireUser, withApp, messageOf } from "../../server/web";
@@ -49,6 +50,7 @@ export async function action({ request }: Route.ActionArgs) {
 export default function Verify({ loaderData: x, actionData }: Route.ComponentProps) {
   const t = useT();
   const busy = useNavigation().state !== "idle";
+  const [idType, setIdType] = useState<"nin" | "bvn">("nin");
   const err = (s: string) => (actionData && "error" in actionData && actionData.step === s ? actionData.error : undefined);
   const step = !x.name ? "name" : !x.ready.idOk ? "id" : "bank";
   return (
@@ -65,10 +67,13 @@ export default function Verify({ loaderData: x, actionData }: Route.ComponentPro
         {step === "name" ? <TextField label={t("Full name")} name="name" autoComplete="name" required error={err("name")} missing={t("Enter your full name, as it is on your bank account.")} validate={(v) => nameProblem(v, t)} /> : null}
         {step === "id" ? (
           <>
-            <fieldset className="row" style={{ border: 0, padding: 0, margin: 0 }}>
+            <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
               <legend className="label" style={{ marginBottom: 8 }}>{t("ID type")}</legend>
-              <label className="choice grow"><input type="radio" name="type" value="nin" defaultChecked /><span className="body">NIN</span></label>
-              <label className="choice grow"><input type="radio" name="type" value="bvn" /><span className="body">BVN</span></label>
+              <input type="hidden" name="type" value={idType} />
+              <div className="seg theme-seg" role="radiogroup" aria-label={t("ID type")} style={{ ["--seg-i" as string]: idType === "bvn" ? 1 : 0 }}>
+                <button type="button" role="radio" aria-checked={idType === "nin"} onClick={() => setIdType("nin")}>NIN</button>
+                <button type="button" role="radio" aria-checked={idType === "bvn"} onClick={() => setIdType("bvn")}>BVN</button>
+              </div>
             </fieldset>
             <TextField label={t("Number")} name="number" inputMode="numeric" maxLength={11} autoComplete="off" hint={t("{n} digits", { n: 11 })} required error={err("id")} missing={t("Enter your NIN or BVN. It has 11 digits.")} validate={(v) => digitsProblem(v, 11, "NIN or BVN", t)} />
             {x.dev ? <p className="dev caption">Test mode: the identity check is pretend. Type any 11 digits, never your real NIN or BVN.</p> : null}

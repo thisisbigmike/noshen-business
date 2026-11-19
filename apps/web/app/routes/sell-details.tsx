@@ -136,9 +136,10 @@ export default function SellDetails({ loaderData: { listing: l, place, limit, mi
           <fieldset id="size-field" className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
             <legend className="label" style={{ marginBottom: 8 }}>{sizeRule.required ? t(sizeRule.label) : t("{label} (optional)", { label: t(sizeRule.label) })}</legend>
             {sizeRule.systems.length > 1 ? (
-              <div className="size-kinds" role="radiogroup" aria-label={t("Kind of {what}", { what: t(sizeRule.label).toLowerCase() })}>
+              <div className="seg" role="radiogroup" aria-label={t("Kind of {what}", { what: t(sizeRule.label).toLowerCase() })}
+                style={{ ["--seg-n" as string]: sizeRule.systems.length, ["--seg-i" as string]: Math.max(0, sizeRule.systems.findIndex((x) => x.id === kind.id)) }}>
                 {sizeRule.systems.map((x) => (
-                  <label key={x.id} className="chip">
+                  <label key={x.id}>
                     <input type="radio" name="size_system" value={x.id} checked={kind.id === x.id} className="sr-only"
                       onChange={() => { setSizeKind(x.id); setSize(x.values.length === 1 ? x.values[0] : ""); setSizeError(null); }} />
                     {t(x.label)}

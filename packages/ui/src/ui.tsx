@@ -1,5 +1,5 @@
 // The NosHen design system's components, as typed React. Classes and tokens match design-system/.
-import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type ButtonHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes, type MouseEventHandler } from "react";
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject, type ButtonHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes, type MouseEventHandler } from "react";
 import { createPortal } from "react-dom";
 import { Form, Link, type FormProps } from "react-router";
 import { ICONS, type IconName } from "./icons";
@@ -645,4 +645,61 @@ export function PhotoViewer({ photos, start, label, onClose }: {
     </div>,
     document.body,
   );
+}
+
+/**
+ * Measures the active button/link/chip inside a positioned container and returns container props + a GPU-composited
+ * sliding pill element that glides seamlessly left↔right (and row↔row when wrapped) whenever the active item changes.
+ */
+export function useSlideIndicator(
+  ref: RefObject<HTMLElement | null>,
+  activeKey: unknown,
+  selector = '[aria-current="page"], [aria-current="true"], [aria-pressed="true"], [aria-selected="true"], [aria-checked="true"]',
+) {
+  const [box, setBox] = useState({ x: 0, y: 0, w: 0, h: 0, visible: false, animate: false });
+  const mounted = useRef(false);
+
+  useIsoLayoutEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    let activeEl: HTMLElement | null = null;
+    const measure = (animate: boolean) => {
+      const el = root.querySelector<HTMLElement>(selector);
+      activeEl = el;
+      if (!el || el.offsetWidth === 0 || el.offsetHeight === 0) {
+        setBox((p) => (p.visible ? { ...p, visible: false, animate } : p));
+        return;
+      }
+      const x = el.offsetLeft;
+      const y = el.offsetTop;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      setBox((p) => {
+        if (p.visible && p.x === x && p.y === y && p.w === w && p.h === h && p.animate === animate) return p;
+        return { x, y, w, h, visible: true, animate: animate && p.visible };
+      });
+    };
+    measure(mounted.current);
+    mounted.current = true;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => measure(false)) : null;
+    ro?.observe(root);
+    if (activeEl) ro?.observe(activeEl);
+    let cancelled = false;
+    document.fonts?.ready.then(() => { if (!cancelled) measure(false); }).catch(() => {});
+    return () => { cancelled = true; ro?.disconnect(); };
+  }, [ref, activeKey, selector]);
+
+  const style: CSSProperties | undefined = box.visible
+    ? ({ ["--sl-x" as string]: `${box.x}px`, ["--sl-y" as string]: `${box.y}px`, ["--sl-w" as string]: `${box.w}px`, ["--sl-h" as string]: `${box.h}px` })
+    : undefined;
+
+  return {
+    ready: box.visible,
+    props: {
+      "data-sliding": box.visible ? "true" : undefined,
+      "data-sliding-anim": box.animate ? "true" : undefined,
+      style,
+    },
+    pill: <span className="nh-slider" aria-hidden="true" />,
+  };
 }

@@ -1,8 +1,9 @@
+import { useRef } from "react";
 import { Form, Link, useNavigate } from "react-router";
 import type { Route } from "./+types/deals";
 import { requireStaff, withApp } from "../../server/web";
 import { staffDeals } from "@noshen/engine/queries";
-import { Icon } from "@noshen/ui/ui";
+import { Icon, useSlideIndicator } from "@noshen/ui/ui";
 import { photoUrl } from "@noshen/shared/photos";
 import { naira } from "@noshen/shared/money";
 import { firstName } from "@noshen/shared/deal";
@@ -23,6 +24,10 @@ const FLAGS: [string, string][] = [["holds", "Review holds"], ["disputes", "Open
 
 export default function Deals({ loaderData: { rows, counts, f } }: Route.ComponentProps) {
   const navigate = useNavigate();
+  const statesRef = useRef<HTMLElement>(null);
+  const flagsRef = useRef<HTMLElement>(null);
+  const statesSlide = useSlideIndicator(statesRef, `${f.state}:${f.flag}`);
+  const flagsSlide = useSlideIndicator(flagsRef, f.flag);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const href = (next: Partial<typeof f>) => {
     const p = new URLSearchParams();
@@ -53,16 +58,18 @@ export default function Deals({ loaderData: { rows, counts, f } }: Route.Compone
       </Form>
 
       <div className="stack">
-        <nav className="chips" aria-label="Deal state">
+        <nav ref={statesRef} className="chips" aria-label="Deal state" {...statesSlide.props}>
+          {statesSlide.pill}
           {STATES.map((s) => (
-            <Link key={s || "all"} to={href({ state: s, flag: "" })} className="chip" aria-current={f.state === s && !f.flag ? "true" : undefined} replace>
+            <Link key={s || "all"} to={href({ state: s, flag: "" })} className="chip" aria-current={f.state === s && !f.flag ? "true" : undefined} replace preventScrollReset>
               {s ? DEAL_STATE[s].label : "All"}<span className="chip-count">{s ? counts[s] ?? 0 : total}</span>
             </Link>
           ))}
         </nav>
-        <nav className="chips" aria-label="Needs attention">
+        <nav ref={flagsRef} className="chips" aria-label="Needs attention" {...flagsSlide.props}>
+          {flagsSlide.pill}
           {FLAGS.map(([k, label]) => (
-            <Link key={k} to={href({ flag: f.flag === k ? "" : k, state: "" })} className="chip" aria-current={f.flag === k ? "true" : undefined} replace>
+            <Link key={k} to={href({ flag: f.flag === k ? "" : k, state: "" })} className="chip" aria-current={f.flag === k ? "true" : undefined} replace preventScrollReset>
               <Icon name="alert-triangle" size={16} />{label}
             </Link>
           ))}

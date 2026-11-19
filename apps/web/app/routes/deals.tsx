@@ -35,9 +35,9 @@ export default function Deals({ loaderData }: Route.ComponentProps) {
   return (
     <main className="page narrow stack-4">
       <h1 className="heading">{t("Deals")}</h1>
-      <div className="chips" role="tablist">
-        <Link to="?tab=buying" className="chip" role="tab" aria-current={tab === "buying" ? "true" : undefined}>{t("Buying")}</Link>
-        <Link to="?tab=selling" className="chip" role="tab" aria-current={tab === "selling" ? "true" : undefined}>{t("Selling")}</Link>
+      <div className="seg theme-seg" role="tablist" aria-label={t("Deals")} style={{ ["--seg-i" as string]: tab === "selling" ? 1 : 0 }}>
+        <Link to="?tab=buying" role="tab" replace preventScrollReset aria-selected={tab === "buying"} aria-current={tab === "buying" ? "true" : undefined}>{t("Buying")}</Link>
+        <Link to="?tab=selling" role="tab" replace preventScrollReset aria-selected={tab === "selling"} aria-current={tab === "selling" ? "true" : undefined}>{t("Selling")}</Link>
       </div>
       {list.length === 0 ? (
         <div className="card stack" style={{ alignItems: "flex-start" }}>

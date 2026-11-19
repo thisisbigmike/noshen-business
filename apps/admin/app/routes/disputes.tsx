@@ -24,9 +24,9 @@ export default function Disputes({ loaderData: { decided, rows } }: Route.Compon
           <p className="body muted">{decided ? "Decided disputes, newest first." : "Open disputes, the closest deadline first. Each must be decided within 72 hours of the report."}</p>
         </div>
       </header>
-      <nav className="chips" aria-label="Show">
-        <Link to="/disputes" className="chip" aria-current={!decided ? "true" : undefined} replace>Open</Link>
-        <Link to="/disputes?show=decided" className="chip" aria-current={decided ? "true" : undefined} replace>Decided</Link>
+      <nav className="seg theme-seg" aria-label="Show" style={{ ["--seg-i" as string]: decided ? 1 : 0 }}>
+        <Link to="/disputes" aria-current={!decided ? "true" : undefined} replace preventScrollReset>Open</Link>
+        <Link to="/disputes?show=decided" aria-current={decided ? "true" : undefined} replace preventScrollReset>Decided</Link>
       </nav>
       <section className="panel" aria-label="Disputes">
         {rows.length === 0 ? (
