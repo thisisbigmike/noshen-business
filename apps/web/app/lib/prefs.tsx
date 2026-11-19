@@ -16,7 +16,8 @@ export function LanguageSwitch() {
   const { setLang } = useSetPrefs();
   const t = useT();
   return (
-    <form method="post" action="/prefs" className="seg theme-seg" role="group" aria-label={t("Language")}>
+    <form method="post" action="/prefs" className="seg theme-seg" role="group" aria-label={t("Language")}
+      style={{ ["--seg-i" as string]: Math.max(0, LANGS.indexOf(lang)) }}>
       <input type="hidden" name="next" value={useHere()} />
       {LANGS.map((l) => (
         <button key={l} type="submit" name="lang" value={l} aria-pressed={lang === l}
@@ -52,7 +53,8 @@ export function DataSaverSwitch() {
   const { setLite } = useSetPrefs();
   const t = useT();
   return (
-    <form method="post" action="/prefs" className="seg theme-seg" role="group" aria-label={t("Data saver")}>
+    <form method="post" action="/prefs" className="seg theme-seg" role="group" aria-label={t("Data saver")}
+      style={{ ["--seg-i" as string]: lite ? 1 : 0 }}>
       <input type="hidden" name="next" value={useHere()} />
       <button type="submit" name="data" value="full" aria-pressed={!lite}
         onClick={(e) => { e.preventDefault(); if (lite) setLite(false); }}>

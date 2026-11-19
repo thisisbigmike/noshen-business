@@ -17,16 +17,16 @@ const EVENT = "noshen-theme";
 const subscribe = (cb: () => void) => { window.addEventListener(EVENT, cb); return () => window.removeEventListener(EVENT, cb); };
 const read = (): Theme => (document.documentElement.dataset.theme === "dark" ? "dark" : "light");
 
-export function setTheme(next: Theme) {
+export function setTheme(next: Theme, viewTransition = true) {
   const apply = () => {
     document.documentElement.dataset.theme = next;
     document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", next);
     document.cookie = `${THEME_COOKIE}=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
     window.dispatchEvent(new Event(EVENT));
   };
-  // A soft cross-fade where the browser supports it, unless motion is reduced.
+  // A soft cross-fade where the browser supports it, unless motion is reduced or a sliding switch handles the motion.
   const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-  if (doc.startViewTransition && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) doc.startViewTransition(apply);
+  if (viewTransition && doc.startViewTransition && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) doc.startViewTransition(apply);
   else apply();
 }
 
@@ -56,9 +56,9 @@ export function ThemeSwitch() {
   const t = useT();
   const theme = useTheme();
   return (
-    <div className="seg theme-seg" role="group" aria-label={t("Theme")}>
+    <div className="seg theme-seg" role="group" aria-label={t("Theme")} style={{ ["--seg-i" as string]: theme === "dark" ? 1 : 0 }}>
       {(["light", "dark"] as const).map((mode) => (
-        <button key={mode} type="button" aria-pressed={theme === mode} onClick={() => theme !== mode && setTheme(mode)}>
+        <button key={mode} type="button" aria-pressed={theme === mode} onClick={() => theme !== mode && setTheme(mode, false)}>
           <Icon name={mode === "light" ? "sun" : "moon"} size={16} />{mode === "light" ? t("Light") : t("Dark")}
         </button>
       ))}

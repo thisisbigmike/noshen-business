@@ -20,8 +20,8 @@ interface PrefsActions {
 }
 const noopAsync = async () => {};
 const noop = () => {};
-const PrefsContext = createContext<Prefs & PrefsActions>({
-  lang: "en", lite: false, market: "NG", from: null,
+const PrefsContext = createContext<Prefs & PrefsActions & { catalogVersion: number }>({
+  lang: "en", lite: false, market: "NG", from: null, catalogVersion: 0,
   setLang: noopAsync, setLite: noop, setMarket: noop,
 });
 
@@ -29,6 +29,7 @@ export function PrefsProvider({ lang: initLang, lite: initLite, market: initMark
   const [lang, setLangState] = useState<Lang>(initLang);
   const [lite, setLiteState] = useState<boolean>(initLite);
   const [market, setMarketState] = useState<string>(initMarket);
+  const [catalogVersion, setCatalogVersion] = useState(0);
 
   useEffect(() => { setLangState(initLang); }, [initLang]);
   useEffect(() => { setLiteState(initLite); }, [initLite]);
@@ -38,11 +39,13 @@ export function PrefsProvider({ lang: initLang, lite: initLite, market: initMark
   const setLang = useCallback(async (next: Lang) => {
     const id = ++langReq.current;
     document.cookie = `${LANG_COOKIE}=${next}; Path=/; Max-Age=${COOKIE_MAX_AGE}; SameSite=Lax`;
-    await loadCatalog(next);
-    if (langReq.current !== id) return;
     document.documentElement.lang = LANG_INFO[next].html;
     document.documentElement.dataset.lang = next;
     setLangState(next);
+    if (next !== "en") {
+      await loadCatalog(next);
+      if (langReq.current === id) setCatalogVersion((v) => v + 1);
+    }
   }, []);
 
   const setLite = useCallback((next: boolean) => {
@@ -56,8 +59,8 @@ export function PrefsProvider({ lang: initLang, lite: initLite, market: initMark
   }, []);
 
   const value = useMemo(
-    () => ({ lang, lite, market, from, setLang, setLite, setMarket }),
-    [lang, lite, market, from, setLang, setLite, setMarket],
+    () => ({ lang, lite, market, from, catalogVersion, setLang, setLite, setMarket }),
+    [lang, lite, market, from, catalogVersion, setLang, setLite, setMarket],
   );
   return <PrefsContext.Provider value={value}>{children}</PrefsContext.Provider>;
 }
@@ -88,6 +91,6 @@ export function makeT(lang: Lang): T {
 
 /** The translator for the chosen language. */
 export function useT(): T {
-  const lang = useLang();
-  return useMemo(() => makeT(lang), [lang]);
+  const { lang, catalogVersion } = useContext(PrefsContext);
+  return useMemo(() => makeT(lang), [lang, catalogVersion]);
 }

@@ -662,7 +662,7 @@ function FeeCalculator({ fee: rule, min, max, id }: { fee: FeeRule; min: number;
       </label>
       <input id="fee-range" type="range" min={0} max={1000} step={1} value={toT(price)} onChange={(e) => setPrice(toPrice(Number(e.target.value)))}
         className="range" style={{ ["--pct" as string]: `${pct}%` }} aria-valuetext={naira(priceKobo)} />
-      <div className="seg" role="radiogroup" aria-label={t("Who pays the fee")}>
+      <div className="seg" role="radiogroup" aria-label={t("Who pays the fee")} style={{ ["--seg-i" as string]: sellerPays ? 1 : 0 }}>
         <button type="button" role="radio" aria-checked={!sellerPays} onClick={() => setSellerPays(false)}>{t("Buyer pays the fee")}</button>
         <button type="button" role="radio" aria-checked={sellerPays} onClick={() => setSellerPays(true)}>{t("Seller offers to pay")}</button>
       </div>
@@ -708,7 +708,8 @@ function CheckTabs() {
   const items = checksFor(tab, t("the seller"), null, t);
   return (
     <div className="check-tabs">
-      <div className="seg seg-4" role="tablist" aria-label={t("What you're buying")}>
+      <div className="seg seg-4" role="tablist" aria-label={t("What you're buying")}
+        style={{ ["--seg-n" as string]: CHECK_TABS.length, ["--seg-i" as string]: Math.max(0, CHECK_TABS.findIndex(([k]) => k === tab)) }}>
         {CHECK_TABS.map(([k, label, icon]) => (
           <button key={k} type="button" role="tab" id={`ct-${k}`} aria-selected={tab === k} aria-controls="ct-panel" onClick={() => setTab(k)}><Icon name={icon} size={16} /><span>{t(label)}</span></button>
         ))}

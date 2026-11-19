@@ -240,11 +240,13 @@ textarea.nh-input { min-height: 96px; padding: 10px 12px; resize: vertical; line
 .crypto-logo .badge { position: absolute; right: -3px; bottom: -3px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); }
 .crypto-logo.lead-coin .badge { border-radius: 28%; }
 .coin-logo { display: block; flex: none; }
-/* USDT or USDC: two buttons, one pressed */
-.coin-switch { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--radius-full); background: var(--canvas); border: 1px solid var(--border); }
-.coin-switch button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 16px 6px 8px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-muted); font: inherit; font-weight: 600; cursor: pointer; transition: background-color var(--dur-fast), color var(--dur-fast); }
-.coin-switch button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+/* USDT or USDC: two buttons, sliding active thumb */
+.coin-switch { --seg-n: 2; --seg-i: 0; --seg-pad: 4px; --seg-gap: 4px; position: relative; isolation: isolate; display: inline-grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--seg-gap); padding: var(--seg-pad); border-radius: var(--radius-full); background: var(--canvas); border: 1px solid var(--border); }
+.coin-switch::before { content: ""; position: absolute; z-index: 0; top: var(--seg-pad); bottom: var(--seg-pad); left: var(--seg-pad); width: calc((100% - 2 * var(--seg-pad) - (var(--seg-n) - 1) * var(--seg-gap)) / var(--seg-n)); border-radius: var(--radius-full); background: var(--surface); box-shadow: var(--shadow-sm); pointer-events: none; transform: translate3d(calc(var(--seg-i) * 100% + var(--seg-i) * var(--seg-gap)), 0, 0); transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1), background-color 220ms var(--ease-out), box-shadow 220ms var(--ease-out); will-change: transform; }
+.coin-switch button { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 6px 16px 6px 8px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--ink-muted); font: inherit; font-weight: 600; cursor: pointer; transition: color 240ms cubic-bezier(0.32, 0.72, 0, 1), transform var(--dur-fast) var(--ease-out); }
+.coin-switch button[aria-pressed="true"] { color: var(--ink); }
 .coin-switch button:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
+@media (prefers-reduced-motion: reduce) { .coin-switch::before, .coin-switch button { transition: none; } }
 .pay-quote { display: flex; flex-direction: column; gap: 2px; }
 .pay-tag { padding: 1px 8px; border-radius: var(--radius-full); background: var(--tint); color: var(--primary); font-weight: 600; }
 .pay-address { display: flex; gap: var(--space-4); align-items: center; }

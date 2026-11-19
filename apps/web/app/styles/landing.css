@@ -99,7 +99,7 @@
 
 /* Release-code checks, by what you're buying */
 .check-tabs { display: flex; flex-direction: column; gap: 12px; }
-.seg.seg-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.seg.seg-4 { --seg-n: 4; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .seg.seg-4 button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; }
 .seg.seg-4 button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lp-checks li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

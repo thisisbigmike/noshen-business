@@ -38,7 +38,8 @@ export function PayOptions({ dealId, country, quotes }: { dealId: string; countr
     <section className="stack" aria-labelledby="pay-crypto">
       <div className="row-between wrap" style={{ alignItems: "center", gap: 8 }}>
         <h3 id="pay-crypto" className="label muted">{t("Crypto")}</h3>
-        <div className="coin-switch" role="group" aria-label={t("Coin to pay with")}>
+        <div className="coin-switch" role="group" aria-label={t("Coin to pay with")}
+          style={{ ["--seg-i" as string]: Math.max(0, COINS.findIndex((c) => c.id === coin)) }}>
           {COINS.map((c) => (
             <button key={c.id} type="button" aria-pressed={coin === c.id} onClick={() => setCoin(c.id)}>
               <CoinLogo coin={c.id} size={24} />{c.name}
