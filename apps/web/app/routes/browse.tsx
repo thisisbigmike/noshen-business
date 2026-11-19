@@ -111,11 +111,11 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
       <div className="stack">
         <p className="label">{t("Category")}</p>
         <div className="chips cat-chips">
-          <Link to={link("cat", "")} className="chip" aria-current={!f.cat ? "true" : undefined}><Icon name="layout-grid" size={16} />{t("All")}</Link>
-          {CATEGORIES.map((c) => <Link key={c.key} to={link("cat", c.key)} className="chip" aria-current={f.cat === c.key ? "true" : undefined}><Icon name={c.icon} size={16} />{t(c.label)}</Link>)}
+          <Link to={link("cat", "")} className="chip" preventScrollReset aria-current={!f.cat ? "true" : undefined}><Icon name="layout-grid" size={16} />{t("All")}</Link>
+          {CATEGORIES.map((c) => <Link key={c.key} to={link("cat", c.key)} className="chip" preventScrollReset aria-current={f.cat === c.key ? "true" : undefined}><Icon name={c.icon} size={16} />{t(c.label)}</Link>)}
         </div>
       </div>
-      <Form method="get" className="stack">
+      <Form method="get" className="stack" preventScrollReset>
         {f.cat ? <input type="hidden" name="cat" value={f.cat} /> : null}
         {f.q ? <input type="hidden" name="q" value={f.q} /> : null}
         {f.sort ? <input type="hidden" name="sort" value={f.sort} /> : null}
@@ -174,7 +174,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
                 <button type="button" className="nh-btn nh-btn-secondary nh-btn-md nh-btn-pill filter-btn" onClick={() => setFiltersOpen(true)} aria-haspopup="dialog">
                   <Icon name="adjustments-horizontal" size={18} />{t("Filters")}{active.length ? <span className="filter-count" aria-label={t(", {n} on", { n: active.length })}>{active.length}</span> : null}
                 </button>
-                <Form method="get" className="row">
+                <Form method="get" className="row" preventScrollReset>
                   {[...params.entries()].filter(([k]) => k !== "sort").map(([k, v], i) => <input key={`${k}${i}`} type="hidden" name={k} value={v} />)}
                   <Select name="sort" label={t("Sort")} hideLabel pill submitOnChange defaultValue={f.sort} options={[
                     { value: "", label: t("Newest first") },
@@ -192,9 +192,9 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
                 {active.map((a) => {
                   const p = new URLSearchParams(params);
                   a.drop(p);
-                  return <Link key={a.label} to={`?${p.toString()}`} className="chip active-chip" replace aria-label={t("Remove filter: {filter}", { filter: a.label })}>{a.label}<Icon name="x" size={14} /></Link>;
+                  return <Link key={a.label} to={`?${p.toString()}`} className="chip active-chip" replace preventScrollReset aria-label={t("Remove filter: {filter}", { filter: a.label })}>{a.label}<Icon name="x" size={14} /></Link>;
                 })}
-                <Link to={`?${clearedParams(params).toString()}`} className="caption tap" replace>{t("Clear all")}</Link>
+                <Link to={`?${clearedParams(params).toString()}`} className="caption tap" replace preventScrollReset>{t("Clear all")}</Link>
               </div>
             ) : null}
             {listings.length === 0 ? (

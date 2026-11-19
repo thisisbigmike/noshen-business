@@ -130,12 +130,12 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
                     </span>
                     {l.status === "live" || l.status === "paused" ? (
                       <span className="stack" style={{ gap: 6, alignItems: "flex-end" }}>
-                        <Form method="post">
+                        <Form method="post" preventScrollReset>
                           <input type="hidden" name="listing" value={l.id} />
                           <input type="hidden" name="status" value={l.status === "live" ? "paused" : "live"} />
                           <Button type="submit">{l.status === "live" ? t("Pause") : t("Make live")}</Button>
                         </Form>
-                        <Form method="post">
+                        <Form method="post" preventScrollReset>
                           <input type="hidden" name="listing" value={l.id} />
                           <input type="hidden" name="visibility" value={l.visibility === "link" ? "public" : "link"} />
                           <button type="submit" className="caption tap link-btn">{l.visibility === "link" ? t("Show on NosHen") : t("Link only")}</button>
@@ -171,7 +171,7 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
                 {x.links.map((l) => (
                   <div key={l.id} className="kv" style={{ alignItems: "center" }}>
                     <span className="body">{l.external_name ? t("Telegram: {name}", { name: l.external_name }) : t("Telegram chat")}</span>
-                    <Form method="post">
+                    <Form method="post" preventScrollReset>
                       <input type="hidden" name="intent" value="agent_unlink" />
                       <input type="hidden" name="link" value={l.id} />
                       <Button type="submit">{t("Unlink")}</Button>

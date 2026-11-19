@@ -18,7 +18,7 @@ export function ProfilePhoto({ name, photo, error }: { name: string; photo: stri
       <div className="stack" style={{ gap: 6, minWidth: 0 }}>
         <p className="title">{name}</p>
         <div className="row wrap" style={{ gap: 12 }}>
-          <Form method="post" encType="multipart/form-data">
+          <Form method="post" encType="multipart/form-data" preventScrollReset>
             <input type="hidden" name="intent" value="photo_upload" />
             <label className="link-btn photo-pick-label" aria-disabled={busy || undefined}>
               <Icon name="camera" size={16} />{busy ? t("Saving…") : photo ? t("Change photo") : t("Add a profile photo")}
@@ -35,7 +35,7 @@ export function ProfilePhoto({ name, photo, error }: { name: string; photo: stri
             </label>
           </Form>
           {photo ? (
-            <Form method="post"><input type="hidden" name="intent" value="photo_remove" /><button type="submit" className="link-btn caption" disabled={busy}>{t("Remove")}</button></Form>
+            <Form method="post" preventScrollReset><input type="hidden" name="intent" value="photo_remove" /><button type="submit" className="link-btn caption" disabled={busy}>{t("Remove")}</button></Form>
           ) : null}
         </div>
         <p className="caption muted">{t("A clear photo of you or your shop's logo. Buyers see it with your name. Never someone else's photo, or a bank's or NosHen's logo.")}</p>

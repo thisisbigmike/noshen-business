@@ -112,7 +112,7 @@ export default function SellPhotos({ loaderData: x, actionData }: Route.Componen
   const n = x.photos.length;
   const shots = photoShots(x.category);
   const remove = (k: string, i: number) => (
-    <Form method="post" className="shot-remove">
+    <Form method="post" className="shot-remove" preventScrollReset>
       <input type="hidden" name="intent" value="remove" /><input type="hidden" name="key" value={k} />
       <button className="icon-btn" aria-label={t("Remove photo {n}", { n: i + 1 })}><Icon name="x" size={16} /></button>
     </Form>
@@ -128,7 +128,7 @@ export default function SellPhotos({ loaderData: x, actionData }: Route.Componen
           <p className="caption muted row" style={{ gap: 6 }}><Icon name={categoryOf(x.category).icon} size={16} />{t(categoryOf(x.category).label)} · <Link to="/sell">{t("Change")}</Link></p>
         </div>
 
-        <Form method="post" encType="multipart/form-data" className="sr-only">
+        <Form method="post" encType="multipart/form-data" className="sr-only" preventScrollReset>
           <input type="hidden" name="intent" value="upload" />
           <input id={PICK} type="file" name="photos" accept="image/*" multiple disabled={n >= MAX_PHOTOS} aria-label={t("Add photos")} onChange={async (e) => {
             // Not disabled while busy: a disabled input isn't sent with the form. The controls that open it are.
@@ -142,7 +142,7 @@ export default function SellPhotos({ loaderData: x, actionData }: Route.Componen
           <input type="file" name="photos_small" multiple hidden tabIndex={-1} aria-hidden="true" />
         </Form>
 
-        <Form method="post" encType="multipart/form-data" className="sr-only">
+        <Form method="post" encType="multipart/form-data" className="sr-only" preventScrollReset>
           <input type="hidden" name="intent" value="video" />
           <input id={VIDEO_PICK} type="file" name="video" accept="video/*" aria-label={t("Add a video")} onChange={async (e) => {
             const input = e.currentTarget;
@@ -221,7 +221,7 @@ export default function SellPhotos({ loaderData: x, actionData }: Route.Componen
               <div className="sell-video">
                 <video src={videoUrl(x.video)} poster={posterUrl(x.video)} controls playsInline preload="metadata" aria-label={t("Your video")} />
                 {x.videoSeconds !== null ? <span className="tag">{clock(x.videoSeconds)}</span> : null}
-                <Form method="post" className="shot-remove">
+                <Form method="post" className="shot-remove" preventScrollReset>
                   <input type="hidden" name="intent" value="remove-video" />
                   <button className="icon-btn" aria-label={t("Remove the video")} disabled={busy}><Icon name="x" size={16} /></button>
                 </Form>

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Form, Link, data } from "react-router";
+import { Link, data, useFetcher } from "react-router";
 import type { Route } from "./+types/listing";
 import { optionalUser, requireUser, withApp } from "../../server/web";
 import { listingView } from "@noshen/engine/queries";
@@ -172,11 +172,13 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   ) : (
     <Button variant="primary" size="lg" block icon="shield-check" to={`/l/${l.id}/buy`}>{job ? t("Book with protection") : t("Buy with protection")}</Button>
   );
+  const saveFetcher = useFetcher<{ saved?: boolean }>();
+  const isSaved = saveFetcher.formData ? !saved : saved;
   const saveBtn = !mine && ["live", "sold"].includes(l.status) ? (
-    <Form method="post">
+    <saveFetcher.Form method="post">
       <input type="hidden" name="intent" value="toggle_save" />
-      <Button type="submit" block icon="heart">{saved ? t("Saved") : t("Save for later")}</Button>
-    </Form>
+      <Button type="submit" block icon="heart">{isSaved ? t("Saved") : t("Save for later")}</Button>
+    </saveFetcher.Form>
   ) : null;
 
   // The same words as the share screen after publishing.

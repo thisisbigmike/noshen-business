@@ -2,9 +2,9 @@
 // live, the others show a coming-soon page with a waitlist. Every control here is a plain form post, so it works
 // without JavaScript, like the language switch.
 import { useEffect, useRef } from "react";
-import { useLocation, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { Button, Icon, Info } from "@noshen/ui/ui";
-import { useMarket, useT, useVisitorCountry } from "@noshen/ui/i18n";
+import { useMarket, useSetPrefs, useT, useVisitorCountry } from "@noshen/ui/i18n";
 import { COUNTRIES, isMarket, marketOf } from "@noshen/shared/locations";
 import { countryName } from "@noshen/shared/payments";
 
@@ -17,6 +17,7 @@ function useHere() {
 export function CountrySwitch({ className }: { className?: string }) {
   const t = useT();
   const market = marketOf(useMarket());
+  const { setMarket } = useSetPrefs();
   const here = useHere();
   // With JavaScript, a tap anywhere else closes the list.
   const box = useRef<HTMLDetailsElement>(null);
@@ -34,7 +35,8 @@ export function CountrySwitch({ className }: { className?: string }) {
         <input type="hidden" name="next" value={here} />
         <p className="caption muted">{t("Shop NosHen in")}</p>
         {COUNTRIES.map((c) => (
-          <button key={c.code} type="submit" name="country" value={c.code} aria-pressed={c.code === market.code}>
+          <button key={c.code} type="submit" name="country" value={c.code} aria-pressed={c.code === market.code}
+            onClick={(e) => { e.preventDefault(); if (c.code !== market.code) setMarket(c.code); if (box.current) box.current.open = false; }}>
             <span aria-hidden="true">{c.flag}</span>
             <span className="grow">{t(c.name)}</span>
             {c.live ? null : <span className="caption muted">{t("Coming soon")}</span>}
@@ -53,7 +55,10 @@ export function CountrySwitch({ className }: { className?: string }) {
 export function ComingSoon() {
   const t = useT();
   const market = marketOf(useMarket());
-  const here = useHere();
+  const { setMarket } = useSetPrefs();
+  const navigate = useNavigate();
+  const loc = useLocation();
+  const here = loc.pathname + loc.search;
   const [params] = useSearchParams();
   const joined = params.get("joined") === market.code;
   const error = params.get("waitlist_error");
@@ -79,7 +84,10 @@ export function ComingSoon() {
       {error ? <p className="caption error-text" role="alert">{t(error)}</p> : null}
       <form method="post" action="/prefs" className="stack" style={{ gap: 6 }}>
         <input type="hidden" name="next" value="/browse" />
-        <Button type="submit" name="country" value="NG" icon="arrow-right">{t("Meanwhile, shop Nigeria")}</Button>
+        <Button type="submit" name="country" value="NG" icon="arrow-right"
+          onClick={(e) => { e.preventDefault(); setMarket("NG"); if (loc.pathname !== "/browse") navigate("/browse"); }}>
+          {t("Meanwhile, shop Nigeria")}
+        </Button>
         <p className="caption muted">{t("You can buy from Nigerian sellers from anywhere, and pay with USDT or USDC. Your money is held until you have the item.")}</p>
       </form>
     </section>

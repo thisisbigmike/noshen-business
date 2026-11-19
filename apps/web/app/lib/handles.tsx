@@ -35,12 +35,12 @@ export function HandlesCard({ handles, idOk, error }: { handles: Handle[]; idOk:
                 <>
                   <p className="caption">{t("Put this code anywhere in your {platform} bio, then tell us:", { platform: t(platformOf(h.platform).label) })}</p>
                   <div className="row wrap" style={{ gap: 8 }}><code className="handle-code">{h.code}</code><CopyButton text={h.code} label={t("Copy code")} /></div>
-                  <Form method="post"><input type="hidden" name="intent" value="handle_submit" /><input type="hidden" name="handle" value={h.id} />
+                  <Form method="post" preventScrollReset><input type="hidden" name="intent" value="handle_submit" /><input type="hidden" name="handle" value={h.id} />
                     <Button type="submit" variant="primary" size="sm">{h.status === "rejected" ? t("I've added it: check again") : t("I've added it")}</Button>
                   </Form>
                 </>
               ) : null}
-              <Form method="post"><input type="hidden" name="intent" value="handle_remove" /><input type="hidden" name="handle" value={h.id} />
+              <Form method="post" preventScrollReset><input type="hidden" name="intent" value="handle_remove" /><input type="hidden" name="handle" value={h.id} />
                 <button type="submit" className="link-btn caption">{t("Remove")}</button>
               </Form>
             </li>
@@ -48,7 +48,7 @@ export function HandlesCard({ handles, idOk, error }: { handles: Handle[]; idOk:
         </ul>
       ) : null}
       {idOk ? (
-        <Form method="post" className="stack">
+        <Form method="post" preventScrollReset className="stack">
           <input type="hidden" name="intent" value="handle_add" />
           <div className="handle-add">
             <Select name="platform" label={t("Where")} value={platform} onChange={setPlatform} options={PLATFORMS.map((p) => ({ value: p.key, label: t(p.label) }))} />
