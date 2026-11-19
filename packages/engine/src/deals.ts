@@ -38,7 +38,7 @@ export async function sellerLimit(db: Tx["db"], sellerId: string, s: Settings): 
   return { capKobo: verified ? s.deal_max_kobo : s.unverified_seller_max_kobo, custom: false, verified };
 }
 
-type RequestInput = { listingId: string; handover: Handover; deliveryState?: string; note?: string };
+type RequestInput = { listingId: string; handover: Handover; deliveryState?: string; note?: string; offerKobo?: number | null };
 
 /**
  * A buyer asks to buy a listing. deliveryState: where they want it delivered (one of the 36 states or FCT), when
@@ -60,7 +60,20 @@ async function openRequest(d: Deps, buyerId: string, input: RequestInput): Promi
     if (!listing || listing.status !== "live" || listing.sold_count >= listing.quantity) throw new DealError("not_available", "This listing isn't available any more.");
     if (listing.seller_status !== "active") throw new DealError("not_available", "This listing isn't available right now.");
     if (listing.seller_id === buyerId) throw new DealError("own_listing", "This is your own listing.");
-    const price = N(listing.price_kobo);
+    const listedPrice = N(listing.price_kobo);
+    let price = listedPrice;
+    let isOffer = false;
+    // Negotiated offer: buyers on a public listing can propose a lower price (at least 50% of asking price).
+    // Link-only checkout links are pre-agreed fixed-price links, so offers apply only to public listings.
+    if (listing.visibility === "public" && input.offerKobo !== null && input.offerKobo !== undefined && input.offerKobo !== listedPrice) {
+      const offer = Math.round(Number(input.offerKobo));
+      const minOffer = Math.max(s.deal_min_kobo, Math.ceil(listedPrice * 0.5));
+      if (!Number.isSafeInteger(offer) || offer < minOffer || offer > listedPrice) {
+        throw new DealError("offer", `Enter an offer between ${naira(minOffer)} and ${naira(listedPrice)}.`);
+      }
+      price = offer;
+      isOffer = true;
+    }
     if (price < s.deal_min_kobo || (s.deal_max_kobo !== null && price > s.deal_max_kobo))
       throw new DealError("deal_size", s.deal_max_kobo === null ? `Protected deals start at ${naira(s.deal_min_kobo)}.` : `Protected deals are between ${naira(s.deal_min_kobo)} and ${naira(s.deal_max_kobo)}.`);
 
@@ -100,9 +113,9 @@ async function openRequest(d: Deps, buyerId: string, input: RequestInput): Promi
     const fee = feeFor(price, s.fee);
     const deal = await one<{ id: string }>(
       tx.db,
-      `insert into deals (listing_id, buyer_id, seller_id, price_kobo, fee_kobo, fee_payer, handover, request_expires_at, delivery_kobo, delivery_state, kind)
-       values ($1, $2, $3, $4, $5, 'buyer', $6, $7, $8, $9, $10) returning id`,
-      [listing.id, buyerId, listing.seller_id, price, fee, input.handover, addHours(now, s.request_ttl_hours), delivery,
+      `insert into deals (listing_id, buyer_id, seller_id, price_kobo, listed_price_kobo, fee_kobo, fee_payer, handover, request_expires_at, delivery_kobo, delivery_state, kind)
+       values ($1, $2, $3, $4, $5, $6, 'buyer', $7, $8, $9, $10, $11) returning id`,
+      [listing.id, buyerId, listing.seller_id, price, isOffer ? listedPrice : null, fee, input.handover, addHours(now, s.request_ttl_hours), delivery,
        input.handover === "delivery" ? input.deliveryState : null, service ? "service" : "goods"],
     );
     const id = deal!.id;
@@ -121,7 +134,9 @@ async function openRequest(d: Deps, buyerId: string, input: RequestInput): Promi
       : "";
     await notify(d, tx, listing.seller_id, id, "request_received", instant
       ? `${buyer} is buying your ${listing.title} through your checkout link${sendTo}.`
-      : `${buyer} wants to buy your ${listing.title} with protection${sendTo}. Answer by ${when(addHours(now, s.request_ttl_hours), now)}.`);
+      : isOffer
+        ? `${buyer} offered ${naira(price)} (listed at ${naira(listedPrice)}) for your ${listing.title}${sendTo}. Answer by ${when(addHours(now, s.request_ttl_hours), now)}.`
+        : `${buyer} wants to buy your ${listing.title} with protection${sendTo}. Answer by ${when(addHours(now, s.request_ttl_hours), now)}.`);
     schedule(d, tx, "request_expiry", id, addHours(now, s.request_ttl_hours));
     return { id, sellerId: listing.seller_id, instant };
   });

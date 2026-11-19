@@ -4,6 +4,7 @@ import { env } from "cloudflare:workers";
 import { messageOf, requireStaff, withApp } from "../../server/web";
 import { staffPerson } from "@noshen/engine/queries";
 import { removeProfilePhoto, setAccountStatus, setAgentBlocked, setDealLimit, staffUnlinkAgent } from "@noshen/engine/staff";
+import { blocklistUserAssets } from "@noshen/engine/blocklist";
 import { staffAgentView } from "@noshen/engine/agent";
 import { walletActivity, walletBalances } from "@noshen/engine/wallets";
 import { coinAmount, networkOf } from "@noshen/shared/payments";
@@ -64,6 +65,10 @@ export async function action({ request, params }: Route.ActionArgs): Promise<Act
     if (intent === "standard") {
       await withApp((d) => setDealLimit(d, staff, params.id, null, reason));
       return { ok: true, intent, message: "Back on the standard rules." };
+    }
+    if (intent === "blocklist_assets") {
+      const added = await withApp((d) => blocklistUserAssets(d, staff, params.id, reason));
+      return { ok: true, intent, message: added ? `Added ${added} identifier(s) (email, bank, handles, devices) to the blocklist.` : "All of this person's identifiers were already on the blocklist." };
     }
     return { ok: false, intent, error: "Unknown action." };
   } catch (e) {
@@ -175,6 +180,10 @@ export default function Person({ loaderData: v }: Route.ComponentProps) {
             ) : (
               <p className="caption muted">Only an admin can lift a ban.</p>
             )}
+            {v.isAdmin ? (
+              <ReasonAction intent="blocklist_assets" label="Blocklist all identifiers" danger
+                help="Blocks their email, bank accounts, social handles and listed IMEI/VIN numbers so they can't re-register under a new Gmail." />
+            ) : null}
           </section>
 
           {u.photo_key ? (

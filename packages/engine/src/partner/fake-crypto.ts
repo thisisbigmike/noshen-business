@@ -1,6 +1,7 @@
 import { hmac, toHex, timingSafeEqual } from "../crypto";
 import { QUOTE_MINUTES, coinMicroFor, type Coin, type Network } from "@noshen/shared/payments";
 import { addMinutes } from "@noshen/shared/time";
+import { liveRateKobo } from "../rates";
 import type { CryptoMode, CryptoPartner, CryptoRefund, PartnerEvent } from "./types";
 import { WebhookSignatureError } from "./types";
 
@@ -21,10 +22,11 @@ export class FakeCryptoPartner implements CryptoPartner {
   constructor(
     private secret: string,
     private settleLater: (event: PartnerEvent) => Promise<void> = async () => {},
+    private useLiveRates = false,
   ) {}
 
   async quote(amountKobo: number, coin: Coin, now: Date) {
-    const rateKobo = FAKE_RATE_KOBO[coin];
+    const rateKobo = this.useLiveRates ? await liveRateKobo(coin, FAKE_RATE_KOBO) : FAKE_RATE_KOBO[coin];
     return { rateKobo, micro: coinMicroFor(amountKobo, rateKobo), expiresAt: addMinutes(now, QUOTE_MINUTES) };
   }
 

@@ -26,3 +26,35 @@ export class NoEmail implements EmailSender {
     throw new Error("Email isn't set up on this site.");
   }
 }
+
+/**
+ * Production transactional email via Resend (https://resend.com).
+ * Activated when EMAIL="resend" and RESEND_API_KEY is set as a Worker secret.
+ */
+export class ResendEmail implements EmailSender {
+  readonly enabled = true;
+  constructor(
+    private apiKey: string,
+    private from: string = "NosHen <no-reply@noshen.com>",
+  ) {}
+
+  async send(message: EmailMessage): Promise<void> {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: this.from,
+        to: [message.to],
+        subject: message.subject,
+        text: message.text,
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => String(res.status));
+      throw new Error(`Resend email failed (${res.status}): ${detail.slice(0, 200)}`);
+    }
+  }
+}

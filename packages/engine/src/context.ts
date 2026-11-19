@@ -2,13 +2,15 @@ import { env } from "cloudflare:workers";
 import { withDb, type Db } from "./db";
 import type { Deps, LiveRooms } from "./core";
 import { FakePartner } from "./partner/fake";
+import { PaystackPartner } from "./partner/paystack";
 import { FakeCryptoPartner } from "./partner/fake-crypto";
 import { LazyChainPartner } from "./partner/lazy-chain";
 import { Blockradar, WALLET_NETWORKS, type BlockradarConfig } from "./partner/blockradar";
 import type { SolanaConfig } from "./partner/solana";
 import type { EvmConfig, EvmNetwork } from "./partner/evm";
 import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/types";
-import { ConsoleEmail, NoEmail, type EmailSender } from "./email";
+import { ConsoleEmail, NoEmail, ResendEmail, type EmailSender } from "./email";
+import { TermiiSms, type SmsSender } from "./sms";
 import { DojahIdProvider, FakeIdProvider, UnconfiguredIdProvider, type IdProvider } from "./idcheck";
 import type { PushConfig } from "./push";
 import { flushStaffAlerts } from "./staff-alerts";
@@ -31,19 +33,27 @@ export function partnerFor(): PaymentsPartner {
     return new FakePartner(env.FAKE_PARTNER_SECRET, env.PARTNER_BANK_NAME, async (event: PartnerEvent) =>
       workflowTimers.schedule({ kind: "partner_event", at: new Date(Date.now() + 4000), event }));
   }
+  const e = env as unknown as Record<string, string | undefined>;
+  if (e.PARTNER === "paystack") {
+    if (!e.PAYSTACK_SECRET_KEY) throw new Error("PAYSTACK_SECRET_KEY secret is required when PARTNER is 'paystack'.");
+    return new PaystackPartner(e.PAYSTACK_SECRET_KEY, e.PARTNER_BANK_NAME || "Wema Bank (Paystack)", e.PAYSTACK_PREFERRED_BANK || "wema-bank");
+  }
   throw new Error(`Payment partner "${env.PARTNER}" isn't set up yet. See packages/engine/src/partner/.`);
 }
 
 /**
- * The crypto partner for USDT payments. The pretend one comes with pretend bank payments; a real one is added
- * here once it's chosen (and cleared by the lawyer). Until then, a site with real payments offers bank transfer only.
+ * The crypto partner for USDT/USDC payments. Supports live FX quotes when LIVE_RATES="1".
  */
 export function cryptoFor(): CryptoPartner | undefined {
-  if (env.PARTNER !== "fake") return undefined;
-  const fake = new FakeCryptoPartner(env.FAKE_PARTNER_SECRET, async (event: PartnerEvent) =>
-    workflowTimers.schedule({ kind: "partner_event", at: new Date(Date.now() + 4000), event, source: "crypto" }));
+  const e = env as unknown as Record<string, string | undefined>;
   const solana = solanaConfig();
   const evm = evmConfig();
+  if (env.PARTNER !== "fake" && !solana && !evm) return undefined;
+  const fake = new FakeCryptoPartner(
+    e.FAKE_PARTNER_SECRET ?? "live-crypto-fallback",
+    async (event: PartnerEvent) => workflowTimers.schedule({ kind: "partner_event", at: new Date(Date.now() + 4000), event, source: "crypto" }),
+    e.LIVE_RATES === "1",
+  );
   return solana || evm ? new LazyChainPartner(fake, solana, evm, checkSoon) : fake;
 }
 
@@ -91,7 +101,20 @@ export function mailFor(): EmailSender {
     return new ConsoleEmail();
   }
   if (env.EMAIL === "none") return new NoEmail();
+  const e = env as unknown as Record<string, string | undefined>;
+  if (e.EMAIL === "resend") {
+    if (!e.RESEND_API_KEY) throw new Error("RESEND_API_KEY secret is required when EMAIL is 'resend'.");
+    return new ResendEmail(e.RESEND_API_KEY, e.EMAIL_FROM || "NosHen <no-reply@noshen.com>");
+  }
   throw new Error(`Email provider "${env.EMAIL}" isn't set up yet. See packages/engine/src/email.ts.`);
+}
+
+/** Optional SMS / WhatsApp alerts via Termii when TERMII_API_KEY is configured. */
+export function smsFor(): SmsSender | undefined {
+  const e = env as unknown as Record<string, string | undefined>;
+  if (!e.TERMII_API_KEY) return undefined;
+  const ch = e.TERMII_CHANNEL === "whatsapp" || e.TERMII_CHANNEL === "generic" ? e.TERMII_CHANNEL : "dnd";
+  return new TermiiSms(e.TERMII_API_KEY, e.TERMII_SENDER_ID || "NosHen", ch);
 }
 
 /** Keys for phone and computer notifications, when they're set (VAPID_PUBLIC_KEY, and the secret VAPID_PRIVATE_JWK). */
@@ -161,6 +184,7 @@ export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
     crypto: cryptoFor(),
     wallets: walletsFor(),
     mail,
+    sms: smsFor(),
     push: pushFor(),
     live: liveFor(),
     staffAlerts: staffAlertsFor(),

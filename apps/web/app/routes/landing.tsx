@@ -3,7 +3,8 @@ import { Link } from "react-router";
 import type { Route } from "./+types/landing";
 import { optionalUser, withApp } from "../../server/web";
 import { settingsOf } from "@noshen/engine/core";
-import { many } from "@noshen/engine/db";
+import { many, one } from "@noshen/engine/db";
+import { firstName } from "@noshen/shared/deal";
 import { Avatar, Button, DealCard, Icon, ReleaseCode, Wordmark } from "@noshen/ui/ui";
 import type { IconName } from "@noshen/ui/icons";
 import { dealAmounts, feeFor, naira, type FeeRule } from "@noshen/shared/money";
@@ -142,12 +143,35 @@ export async function loader({ request }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const s = await settingsOf(d);
     const recent = await many<{ id: string; title: string; area: string; state: string | null; price_kobo: string; photo_keys: string[] | null }>(d.db,
-      "select id, title, area, state, price_kobo, photo_keys from listings where status = 'live' and visibility = 'public' order by published_at desc limit 12");
-    const byCat = await many<{ category: string; n: string }>(d.db, "select category, count(*) as n from listings where status = 'live' and visibility = 'public' group by category");
+      `select l.id, l.title, l.area, l.state, l.price_kobo, l.photo_keys
+         from listings l join users u on u.id = l.seller_id
+        where l.status = 'live' and l.visibility = 'public' and u.status = 'active'
+        order by l.published_at desc limit 12`);
+    const byCat = await many<{ category: string; n: string }>(d.db,
+      `select l.category, count(*) as n
+         from listings l join users u on u.id = l.seller_id
+        where l.status = 'live' and l.visibility = 'public' and u.status = 'active'
+        group by l.category`);
     const counts = Object.fromEntries(byCat.map((r) => [r.category, Number(r.n)]));
     const live = byCat.reduce((t, r) => t + Number(r.n), 0);
+    // Live dynamic spotlight for the hero & seller preview: latest real public listing (live or recently sold), zero mock data.
+    const spotRow = await one<{ id: string; title: string; area: string; state: string | null; price_kobo: string; seller_name: string | null; verified: boolean }>(d.db,
+      `select l.id, l.title, l.area, l.state, l.price_kobo, u.full_name as seller_name,
+              exists (select 1 from kyc_checks k where k.user_id = u.id and k.result = 'verified') as verified
+         from listings l join users u on u.id = l.seller_id
+        where l.visibility = 'public' and l.status in ('live', 'sold') and u.status = 'active'
+        order by (l.status = 'sold'), l.published_at desc limit 1`);
+    const spotlight = spotRow ? {
+      id: spotRow.id,
+      title: spotRow.title,
+      place: placeLabel(spotRow.area, spotRow.state),
+      priceKobo: Number(spotRow.price_kobo),
+      dueKobo: Number(spotRow.price_kobo) + feeFor(Number(spotRow.price_kobo), s.fee),
+      seller: firstName(spotRow.seller_name),
+      verified: !!spotRow.verified,
+    } : null;
     const user = await optionalUser(request, d);
-    return { fee: s.fee, min: s.deal_min_kobo, max: s.deal_max_kobo, live, counts, recent, signedIn: !!user, origin: new URL(request.url).origin };
+    return { fee: s.fee, min: s.deal_min_kobo, max: s.deal_max_kobo, live, counts, recent, spotlight, signedIn: !!user, origin: new URL(request.url).origin };
   });
 }
 
@@ -247,7 +271,7 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
     <div className="landing">
       {header}
       <main id="main" className="landing-main">
-      <Hero live={x.live} />
+      <Hero live={x.live} spotlight={x.spotlight} fee={x.fee} min={x.min} />
       <LiveStrip items={x.recent} />
       <CategoryRail counts={x.counts} />
 
@@ -340,8 +364,11 @@ export default function Landing({ loaderData: x }: Route.ComponentProps) {
                 <li><Icon name="check" size={18} />{t("One link for WhatsApp, Facebook and Instagram.")}</li>
               </ul>
               <div className="share-preview" aria-label={t("Example of a shared link")}>
-                <span className="share-thumb"><Icon name="device-mobile" size={22} /></span>
-                <div className="grow"><p className="label">Nike Air Force 1, size 43 · ₦45,000</p><p className="caption muted">{t("Lekki, Lagos. Protected by NosHen.")}</p></div>
+                <span className="share-thumb"><Icon name="shield-check" size={22} /></span>
+                <div className="grow">
+                  <p className="label">{x.spotlight ? `${x.spotlight.title} · ${naira(x.spotlight.priceKobo)}` : t("Your item · Protected checkout link")}</p>
+                  <p className="caption muted">{x.spotlight ? t("{place}. Protected by NosHen.", { place: x.spotlight.place }) : t("Your money is held until you have the item.")}</p>
+                </div>
                 <Icon name="brand-whatsapp" size={20} className="wa-ico" />
               </div>
               <Button variant="primary" pill to="/sell" iconRight="arrow-right">{t("Start selling")}</Button>
@@ -448,8 +475,14 @@ function HighValue() {
   );
 }
 
-function Hero({ live }: { live: number }) {
+type HeroSpotlight = { id: string; title: string; place: string; priceKobo: number; dueKobo: number; seller: string; verified: boolean } | null;
+
+function Hero({ live, spotlight, fee, min }: { live: number; spotlight: HeroSpotlight; fee: FeeRule; min: number }) {
   const t = useT();
+  const seller = spotlight?.seller ?? t("Seller");
+  const item = spotlight?.title ?? t("Your protected deal");
+  const priceKobo = spotlight?.priceKobo ?? min;
+  const dueKobo = spotlight?.dueKobo ?? (min + feeFor(min, fee));
   return (
     <section className="lp-hero" aria-labelledby="hero-title">
       <div className="lp-inner hero-layout">
@@ -478,23 +511,23 @@ function Hero({ live }: { live: number }) {
           <div className="phone">
             <div className="phone-island" aria-hidden="true" />
             <div className="phone-screen">
-              <div className="row-between"><p className="label muted">{t("Deal with {name}", { name: "Tunde" })}</p><span className="caption muted">{t("Meet-up")}</span></div>
-              <DealCard state="held" word={t("Held")} amountKobo={45_675_000} item="iPhone 13, 128GB" counterpart="Tunde"
-                deadline={t("Meet by {time}", { time: "Fri 6pm" })} nextStep={t("Meet in a public place. Check the phone, then give Tunde your code.")} />
-              <ReleaseCode code="482913" defaultRevealed help={t("Tunde types this in at the hand-over.")} />
+              <div className="row-between"><p className="label muted">{t("Deal with {name}", { name: seller })}</p><span className="caption muted">{t("Meet-up")}</span></div>
+              <DealCard state="held" word={t("Held")} amountKobo={dueKobo} item={item} counterpart={seller}
+                deadline={t("72h escrow hold")} nextStep={t("Meet in a public place. Check the item, then give {seller} your code.", { seller })} />
+              <ReleaseCode code="••••••" defaultRevealed help={t("{seller} types your 6-digit code in at the hand-over.", { seller })} />
             </div>
           </div>
           <div className="float-card fc-held" aria-hidden="true">
             <span className="lp-icon sm held"><Icon name="lock" size={18} /></span>
-            <div><p className="label">{t("{amount} is held", { amount: "₦456,750" })}</p><p className="caption muted">{t("Tunde can see it. He can't touch it.")}</p></div>
+            <div><p className="label">{t("{amount} is held", { amount: naira(dueKobo) })}</p><p className="caption muted">{t("{seller} can see it, but can't touch it.", { seller })}</p></div>
           </div>
           <div className="float-card fc-seller" aria-hidden="true">
-            <Avatar name="Tunde" />
-            <div><p className="label">Tunde B.</p><p className="caption verified"><Icon name="circle-check" size={14} />{t("ID verified seller")}</p></div>
+            <Avatar name={seller} />
+            <div><p className="label">{seller}</p><p className="caption verified"><Icon name="circle-check" size={14} />{t("ID verified seller")}</p></div>
           </div>
           <div className="float-card fc-paid" aria-hidden="true">
             <span className="lp-icon sm ok"><Icon name="arrow-up-right" size={18} /></span>
-            <div><p className="label">{t("Code given, payout started")}</p><p className="caption muted">{t("{amount} to Tunde's bank", { amount: "₦450,000" })}</p></div>
+            <div><p className="label">{t("Code given, payout started")}</p><p className="caption muted">{t("{amount} to {seller}'s bank", { amount: naira(priceKobo), seller })}</p></div>
           </div>
           <Seal className="hero-seal" />
         </div>

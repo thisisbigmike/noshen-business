@@ -63,6 +63,15 @@ export default function SellStart({ loaderData: x, actionData }: Route.Component
 
         {market !== "NG" ? <Info icon="world">{t("NosHen works in Nigeria for now: you can sell an item that's in Nigeria. {country} is coming soon.", { country: t(marketOf(market).name) })}</Info> : null}
 
+        <Link to="/sell/quick" className="resume-card" prefetch="intent">
+          <span className="cat-icon"><Icon name="bolt" size={22} /></span>
+          <span className="grow stack" style={{ gap: 0 }}>
+            <span className="label">{t("Quick escrow link (10 seconds)")}</span>
+            <span className="caption muted">{t("Already have a buyer on WhatsApp or Instagram? Skip photos and make a private checkout link.")}</span>
+          </span>
+          <Icon name="chevron-right" size={20} />
+        </Link>
+
         {x.draft && draftCat ? (
           <Link to={`/sell/${x.draft.id}/${x.draft.next}`} className="resume-card" prefetch="intent">
             <span className="cat-icon"><Icon name={draftCat.icon} size={22} /></span>

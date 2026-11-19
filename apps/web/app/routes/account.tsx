@@ -1,7 +1,7 @@
 import { Form, Link } from "react-router";
 import type { Route } from "./+types/account";
 import { requireUser, withApp, messageOf } from "../../server/web";
-import { myListings, sellerSummary } from "@noshen/engine/queries";
+import { myListings, savedListingsFor, sellerSummary } from "@noshen/engine/queries";
 import { sellerReady, setListingStatus, setProfilePhoto, setVisibility } from "@noshen/engine/sellers";
 import { offersDelivery } from "@noshen/shared/delivery";
 import { isService } from "@noshen/shared/categories";
@@ -28,13 +28,13 @@ export const meta = () => [{ title: "Account · NosHen" }];
 export async function loader({ request }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const user = await requireUser(request, d);
-    const [ready, summary, listings, bank, kyc, handles, links] = await Promise.all([
-      sellerReady(d, user.id), sellerSummary(d.db, user.id), myListings(d.db, user.id),
+    const [ready, summary, listings, saved, bank, kyc, handles, links] = await Promise.all([
+      sellerReady(d, user.id), sellerSummary(d.db, user.id), myListings(d.db, user.id), savedListingsFor(d.db, user.id),
       one(d.db, "select account_name, account_last4 from bank_accounts where user_id = $1 and is_default and removed_at is null", [user.id]),
       one(d.db, "select type, verified_name from kyc_checks where user_id = $1 and result = 'verified' order by checked_at desc limit 1", [user.id]),
       myHandles(d.db, user.id), agentLinksOf(d.db, user.id),
     ]);
-    return { user, ready, summary, listings, bank, kyc, handles: handles as Handle[], links, shop: `${new URL(request.url).origin}/s/${user.id}` };
+    return { user, ready, summary, listings, savedCount: saved.length, bank, kyc, handles: handles as Handle[], links, shop: `${new URL(request.url).origin}/s/${user.id}` };
   });
 }
 
@@ -90,6 +90,16 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
           <Kv k={t("Completed sales")} v={String(x.summary.completedDeals)} />
           </div>
         </section>
+        <section className="card link-list" aria-label={t("Wallet and saved")}>
+          <Link to="/wallet" className="row-between">
+            <span className="row"><Icon name="wallet" size={18} />{t("NosHen wallet")}</span>
+            <Icon name="chevron-right" size={18} />
+          </Link>
+          <Link to="/saved" className="row-between">
+            <span className="row"><Icon name="heart" size={18} />{x.savedCount ? t("Saved items ({n})", { n: x.savedCount }) : t("Saved items")}</span>
+            <Icon name="chevron-right" size={18} />
+          </Link>
+        </section>
         <section className="card stack">
           <p className="title">{t("Selling")}</p>
           <Kv k={t("ID check")} v={x.kyc ? t("Verified ({type})", { type: x.kyc.type.toUpperCase() }) : t("Not done")} />
@@ -105,7 +115,12 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
                 <span className="stack" style={{ gap: 0 }}>
                   <Link to={l.status === "draft" ? (l.title === "Untitled listing" ? `/sell/${l.id}/photos` : `/sell/${l.id}/review`) : `/l/${l.id}`} className="body">{l.title === "Untitled listing" ? t("Draft listing") : l.title}</Link>
                   <span className="caption muted">{t(STATUS_WORD[l.status] ?? l.status)} · {naira(l.price_kobo)}{Number(l.requests) ? ` · ${Number(l.requests) === 1 ? t("1 request") : t("{n} requests", { n: l.requests })}` : ""}</span>
-                  {(l.status === "live" || l.status === "paused") && !isService(l.category) ? <Link to={`/sell/${l.id}/delivery`} className="caption">{offersDelivery(l) ? t("Delivery prices") : t("Add delivery prices")}</Link> : null}
+                  {(l.status === "live" || l.status === "paused") ? (
+                    <span className="row wrap" style={{ gap: 12 }}>
+                      <Link to={`/sell/${l.id}/edit`} className="caption">{t("Edit listing")}</Link>
+                      {!isService(l.category) ? <Link to={`/sell/${l.id}/delivery`} className="caption">{offersDelivery(l) ? t("Delivery prices") : t("Add delivery prices")}</Link> : null}
+                    </span>
+                  ) : null}
                   {l.visibility === "link" ? <span className="caption muted row" style={{ gap: 4 }}><Icon name="link" size={14} />{t("Checkout link only")}</span> : null}
                 </span>
                 {l.status === "live" || l.status === "paused" ? (
@@ -132,7 +147,12 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
             <p className="title" id="shop-link">{t("Your shop link")}</p>
             <p className="caption muted">{t("Put it in your Instagram bio or WhatsApp status: one link to everything you sell on NosHen, with your track record.")}</p>
             <div className="row wrap" style={{ gap: 8 }}><code className="caption">{x.shop}</code><CopyButton text={x.shop} label={t("Copy link")} /></div>
-            <Link to={new URL(x.shop).pathname} className="caption">{t("See your shop")}</Link>
+            <div className="row wrap" style={{ gap: 12 }}>
+              <Link to={new URL(x.shop).pathname} className="caption">{t("See your shop")}</Link>
+              <a href={`/s/${x.user.id}/badge.svg`} target="_blank" rel="noreferrer" className="caption row" style={{ gap: 4 }}>
+                <Icon name="download" size={14} />{t("Verified trust card")}
+              </a>
+            </div>
           </section>
         ) : null}
         {x.listings.length || x.handles.length ? (

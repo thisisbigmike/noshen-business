@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
-import { Link, data } from "react-router";
+import { Form, Link, data } from "react-router";
 import type { Route } from "./+types/listing";
-import { optionalUser, withApp } from "../../server/web";
+import { optionalUser, requireUser, withApp } from "../../server/web";
 import { listingView } from "@noshen/engine/queries";
+import { isListingSaved, toggleSavedListing } from "@noshen/engine/sellers";
 import { settingsOf } from "@noshen/engine/core";
 import { Avatar, BottomAction, Button, Icon, Info, Kv, PhotoViewer, ProtectionBadge, TopBar, Wordmark } from "@noshen/ui/ui";
 import { feeFor, naira } from "@noshen/shared/money";
@@ -35,10 +36,21 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const mine = user?.id === v.listing.seller_id;
     // Sellers who haven't verified can only take deals up to a limit. Say so here, before a buyer starts, not at the last step.
     const limit = await sellerLimit(d.db, v.listing.seller_id, s);
+    const saved = user && !mine ? await isListingSaved(d.db, user.id, v.listing.id) : false;
     // Security: never send the raw IMEI/VIN/serial or the seller's full surname in the public page payload before payment.
     const safeListing = { ...v.listing, imei_or_serial: v.listing.imei_or_serial ? "REDACTED" : null };
     const safeSeller = { ...v.seller, name: firstName(v.seller.name) };
-    return { listing: safeListing, seller: safeSeller, fee: feeFor(price, s.fee), mine, limit: overLimit(price, limit) ? limit : null, sendHours: s.handover_window_hours, origin: new URL(request.url).origin };
+    return { listing: safeListing, seller: safeSeller, fee: feeFor(price, s.fee), mine, saved, limit: overLimit(price, limit) ? limit : null, sendHours: s.handover_window_hours, origin: new URL(request.url).origin };
+  });
+}
+
+export async function action({ request, params }: Route.ActionArgs) {
+  const f = await request.formData();
+  if (f.get("intent") !== "toggle_save") return null;
+  return withApp(async (d) => {
+    const user = await requireUser(request, d);
+    const saved = await toggleSavedListing(d, user.id, params.id);
+    return { saved };
   });
 }
 
@@ -103,7 +115,7 @@ export const meta: Route.MetaFunction = ({ loaderData: d }) => {
 };
 
 export default function Listing({ loaderData }: Route.ComponentProps) {
-  const { listing: l, seller, fee, mine, limit, sendHours } = loaderData;
+  const { listing: l, seller, fee, mine, saved, limit, sendHours } = loaderData;
   const t = useT();
   // Data saver: the photos on the page are the small copies; tapping one still opens it full size.
   const lite = useLite();
@@ -150,12 +162,22 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   const delivery = deliverySummary(l, t);
 
   const buy = mine ? (
-    <Button variant="secondary" size="lg" block to="/sell">{t("This is your listing")}</Button>
+    ["live", "paused"].includes(l.status) ? (
+      <Button variant="secondary" size="lg" block icon="edit" to={`/sell/${l.id}/edit`}>{t("Edit listing")}</Button>
+    ) : (
+      <Button variant="secondary" size="lg" block to="/sell">{t("This is your listing")}</Button>
+    )
   ) : status || limitText ? (
     <Button size="lg" block to="/browse">{t("See more listings")}</Button>
   ) : (
     <Button variant="primary" size="lg" block icon="shield-check" to={`/l/${l.id}/buy`}>{job ? t("Book with protection") : t("Buy with protection")}</Button>
   );
+  const saveBtn = !mine && ["live", "sold"].includes(l.status) ? (
+    <Form method="post">
+      <input type="hidden" name="intent" value="toggle_save" />
+      <Button type="submit" block icon="heart">{saved ? t("Saved") : t("Save for later")}</Button>
+    </Form>
+  ) : null;
 
   // The same words as the share screen after publishing.
   const shareText = t("{title} · {price}. {place}. Your money is held until you have it.", { title: l.title, price: naira(price), place: placeLabel(l.area, l.state) });
@@ -195,6 +217,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
               <p className="big-amount">{naira(price)}</p>
               <div className="row wrap">{kindChip}{size ? <span className="nh-status nh-status-awaiting label">{size}</span> : null}{stock}<span className="caption muted row"><Icon name="map-pin" size={16} />{placeLabel(l.area, l.state)} · {ago(l.published_at)}</span></div>
               <div className="row"><ProtectionBadge /></div>
+            {saveBtn ? <div style={{ marginTop: 4 }}>{saveBtn}</div> : null}
             </div>
             {status ? <p className="info warn">{status}</p> : null}
             {l.visibility === "link" && !status ? <Info icon="link">{job
@@ -233,6 +256,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             <p className="caption muted">{t("If it's not what was listed, your money doesn't move.")}</p>
             {!status && limitText ? <Info icon="info-circle">{limitText}</Info> : null}
             {buy}
+            {saveBtn}
             {share("button")}
             <div><Kv k={t("Price")} v={naira(price)} /><Kv k={t("NosHen fee")} v={naira(fee)} /><Kv k={t("Total")} v={naira(price + fee)} total /></div>
             {job ? <p className="caption muted row" style={{ gap: 6 }}><Icon name="tool" size={16} />{t("Paid stage by stage, as the work is done")}</p>

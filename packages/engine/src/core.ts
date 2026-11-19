@@ -2,6 +2,7 @@ import type { Db, Tx } from "./db";
 import { one } from "./db";
 import type { CryptoPartner, PaymentsPartner, PartnerEvent, WalletProvider } from "./partner/types";
 import type { EmailSender } from "./email";
+import type { SmsSender } from "./sms";
 import { sendPush, type PushConfig } from "./push";
 import type { IdProvider } from "./idcheck";
 import type { Settings } from "./settings";
@@ -31,6 +32,8 @@ export interface Deps {
   /** Everyone's NosHen wallet: fixed deposit addresses and coin balances. Missing when no wallet provider is set up. */
   wallets?: WalletProvider;
   mail: EmailSender;
+  /** Optional SMS / WhatsApp alerts (Termii). Missing when no SMS key is set. */
+  sms?: SmsSender;
   /** Phone and computer notifications. Missing when no keys are set up: then updates are in the app (and email). */
   push?: PushConfig;
   /** Live deal rooms: open deal pages update the moment something happens. Missing where there are none (tests). */
@@ -64,7 +67,7 @@ export class DealError extends Error {
 
 export interface DealRow {
   id: string; listing_id: string; buyer_id: string; seller_id: string;
-  price_kobo: string; fee_kobo: string; fee_payer: "buyer" | "seller";
+  price_kobo: string; listed_price_kobo?: string | null; fee_kobo: string; fee_payer: "buyer" | "seller";
   amount_due_kobo: string; seller_share_kobo: string;
   handover: "meetup" | "delivery"; state: DealState;
   request_expires_at: Date; payment_due_at: Date | null; handover_due_at: Date | null;
@@ -157,6 +160,14 @@ export async function notify(d: Deps, tx: Tx, userId: string, dealId: string | n
     // Titled with the item it's about, so it reads as what it is: an update on your deal, not a generic money alert.
     const item = dealId ? await one<{ title: string }>(tx.db, "select l.title from deals x join listings l on l.id = x.listing_id where x.id = $1", [dealId]) : null;
     tx.after(() => pushToUser(d, push, userId, { title: item ? `Your deal: ${item.title}` : "NosHen account", body: text, url: dealId ? `/d/${dealId}` : "/notifications", tag: dealId ?? template }));
+  }
+  if (d.sms?.enabled) {
+    const sms = d.sms;
+    const phoneRow = await one<{ phone: string | null }>(tx.db, "select phone from users where id = $1", [userId]);
+    if (phoneRow?.phone) {
+      const link = dealId ? ` ${d.appUrl}/d/${dealId}` : "";
+      tx.after(() => sms.send({ to: phoneRow.phone!, body: `NosHen: ${text}${link}` }).catch((e) => console.error("sms failed", e)));
+    }
   }
   if (d.mail.enabled === false) return;
   const to = await one<{ email: string | null }>(tx.db, "select email from users where id = $1", [userId]);

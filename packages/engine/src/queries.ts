@@ -129,6 +129,18 @@ export async function myListings(db: Db, userId: string) {
      from listings l where seller_id = $1 and status <> 'removed' order by created_at desc`, [userId]);
 }
 
+/** Listings a buyer saved to watch later (live and recently sold). */
+export async function savedListingsFor(db: Db, userId: string) {
+  return many(db,
+    `select l.id, l.title, l.price_kobo, l.area, l.state, l.category, l.condition, l.size_system, l.size, l.photo_keys,
+            l.published_at, l.status, l.quantity, l.sold_count, s.created_at as saved_at
+       from saved_listings s
+       join listings l on l.id = s.listing_id
+       join users u on u.id = l.seller_id
+      where s.user_id = $1 and l.status in ('live', 'sold') and u.status = 'active'
+      order by s.created_at desc limit 60`, [userId]);
+}
+
 export interface DealListItem {
   id: string; state: DealState; role: "buyer" | "seller"; title: string; other: string;
   price_kobo: string; amount_due_kobo: string; seller_share_kobo: string; handover: "meetup" | "delivery";

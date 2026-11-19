@@ -7,6 +7,7 @@ import { alertStaff } from "./staff-alerts";
 import { sellerSummary, type SellerSummary } from "./queries";
 import type { StaffActor } from "./staff";
 import { handleProblem, isPlatform, parseHandle, platformOf, type Platform } from "@noshen/shared/social";
+import { isBlocked } from "./blocklist";
 
 export type HandleStatus = "added" | "submitted" | "verified" | "rejected" | "removed";
 export interface HandleRow { id: string; platform: Platform; handle: string; code: string; status: HandleStatus; reject_reason: string | null; created_at: Date }
@@ -34,6 +35,9 @@ export async function addHandle(d: Deps, userId: string, platform: string, raw: 
   if (parsed?.platform && parsed.platform !== platform) throw new DealError("handle", `That's a ${platformOf(parsed.platform).label} link. Choose ${platformOf(parsed.platform).label}, or paste your ${platformOf(platform).label} name.`);
   const wrong = handleProblem(platform, handle);
   if (wrong) throw new DealError("handle", wrong);
+  if (await isBlocked(d, "social_handle", handle)) {
+    throw new DealError("blocked", "This social handle can't be verified on NosHen. Contact support if you think this is a mistake.", 403);
+  }
   const id = await one(d.db, "select 1 from kyc_checks where user_id = $1 and result = 'verified'", [userId]);
   if (!id) throw new DealError("id_first", "Verify your ID first. Then buyers who check your handle know it leads to a real person.");
   const taken = await one(d.db, "select user_id from social_handles where platform = $1 and handle = $2 and status = 'verified'", [platform, handle]);

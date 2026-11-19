@@ -150,6 +150,14 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
               {x.paymentUrl ? <p className="caption"><a href={x.paymentUrl} target="_blank" rel="noreferrer">{t("See the payment on {explorer}", { explorer: x.paymentExplorer ?? "" })}</a></p> : null}
             </section>
 
+            {deal.listed_price_kobo && Number(deal.price_kobo) < Number(deal.listed_price_kobo) ? (
+              <Info icon="tag">
+                {t("Negotiated offer: {offer} (listed at {listed}).", {
+                  offer: naira(deal.price_kobo),
+                  listed: naira(deal.listed_price_kobo),
+                })}
+              </Info>
+            ) : null}
             {deal.state === "held" && !deal.review_hold && role === "buyer" ? (
               <Info icon="lock">{x.paymentUrl ? t("Your {coin} is held at this deal's own address, on-chain.", { coin: x.paidCrypto ?? "" }) : t("Our licensed partner holds your money.")} {job
                 ? t("{name} is paid stage by stage, only when you release each one. If something is wrong, report it and what's still held stays held.", { name: other })

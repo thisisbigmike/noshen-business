@@ -3,14 +3,14 @@ import { env } from "cloudflare:workers";
 import { createAuth } from "./auth";
 import { withApp, partnerFor, cryptoFor, walletsFor, mailFor, pushFor, isDev, isLocal } from "@noshen/engine/context";
 import { pushToUser } from "@noshen/engine/core";
-import { handlePartnerEvent } from "@noshen/engine/deals";
+import { handlePartnerEvent, requestDeal } from "@noshen/engine/deals";
 import { handleWalletEvent } from "@noshen/engine/wallets";
 import { agentDeals, agentPerson, agentWallet, logAgentRequest, startAgentLink, unlinkChat, type AgentChannel } from "@noshen/engine/agent";
 import { timingSafeEqual } from "@noshen/engine/crypto";
 import type { Deps } from "@noshen/engine/core";
 import type { WalletEvent } from "@noshen/engine/partner/blockradar";
 import { sweep } from "@noshen/engine/sweep";
-import { browse, dealView, dealsFor, listingView } from "@noshen/engine/queries";
+import { browse, dealView, dealsFor, listingView, sellerShop } from "@noshen/engine/queries";
 import { checkSeller } from "@noshen/engine/handles";
 import { DealError, settingsOf } from "@noshen/engine/core";
 import { FakePartner } from "@noshen/engine/partner/fake";
@@ -167,6 +167,33 @@ function forLinkedPerson(action: string, look: (d: Deps, userId: string) => Prom
 api.get("/api/agent/me", forLinkedPerson("me", async () => ({ linked: true })));
 api.get("/api/agent/wallet", forLinkedPerson("wallet", agentWallet));
 api.get("/api/agent/deals", forLinkedPerson("deals", async (d, userId) => ({ deals: await agentDeals(d, userId) })));
+api.post("/api/agent/request", async (c) => {
+  const b = await c.req.json<{ channel?: string; externalId?: string; listingId?: string; handover?: "meetup" | "delivery"; deliveryState?: string; offerKobo?: number; note?: string }>().catch(() => ({}) as never);
+  try {
+    return await withApp(async (d) => {
+      const p = await agentPerson(d, b?.channel as AgentChannel, String(b?.externalId ?? ""));
+      if (!p) return c.json({ error: "not_linked", message: "This chat isn't linked to a NosHen account yet. Send /link to link it." }, 403);
+      if (!p.allowed) {
+        await logAgentRequest(d.db, p.linkId, "request_deal", false);
+        return c.json({ error: "not_allowed", message: p.why }, 403);
+      }
+      const dealId = await requestDeal(d, p.userId, {
+        listingId: String(b?.listingId ?? ""),
+        handover: b?.handover === "delivery" ? "delivery" : "meetup",
+        deliveryState: b?.deliveryState,
+        offerKobo: typeof b?.offerKobo === "number" ? b.offerKobo : null,
+        note: b?.note,
+      });
+      await logAgentRequest(d.db, p.linkId, "request_deal", true);
+      const origin = new URL(c.req.url).origin;
+      return c.json({ ok: true, dealId, dealUrl: `${origin}/d/${dealId}`, payUrl: `${origin}/d/${dealId}/pay` });
+    });
+  } catch (e) {
+    const r = agentRefusal(e);
+    if (r) return c.json(r, r.status === 503 ? 503 : 400);
+    throw e;
+  }
+});
 
 // Phone and computer notifications: a device turns them on (or off) for the signed-in person. Only NosHen's own
 // pages may call these (checked by Origin, on top of the sign-in cookie being same-site).
@@ -274,6 +301,61 @@ api.get("/api/deals/:id", async (c) => {
 // ---------------------------------------------------------------------------
 
 const xmlEscape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+
+api.get("/s/:id/badge.svg", async (c) => {
+  if (!checkRateLimit(clientIp(c), "badge", 60)) return c.text("Too many requests", 429);
+  const id = c.req.param("id");
+  const origin = new URL(c.req.url).origin;
+  const host = new URL(c.req.url).host;
+  const shop = await withApp((d) => sellerShop(d.db, id));
+  if (!shop) return c.text("Not found", 404);
+  const s = shop.summary;
+  const name = xmlEscape(firstName(s.name));
+  const verifiedText = s.idVerified ? "ID-VERIFIED SELLER" : "NOSHEN SELLER";
+  const sales = `${s.completedDeals} ${s.completedDeals === 1 ? "completed sale" : "completed sales"}`;
+  const clean = s.problemFree !== null ? `${s.problemFree}% problem-free` : "Protected by NosHen escrow";
+  const rating = s.rating !== null ? `${s.rating} ★ (${s.ratingCount})` : "Escrow protected";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="566" viewBox="0 0 1080 566" role="img" aria-label="${name} — Verified NosHen Seller">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a2e25"/>
+      <stop offset="60%" stop-color="#0f4c3d"/>
+      <stop offset="100%" stop-color="#09211b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2dd4bf"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="566" rx="36" fill="url(#bg)"/>
+  <rect x="28" y="28" width="1024" height="510" rx="24" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="2"/>
+  <rect x="72" y="72" width="286" height="44" rx="22" fill="rgba(45,212,191,0.16)" stroke="rgba(45,212,191,0.45)" stroke-width="1.5"/>
+  <circle cx="98" cy="94" r="7" fill="#2dd4bf"/>
+  <text x="118" y="100" fill="#99f6e4" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="700" letter-spacing="1.4">${xmlEscape(verifiedText)}</text>
+  <text x="970" y="102" text-anchor="end" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800" letter-spacing="-0.5">NosHen</text>
+  <text x="72" y="210" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="68" font-weight="800" letter-spacing="-1.5">${name}</text>
+  <text x="72" y="262" fill="#cbd5e1" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="500">Buy safely from me with NosHen Escrow — money stays held until you check the item.</text>
+  <rect x="72" y="314" width="292" height="106" rx="18" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.12)"/>
+  <text x="98" y="354" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600">TRACK RECORD</text>
+  <text x="98" y="394" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="700">${xmlEscape(sales)}</text>
+  <rect x="394" y="314" width="292" height="106" rx="18" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.12)"/>
+  <text x="420" y="354" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600">RELIABILITY</text>
+  <text x="420" y="394" fill="#5eead4" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="700">${xmlEscape(clean)}</text>
+  <rect x="716" y="314" width="292" height="106" rx="18" fill="rgba(255,255,255,0.07)" stroke="rgba(255,255,255,0.12)"/>
+  <text x="742" y="354" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600">RATING</text>
+  <text x="742" y="394" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="26" font-weight="700">${xmlEscape(rating)}</text>
+  <rect x="72" y="458" width="936" height="4" rx="2" fill="url(#accent)" opacity="0.65"/>
+  <text x="72" y="502" fill="#99f6e4" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="600">Verify my track record at ${xmlEscape(host)}/s/${xmlEscape(s.id)}</text>
+  <text x="1008" y="502" text-anchor="end" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="500">${xmlEscape(origin)}</text>
+</svg>`;
+  return new Response(svg, {
+    headers: {
+      "content-type": "image/svg+xml; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "content-disposition": `inline; filename="noshen-verified-${firstName(s.name).toLowerCase().replace(/[^a-z0-9]/g, "") || "seller"}.svg"`,
+    },
+  });
+});
 
 api.get("/robots.txt", (c) => {
   const origin = new URL(c.req.url).origin;

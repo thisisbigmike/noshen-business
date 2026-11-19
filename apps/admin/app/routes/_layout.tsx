@@ -23,7 +23,7 @@ const SECTIONS: { title: string; links: { to: string; label: string; icon: IconN
     { to: "/deals", label: "Deals", icon: "receipt", count: (c) => c.locked + c.stuck + c.failed },
   ] },
   { title: "Marketplace", links: [{ to: "/listings", label: "Listings", icon: "tag" }, { to: "/handles", label: "Handles", icon: "id", count: (c) => c.handles }, { to: "/users", label: "People", icon: "users" }] },
-  { title: "Records", links: [{ to: "/money", label: "Money", icon: "cash" }, { to: "/audit", label: "Audit log", icon: "history" }] },
+  { title: "Records", links: [{ to: "/money", label: "Money", icon: "cash" }, { to: "/blocklist", label: "Blocklist", icon: "shield-off" }, { to: "/audit", label: "Audit log", icon: "history" }] },
 ];
 
 export default function StaffLayout({ loaderData: { staff, counts } }: Route.ComponentProps) {

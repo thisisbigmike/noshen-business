@@ -18,6 +18,7 @@ export default [
     route("holds", "routes/holds.tsx"),
     route("holds/:id", "routes/hold.tsx"),
     route("money", "routes/money.tsx"),
+    route("blocklist", "routes/blocklist.tsx"),
     route("audit", "routes/audit.tsx"),
   ]),
 ] satisfies RouteConfig;

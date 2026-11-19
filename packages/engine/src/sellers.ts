@@ -10,6 +10,7 @@ import { categoryOf, idProblem, isCategory, isService, normaliseId, type Categor
 import { naira } from "@noshen/shared/money";
 import { alertStaff } from "./staff-alerts";
 import { sizeProblem, sizeRuleFor } from "@noshen/shared/sizes";
+import { isBlocked } from "./blocklist";
 
 /**
  * Sets someone's profile picture (a photo key from storePhoto under avatars/<their id>/), or removes it with null.
@@ -32,7 +33,11 @@ export async function setName(d: Deps, userId: string, fullName: string) {
 export async function verifyId(d: Deps, userId: string, type: "nin" | "bvn", number: string) {
   const user = await one(d.db, "select full_name from users where id = $1", [userId]);
   if (!user?.full_name) throw new DealError("name", "Add your full name first.");
-  const r = await d.ids.check(type, number.replace(/\s/g, ""), user.full_name);
+  const clean = number.replace(/\s/g, "");
+  if (await isBlocked(d, "id_number", clean)) {
+    throw new DealError("blocked", "This ID number can't be used on NosHen. Contact support if you think this is a mistake.", 403);
+  }
+  const r = await d.ids.check(type, clean, user.full_name);
   await d.db.query(
     `insert into kyc_checks (user_id, type, provider, provider_ref, result, verified_name, failure_reason, checked_at)
      values ($1, $2, $3, $4, $5, $6, $7, now())`,
@@ -50,6 +55,9 @@ export async function addBankAccount(d: Deps, userId: string, bankCode: string, 
   const idName = await verifiedName(d, userId);
   if (!idName) throw new DealError("id_first", "Verify your ID before adding a bank account.");
   const number = accountNumber.replace(/\s/g, "");
+  if (await isBlocked(d, "bank_account", number)) {
+    throw new DealError("blocked", "This bank account can't be used on NosHen. Contact support if you think this is a mistake.", 403);
+  }
   const user = await one(d.db, "select full_name from users where id = $1", [userId]);
   let accountName: string;
   try {
@@ -205,26 +213,36 @@ export async function publish(d: Deps, userId: string, listingId: string, visibi
     const l = await one(tx.db, "select * from listings where id = $1 for update", [listingId]);
     if (!l || l.seller_id !== userId) throw new DealError("forbidden", "This listing isn't yours.", 403);
     if (l.status !== "draft") return l.status;
-    if ((l.photo_keys ?? []).length < 3) throw new DealError("photos", "Add at least 3 photos.");
+    if ((l.photo_keys ?? []).length < 3 && visibility !== "link") throw new DealError("photos", "Add at least 3 photos.");
     if (l.title === "Untitled listing") throw new DealError("details", "Add the details first.");
     if (isService(l.category) && !(Array.isArray(l.stages) && l.stages.length)) throw new DealError("details", "Add the stages the job is paid in.");
     const dup = l.imei_or_serial
       ? await one(tx.db, "select 1 from listings where imei_or_serial = $1 and status = 'live' and id <> $2", [l.imei_or_serial, listingId])
       : null;
-    const status = dup ? "blocked" : "live";
+    const blockedDevice = l.imei_or_serial ? await isBlocked(d, "imei", l.imei_or_serial) : false;
+    const status = dup || blockedDevice ? "blocked" : "live";
     await tx.db.query("update listings set status = $2, published_at = now(), visibility = $3 where id = $1", [listingId, status, visibility === "link" ? "link" : "public"]);
-    if (dup) await alertStaff(d, tx, "listing_check", `Listing to check: ${l.title}`,
-      `The same ${categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "number"} is on another live listing.`, "/listings?status=blocked");
-    if (dup) await notify(d, tx, userId, null, "listing_review", `We're checking your listing because the same ${categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "number"} is on another live listing.`);
+    if (blockedDevice) {
+      await alertStaff(d, tx, "listing_check", `Blocklisted device flagged: ${l.title}`,
+        `This listing's ${categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "identifier"} matched NosHen's stolen/scammer blocklist.`, "/listings?status=blocked");
+      await notify(d, tx, userId, null, "listing_review", "We're reviewing this listing before it can go live.");
+    } else if (dup) {
+      await alertStaff(d, tx, "listing_check", `Listing to check: ${l.title}`,
+        `The same ${categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "number"} is on another live listing.`, "/listings?status=blocked");
+      await notify(d, tx, userId, null, "listing_review", `We're checking your listing because the same ${categoryOf(l.category).id?.label.replace(" (optional)", "") ?? "number"} is on another live listing.`);
+    }
     return status as "live" | "blocked";
   });
 }
 
 /** Shows a listing on NosHen, or keeps it to its checkout link only. Requests already made carry on as they are. */
 export async function setVisibility(d: Deps, userId: string, listingId: string, visibility: Visibility) {
-  const l = await one(d.db, "select seller_id, status from listings where id = $1", [listingId]);
+  const l = await one(d.db, "select seller_id, status, photo_keys from listings where id = $1", [listingId]);
   if (!l || l.seller_id !== userId) throw new DealError("forbidden", "This listing isn't yours.", 403);
   if (!["draft", "live", "paused"].includes(l.status)) throw new DealError("state", "This listing can't be changed now.");
+  if (visibility === "public" && (l.photo_keys ?? []).length < 3) {
+    throw new DealError("photos", "Add at least 3 photos before showing a quick checkout link on Browse.");
+  }
   await d.db.query("update listings set visibility = $2 where id = $1", [listingId, visibility === "link" ? "link" : "public"]);
 }
 
@@ -233,5 +251,126 @@ export async function setListingStatus(d: Deps, userId: string, listingId: strin
   if (!l || l.seller_id !== userId) throw new DealError("forbidden", "This listing isn't yours.", 403);
   if (!["live", "paused"].includes(l.status)) throw new DealError("state", "This listing can't be changed now.");
   await d.db.query("update listings set status = $2 where id = $1", [listingId, status]);
+}
+
+export interface LiveEditInput {
+  title: string;
+  description?: string;
+  priceNaira: number;
+  condition?: Condition;
+  state: string;
+  area: string;
+  quantity?: number;
+}
+
+/**
+ * Edits a live or paused listing without deleting it or re-uploading photos.
+ * Deals already requested keep the price and details locked on the deal.
+ */
+export async function updateLiveListing(d: Deps, userId: string, listingId: string, input: LiveEditInput) {
+  const l = await one(d.db, "select * from listings where id = $1", [listingId]);
+  if (!l || l.seller_id !== userId) throw new DealError("forbidden", "This listing isn't yours.", 403);
+  if (!["live", "paused"].includes(l.status)) throw new DealError("state", "Only live or paused listings can be edited.");
+  const cat = categoryOf(l.category);
+  const title = input.title?.trim().slice(0, 80) ?? "";
+  if (title.length < 3) throw new DealError("title", `Give it a title, like “${cat.titleExample}”.`);
+  const price = Math.round(input.priceNaira * 100);
+  const s = await settingsOf(d);
+  if (!Number.isSafeInteger(price) || price < s.deal_min_kobo || (s.deal_max_kobo !== null && price > s.deal_max_kobo)) {
+    throw new DealError("price", s.deal_max_kobo === null
+      ? (Number.isSafeInteger(price) ? `The lowest price on NosHen is ${naira(s.deal_min_kobo)}.` : "That price is too large. Check the number of zeros.")
+      : `Price between ${naira(s.deal_min_kobo)} and ${naira(s.deal_max_kobo)}.`);
+  }
+  if (!isState(input.state)) throw new DealError("state", "Choose the state the item is in.");
+  const area = input.area.trim().replace(/\s+/g, " ");
+  const areaWrong = areaProblem(area);
+  if (areaWrong) throw new DealError("area", areaWrong);
+  const soldCount = Number(l.sold_count ?? 0);
+  const quantity = input.quantity ?? Number(l.quantity ?? 1);
+  if (!Number.isInteger(quantity) || quantity < Math.max(1, soldCount) || quantity > 999) {
+    throw new DealError("quantity", soldCount > 0 ? `Quantity must be at least ${soldCount} (already sold) and up to 999.` : "How many you have must be between 1 and 999.");
+  }
+  const service = isService(l.category);
+  const condition = service ? "new" : (input.condition ?? l.condition);
+  if (!CONDITIONS.some(([k]) => k === condition)) throw new DealError("condition", "Choose the condition.");
+  await d.db.query(
+    `update listings set title = $2, description = $3, price_kobo = $4, condition = $5, state = $6, area = $7, quantity = $8 where id = $1`,
+    [listingId, title, input.description?.trim().slice(0, 2000) || null, price, condition, input.state, area, quantity],
+  );
+}
+
+/**
+ * 10-second Quick Escrow Link: for two people who already agreed on a price on WhatsApp, Instagram, or X.
+ * Creates a link-only listing immediately (0 marketplace photos needed) ready to share and pay.
+ */
+export async function createQuickEscrowLink(
+  d: Deps,
+  userId: string,
+  input: {
+    category: CategoryKey;
+    title: string;
+    priceNaira: number;
+    state: string;
+    area: string;
+    description?: string;
+    imeiOrSerial?: string;
+    deliveryLocalKobo?: number | null;
+    deliveryOtherKobo?: number | null;
+  },
+): Promise<{ id: string; status: "live" | "blocked" }> {
+  const ready = await sellerReady(d, userId);
+  if (!ready.ready) throw new DealError("seller_checks", "Verify your ID and bank account before creating an escrow link.");
+  if (!isCategory(input.category)) throw new DealError("category", "Choose a category.");
+  const cat = categoryOf(input.category);
+  const title = input.title?.trim().slice(0, 80) ?? "";
+  if (title.length < 3) throw new DealError("title", `Give it a title, like “${cat.titleExample}”.`);
+  const price = Math.round(input.priceNaira * 100);
+  const s = await settingsOf(d);
+  if (!Number.isSafeInteger(price) || price < s.deal_min_kobo || (s.deal_max_kobo !== null && price > s.deal_max_kobo)) {
+    throw new DealError("price", s.deal_max_kobo === null
+      ? (Number.isSafeInteger(price) ? `The lowest price on NosHen is ${naira(s.deal_min_kobo)}.` : "That price is too large. Check the number of zeros.")
+      : `Price between ${naira(s.deal_min_kobo)} and ${naira(s.deal_max_kobo)}.`);
+  }
+  const imei = cat.id ? normaliseId(input.imeiOrSerial ?? "") : "";
+  if (cat.id && (imei || cat.id.required) && !cat.id.pattern.test(imei)) throw new DealError("imei", idProblem(cat.key, imei) ?? cat.id.error);
+  if (!isState(input.state)) throw new DealError("state", "Choose the state.");
+  const area = input.area.trim().replace(/\s+/g, " ");
+  const areaWrong = areaProblem(area);
+  if (areaWrong) throw new DealError("area", areaWrong);
+  const service = isService(input.category);
+  const delivery = service ? { local: null, other: null } : checkDelivery(input.deliveryLocalKobo, input.deliveryOtherKobo, input.state);
+  const stages = service ? DEFAULT_STAGES : null;
+
+  return inTx(d.db, { type: "seller", id: userId }, async (tx) => {
+    const dup = imei ? await one(tx.db, "select 1 from listings where imei_or_serial = $1 and status = 'live'", [imei]) : null;
+    const blockedDevice = imei ? await isBlocked(d, "imei", imei) : false;
+    const status: "live" | "blocked" = dup || blockedDevice ? "blocked" : "live";
+    const row = await one<{ id: string }>(
+      tx.db,
+      `insert into listings (seller_id, category, title, description, price_kobo, condition, area, state, imei_or_serial, photo_keys, status, published_at, visibility, delivery_local_kobo, delivery_other_kobo, stages)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, '{}', $10, now(), 'link', $11, $12, $13) returning id`,
+      [userId, input.category, title, input.description?.trim().slice(0, 2000) || null, price, service ? "new" : "good", area, input.state, imei || null, status, delivery.local, delivery.other, stages ? JSON.stringify(stages) : null],
+    );
+    if (blockedDevice) {
+      await alertStaff(d, tx, "listing_check", `Blocklisted device flagged: ${title}`,
+        `A quick escrow link matched NosHen's stolen/scammer blocklist.`, "/listings?status=blocked");
+    }
+    return { id: row!.id, status };
+  });
+}
+
+/** Toggles a listing in the user's saved watchlist. Returns true if now saved, false if removed. */
+export async function toggleSavedListing(d: Deps, userId: string, listingId: string): Promise<boolean> {
+  const del = await d.db.query("delete from saved_listings where user_id = $1 and listing_id = $2", [userId, listingId]);
+  if (del.rowCount) return false;
+  const exists = await one(d.db, "select 1 from listings where id = $1 and status in ('live', 'sold')", [listingId]);
+  if (!exists) throw new DealError("not_found", "This listing isn't available.", 404);
+  await d.db.query("insert into saved_listings (user_id, listing_id) values ($1, $2) on conflict do nothing", [userId, listingId]);
+  return true;
+}
+
+export async function isListingSaved(db: Deps["db"], userId: string, listingId: string): Promise<boolean> {
+  const r = await one(db, "select 1 from saved_listings where user_id = $1 and listing_id = $2", [userId, listingId]);
+  return !!r;
 }
 

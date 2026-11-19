@@ -6,7 +6,7 @@ import { listingView } from "@noshen/engine/queries";
 import { settingsOf } from "@noshen/engine/core";
 import { requestDeal } from "@noshen/engine/deals";
 import { one } from "@noshen/engine/db";
-import { BottomAction, Button, ErrorText, Icon, Kv, Select, TextArea, TopBar, Info } from "@noshen/ui/ui";
+import { BottomAction, Button, ErrorText, Icon, Kv, Select, TextArea, TextField, TopBar, Info } from "@noshen/ui/ui";
 import { feeFor, naira } from "@noshen/shared/money";
 import { firstName } from "@noshen/shared/deal";
 import { photoUrl } from "@noshen/shared/photos";
@@ -29,7 +29,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const s = await settingsOf(d);
     const safeListing = { ...v.listing, imei_or_serial: v.listing.imei_or_serial ? "REDACTED" : null };
     const safeSeller = { ...v.seller, name: firstName(v.seller.name) };
-    return { listing: safeListing, seller: safeSeller, fee: feeFor(Number(v.listing.price_kobo), s.fee), sendHours: s.handover_window_hours };
+    return { listing: safeListing, seller: safeSeller, fee: feeFor(Number(v.listing.price_kobo), s.fee), feeRule: s.fee, minKobo: s.deal_min_kobo, sendHours: s.handover_window_hours };
   });
 }
 
@@ -38,11 +38,15 @@ export async function action({ request, params }: Route.ActionArgs) {
   try {
     const dealId = await withApp(async (d) => {
       const user = await requireUser(request, d);
+      const makeOffer = form.get("price_mode") === "offer";
+      const offerRaw = Number(String(form.get("offer_naira") ?? "").replace(/[₦,\s]/g, ""));
+      const offerKobo = makeOffer && Number.isFinite(offerRaw) && offerRaw > 0 ? Math.round(offerRaw * 100) : null;
       return requestDeal(d, user.id, {
         listingId: params.id,
         handover: form.get("handover") === "delivery" ? "delivery" : "meetup",
         deliveryState: String(form.get("delivery_state") ?? ""),
         note: String(form.get("note") ?? ""),
+        offerKobo,
       });
     });
     // From a checkout link the request is accepted at once: straight on to paying.
@@ -56,12 +60,19 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
-  const { listing: l, seller, fee, sendHours } = loaderData;
+  const { listing: l, seller, fee: listedFee, feeRule, minKobo, sendHours } = loaderData;
   const t = useT();
   const noun = categoryOf(l.category).noun;
   const busy = useNavigation().state !== "idle";
   const name = firstName(seller.name);
-  const price = Number(l.price_kobo);
+  const listedPrice = Number(l.price_kobo);
+  const canOffer = l.visibility === "public" && listedPrice > minKobo;
+  const [priceMode, setPriceMode] = useState<"listed" | "offer">("listed");
+  const [offerStr, setOfferStr] = useState(String(Math.round(listedPrice / 100)));
+  const minOfferKobo = Math.max(minKobo, Math.ceil(listedPrice * 0.5));
+  const parsedOfferKobo = Math.round((Number(offerStr.replace(/[₦,\s]/g, "")) || 0) * 100);
+  const price = canOffer && priceMode === "offer" && parsedOfferKobo >= minOfferKobo && parsedOfferKobo <= listedPrice ? parsedOfferKobo : listedPrice;
+  const fee = price === listedPrice ? listedFee : feeFor(price, feeRule);
   const delivers = offersDelivery(l);
   const [handover, setHandover] = useState<"meetup" | "delivery">("meetup");
   // Most buyers are in the same state as the item: start there when the seller delivers within it.
@@ -107,6 +118,37 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
             {to && delivery === null ? <Info icon="alert-triangle" tone="warn">{t("{name} doesn't deliver to {state}. Choose meet-up instead.", { name, state: stateLabel(to) })}</Info>
               : <p className="caption muted">{t("You'll share your address with {name} in the deal chat once you've paid.", { name })}</p>}
           </div>
+        ) : null}
+
+        {canOffer ? (
+          <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="label" style={{ marginBottom: 8 }}>{t("Price")}</legend>
+            <label className="choice">
+              <input type="radio" name="price_mode" value="listed" checked={priceMode === "listed"} onChange={() => setPriceMode("listed")} />
+              <span className="stack">
+                <span className="title">{t("Buy at listed price")} ({naira(listedPrice)})</span>
+                <span className="caption muted">{t("Fastest way for {name} to accept.", { name })}</span>
+              </span>
+            </label>
+            <label className="choice">
+              <input type="radio" name="price_mode" value="offer" checked={priceMode === "offer"} onChange={() => setPriceMode("offer")} />
+              <span className="stack">
+                <span className="title">{t("Make an offer")}</span>
+                <span className="caption muted">{t("Propose a lower price (at least {min}). {name} can accept or decline.", { min: naira(minOfferKobo), name })}</span>
+              </span>
+            </label>
+            {priceMode === "offer" ? (
+              <TextField
+                label={t("Your offer (₦)")}
+                name="offer_naira"
+                inputMode="numeric"
+                value={offerStr}
+                onChange={(e) => setOfferStr(e.target.value)}
+                hint={t("Between {min} and {max}.", { min: naira(minOfferKobo), max: naira(listedPrice) })}
+                required
+              />
+            ) : null}
+          </fieldset>
         ) : null}
 
         <section className="card">

@@ -28,6 +28,13 @@ do $$ begin
 end $$;
 -- Only this column, to refuse a staff account a session on the customer site.
 grant select (auth_user_id) on staff to noshen_web;
+-- Blocklist: the customer site may only check whether an HMAC is blocked, never read staff notes or modify it.
+do $$ begin
+  if to_regclass('public.blocklist') is not null then
+    revoke all on blocklist from noshen_web;
+    grant select (kind, value_hmac, removed_at) on blocklist to noshen_web;
+  end if;
+end $$;
 revoke insert, update, delete on settings from noshen_web;
 
 -- New tables from future migrations: both logins get them; `pnpm db:migrate` re-runs this file afterwards.

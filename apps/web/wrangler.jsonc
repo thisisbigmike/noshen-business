@@ -59,6 +59,8 @@
         "EMAIL": "none",
         // "fake" until Dojah is live (see the comment on ID_PROVIDER above).
         "ID_PROVIDER": "fake",
+        // Live NGN/USDT and NGN/USDC spot rates (cached 5m with FX spread buffer).
+        "LIVE_RATES": "1",
         // NosHen's own Solana wallet on devnet (pnpm solana:setup). Secrets: SOLANA_RPC_URL (a keyed RPC: Solana's public one refuses Workers), SOLANA_WALLET, SOLANA_DEMO_WALLET, SOLANA_DEPOSIT_SECRET.
         "SOLANA_USDC_MINT": "J7sNd4p3yWKQwsYChizSTJtMTZbWPY9rKNfKHUTbTm5",
         "SOLANA_USDT_MINT": "BnWKpnFbmAcSsrtnSL3djPHbKSe9aHUJLqBysYu329Ht",

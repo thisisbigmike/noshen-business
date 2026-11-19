@@ -51,6 +51,11 @@ export default function Shop({ loaderData: x }: Route.ComponentProps) {
           <ProtectionBadge>{t("Every deal protected")}</ProtectionBadge>
         </div>
         <SellerRecord person={x.summary} shop />
+        <div className="row wrap">
+          <a href={`/s/${x.summary.id}/badge.svg`} target="_blank" rel="noreferrer" className="nh-btn nh-btn-sm" style={{ textDecoration: "none" }}>
+            <Icon name="download" size={16} />{t("Share verified trust card")}
+          </a>
+        </div>
         {x.handles.length ? (
           <p className="caption shop-handles">
             <span className="muted">{t("Verified on")}</span>

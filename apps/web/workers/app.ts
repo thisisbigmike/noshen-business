@@ -19,7 +19,7 @@ const INDEXNOW_KEY = "9f4e2a8c1d7b4e6f8a0c3e5b7d9f1a2c";
 
 /** Routes that belong to a signed-in person or an active deal: never indexed, never cached by shared proxies, no referrer leaks. */
 function isPrivatePath(pathname: string): boolean {
-  if (pathname === "/deals" || pathname === "/account" || pathname === "/sell" || pathname === "/signin" || pathname === "/signout" || pathname === "/notifications" || pathname === "/prefs" || pathname === "/waitlist") return true;
+  if (pathname === "/deals" || pathname === "/account" || pathname === "/wallet" || pathname === "/saved" || pathname === "/sell" || pathname === "/signin" || pathname === "/signout" || pathname === "/notifications" || pathname === "/prefs" || pathname === "/waitlist") return true;
   if (pathname.startsWith("/d/") || pathname.startsWith("/account/") || pathname.startsWith("/sell/") || pathname.startsWith("/link/")) return true;
   if (/^\/l\/[^/]+\/buy\/?$/.test(pathname)) return true;
   if (pathname.startsWith("/api/") && !pathname.startsWith("/api/public/")) return true;
@@ -59,6 +59,7 @@ const isApiOrDiscovery = (pathname: string) =>
   pathname.startsWith("/api/") ||
   pathname.startsWith("/photos/") ||
   pathname.startsWith("/videos/") ||
+  /^\/s\/[^/]+\/badge\.svg$/.test(pathname) ||
   pathname === "/robots.txt" ||
   pathname === "/sitemap.xml" ||
   pathname === "/llms.txt" ||
