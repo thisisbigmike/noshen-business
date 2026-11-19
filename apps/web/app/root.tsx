@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation, useRevalidator, useRouteLoaderData } from "react-router";
+import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration, useLocation, useNavigation, useRevalidator, useRouteLoaderData } from "react-router";
 import type { Route } from "./+types/root";
 import "@noshen/ui/styles/tokens.css";
 import "@noshen/ui/styles/components.css";
@@ -78,6 +78,10 @@ export default function App() {
  */
 function useLiveUpdates() {
   const revalidator = useRevalidator();
+  const { pathname } = useLocation();
+  // Only poll periodically on live transactional/account screens; public pages (landing, browse, listing, legal)
+  // don't wake the mobile radio every 30s (Service Worker push messages still refresh immediately everywhere).
+  const liveScreen = pathname === "/deals" || pathname.startsWith("/d/") || pathname === "/notifications" || pathname === "/account" || pathname === "/wallet";
   // Data saver: check every 2 minutes instead of every 30 seconds (each check downloads the page's data again).
   const every = useLite() ? 120_000 : 30_000;
   const r = useRef(revalidator);
@@ -87,7 +91,7 @@ function useLiveUpdates() {
     const refresh = () => { if (canRefresh() && r.current.state === "idle") r.current.revalidate(); };
     // Back to the tab: wait a moment, so a computer or phone that has just woken up has its connection back first.
     let wake: ReturnType<typeof setTimeout> | undefined;
-    const onShow = () => { clearTimeout(wake); if (document.visibilityState === "visible") wake = setTimeout(refresh, 1500); };
+    const onShow = () => { clearTimeout(wake); if (liveScreen && document.visibilityState === "visible") wake = setTimeout(refresh, 1500); };
     let sw: ServiceWorkerContainer | null = null;
     const onMessage = (e: MessageEvent) => { if (e.data?.type === "noshen:update") refresh(); };
     if ("serviceWorker" in navigator) {
@@ -102,15 +106,16 @@ function useLiveUpdates() {
       window.dispatchEvent(new Event("noshen:installable"));
     };
     window.addEventListener("beforeinstallprompt", onInstallable);
-    const id = setInterval(refresh, every);
+    const id = liveScreen ? setInterval(refresh, every) : null;
     document.addEventListener("visibilitychange", onShow);
     window.addEventListener("online", onShow);
     return () => {
-      clearInterval(id); clearTimeout(wake);
+      if (id) clearInterval(id);
+      clearTimeout(wake);
       document.removeEventListener("visibilitychange", onShow); window.removeEventListener("online", onShow);
       sw?.removeEventListener("message", onMessage); window.removeEventListener("beforeinstallprompt", onInstallable);
     };
-  }, [every]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [every, liveScreen]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /**

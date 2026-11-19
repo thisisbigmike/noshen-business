@@ -26,7 +26,14 @@ export async function loader({ request }: Route.LoaderArgs) {
     const user = await requireUser(request, d);
     const enabled = !!d.wallets;
     if (!enabled) {
-      return { enabled: false as const, balances: [], addresses: [], activity: [] };
+      return {
+        enabled: false as const,
+        balances: [],
+        addresses: [],
+        activity: [],
+        minWithdrawalMicro: MIN_WITHDRAWAL_MICRO,
+        dailyWithdrawalMicro: DAILY_WITHDRAWAL_MICRO,
+      };
     }
     const [balances, rawAddresses, activity] = await Promise.all([
       walletBalances(d, user.id),
@@ -37,7 +44,14 @@ export async function loader({ request }: Route.LoaderArgs) {
       ...a,
       qr: renderSVG(a.address, { ecc: "M", border: 2, pixelSize: 5, blackColor: "#000", whiteColor: "#fff" }),
     }));
-    return { enabled: true as const, balances, addresses, activity };
+    return {
+      enabled: true as const,
+      balances,
+      addresses,
+      activity,
+      minWithdrawalMicro: MIN_WITHDRAWAL_MICRO,
+      dailyWithdrawalMicro: DAILY_WITHDRAWAL_MICRO,
+    };
   });
 }
 
@@ -155,8 +169,8 @@ export default function Wallet({ loaderData: x, actionData }: Route.ComponentPro
                   <p className="title">{t("Withdraw")}</p>
                   <p className="caption muted">
                     {t("Minimum {min}, up to {max} per day. Every destination address is screened before sending.", {
-                      min: coinAmount(MIN_WITHDRAWAL_MICRO, coin),
-                      max: coinAmount(DAILY_WITHDRAWAL_MICRO, coin),
+                      min: coinAmount(x.minWithdrawalMicro, coin),
+                      max: coinAmount(x.dailyWithdrawalMicro, coin),
                     })}
                   </p>
                 </div>

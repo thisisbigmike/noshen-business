@@ -595,7 +595,7 @@ function FollowTheMoney() {
           <div className="mt-node" style={{ left: "0%" }}><span className="mt-dot"><Icon name="user" size={20} /></span><span className="mt-name">{t("You")}</span></div>
           <div className="mt-node mt-bank" style={{ left: "50%" }}><span className="mt-dot"><Icon name="lock" size={20} /></span><span className="mt-name">{t("Held at the partner bank")}</span></div>
           <div className="mt-node" style={{ left: "100%" }}><span className="mt-dot"><Icon name="building-bank" size={20} /></span><span className="mt-name">{t("Seller")}</span></div>
-          <span className="mt-coin">₦</span>
+          <div className="mt-coin-rail"><span className="mt-coin">₦</span></div>
         </div>
         <ol className="dark-steps">
           {STEPS.map(([icon, title, body], i) => (
