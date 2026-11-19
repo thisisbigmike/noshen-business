@@ -805,3 +805,26 @@ label[for="photo-pick"][aria-disabled="true"] { opacity: 0.6; pointer-events: no
 .photo-pick-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none; cursor: pointer; }
 .photo-pick-label[aria-disabled="true"] { opacity: 0.6; pointer-events: none; }
 .photo-pick-label:has(input:focus-visible) { border-radius: var(--radius-sm); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
+
+/* Account profile layout: single-column mobile stack on phones/tablets, full web two-column dashboard on desktop (>=1024px). */
+.account-layout { display: flex; flex-direction: column; gap: var(--space-4); }
+.account-profile, .account-main, .account-foot { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.account-grid { display: flex; flex-direction: column; gap: var(--space-4); }
+.account-page > .heading { margin-bottom: var(--space-2); }
+@media (min-width: 1024px) {
+  .account-layout {
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "profile main"
+      "foot    main";
+    gap: var(--space-6);
+    align-items: start;
+  }
+  .account-profile { grid-area: profile; }
+  .account-main { grid-area: main; }
+  .account-foot { grid-area: foot; }
+  .account-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: stretch; }
+  .account-grid > .card { height: 100%; }
+}

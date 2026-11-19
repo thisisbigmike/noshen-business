@@ -78,128 +78,142 @@ export default function Account({ loaderData: x, actionData }: Route.ComponentPr
   return (
     <div>
       <TopBar title={t("Account")} />
-      <main className="page narrow stack-4">
+      <main className="page account-page stack-4">
         <h1 className="heading desktop-only">{t("Account")}</h1>
-        <section className="card stack-4">
-          <ProfilePhoto name={x.user.full_name ?? x.user.email ?? "?"} photo={x.summary.photo}
-            error={(actionData as any)?.intent?.startsWith("photo_") ? (actionData as any)?.error : null} />
-          <div>
-          <Kv k={t("Name")} v={x.user.full_name ?? t("Not added")} />
-          <Kv k={t("Email")} v={x.user.email ?? t("Not added")} />
-          <Kv k={t("Rating")} v={x.summary.rating ? t("{rating} from {n}", { rating: x.summary.rating, n: x.summary.ratingCount }) : t("No ratings yet")} />
-          <Kv k={t("Completed sales")} v={String(x.summary.completedDeals)} />
-          </div>
-        </section>
-        <section className="card link-list" aria-label={t("Wallet and saved")}>
-          <Link to="/wallet" className="row-between">
-            <span className="row"><Icon name="wallet" size={18} />{t("NosHen wallet")}</span>
-            <Icon name="chevron-right" size={18} />
-          </Link>
-          <Link to="/saved" className="row-between">
-            <span className="row"><Icon name="heart" size={18} />{x.savedCount ? t("Saved items ({n})", { n: x.savedCount }) : t("Saved items")}</span>
-            <Icon name="chevron-right" size={18} />
-          </Link>
-        </section>
-        <section className="card stack">
-          <p className="title">{t("Selling")}</p>
-          <Kv k={t("ID check")} v={x.kyc ? t("Verified ({type})", { type: x.kyc.type.toUpperCase() }) : t("Not done")} />
-          <Kv k={t("Payout bank")} v={x.bank ? `${x.bank.account_name} ••${x.bank.account_last4}` : t("Not added")} />
-          {!x.ready.ready ? <Button variant="primary" to="/account/verify?next=/account" icon="shield-check">{t("Verify ID and bank")}</Button>
-            : <Info icon="circle-check">{t("You can sell. Buyers see “ID verified” on your listings.")}</Info>}
-        </section>
-        {x.listings.length ? (
-          <section className="card stack">
-            <div className="row-between"><p className="title">{t("My listings")}</p><Link to="/sell">{t("New listing")}</Link></div>
-            {x.listings.map((l: any) => (
-              <div key={l.id} className="kv" style={{ alignItems: "center" }}>
-                <span className="stack" style={{ gap: 0 }}>
-                  <Link to={l.status === "draft" ? (l.title === "Untitled listing" ? `/sell/${l.id}/photos` : `/sell/${l.id}/review`) : `/l/${l.id}`} className="body">{l.title === "Untitled listing" ? t("Draft listing") : l.title}</Link>
-                  <span className="caption muted">{t(STATUS_WORD[l.status] ?? l.status)} · {naira(l.price_kobo)}{Number(l.requests) ? ` · ${Number(l.requests) === 1 ? t("1 request") : t("{n} requests", { n: l.requests })}` : ""}</span>
-                  {(l.status === "live" || l.status === "paused") ? (
-                    <span className="row wrap" style={{ gap: 12 }}>
-                      <Link to={`/sell/${l.id}/edit`} className="caption">{t("Edit listing")}</Link>
-                      {!isService(l.category) ? <Link to={`/sell/${l.id}/delivery`} className="caption">{offersDelivery(l) ? t("Delivery prices") : t("Add delivery prices")}</Link> : null}
-                    </span>
-                  ) : null}
-                  {l.visibility === "link" ? <span className="caption muted row" style={{ gap: 4 }}><Icon name="link" size={14} />{t("Checkout link only")}</span> : null}
-                </span>
-                {l.status === "live" || l.status === "paused" ? (
-                  <span className="stack" style={{ gap: 6, alignItems: "flex-end" }}>
-                    <Form method="post">
-                      <input type="hidden" name="listing" value={l.id} />
-                      <input type="hidden" name="status" value={l.status === "live" ? "paused" : "live"} />
-                      <Button type="submit">{l.status === "live" ? t("Pause") : t("Make live")}</Button>
-                    </Form>
-                    <Form method="post">
-                      <input type="hidden" name="listing" value={l.id} />
-                      <input type="hidden" name="visibility" value={l.visibility === "link" ? "public" : "link"} />
-                      <button type="submit" className="caption tap link-btn">{l.visibility === "link" ? t("Show on NosHen") : t("Link only")}</button>
-                    </Form>
-                  </span>
-                ) : null}
+        <div className="account-layout">
+          <div className="account-profile">
+            <section className="card stack-4">
+              <ProfilePhoto name={x.user.full_name ?? x.user.email ?? "?"} photo={x.summary.photo}
+                error={(actionData as any)?.intent?.startsWith("photo_") ? (actionData as any)?.error : null} />
+              <div>
+                <Kv k={t("Name")} v={x.user.full_name ?? t("Not added")} />
+                <Kv k={t("Email")} v={x.user.email ?? t("Not added")} />
+                <Kv k={t("Rating")} v={x.summary.rating ? t("{rating} from {n}", { rating: x.summary.rating, n: x.summary.ratingCount }) : t("No ratings yet")} />
+                <Kv k={t("Completed sales")} v={String(x.summary.completedDeals)} />
               </div>
-            ))}
-          </section>
-        ) : null}
-        <ErrorText>{/^(handle|photo|agent)_/.test((actionData as any)?.intent ?? "") ? null : (actionData as any)?.error}</ErrorText>
-        {x.listings.length ? (
-          <section className="card stack" aria-labelledby="shop-link">
-            <p className="title" id="shop-link">{t("Your shop link")}</p>
-            <p className="caption muted">{t("Put it in your Instagram bio or WhatsApp status: one link to everything you sell on NosHen, with your track record.")}</p>
-            <div className="row wrap" style={{ gap: 8 }}><code className="caption">{x.shop}</code><CopyButton text={x.shop} label={t("Copy link")} /></div>
-            <div className="row wrap" style={{ gap: 12 }}>
-              <Link to={new URL(x.shop).pathname} className="caption">{t("See your shop")}</Link>
-              <a href={`/s/${x.user.id}/badge.svg`} target="_blank" rel="noreferrer" className="caption row" style={{ gap: 4 }}>
-                <Icon name="download" size={14} />{t("Verified trust card")}
-              </a>
+            </section>
+            <section className="card link-list" aria-label={t("Wallet and saved")}>
+              <Link to="/wallet" className="row-between">
+                <span className="row"><Icon name="wallet" size={18} />{t("NosHen wallet")}</span>
+                <Icon name="chevron-right" size={18} />
+              </Link>
+              <Link to="/saved" className="row-between">
+                <span className="row"><Icon name="heart" size={18} />{x.savedCount ? t("Saved items ({n})", { n: x.savedCount }) : t("Saved items")}</span>
+                <Icon name="chevron-right" size={18} />
+              </Link>
+            </section>
+          </div>
+
+          <div className="account-main">
+            <section className="card stack">
+              <p className="title">{t("Selling")}</p>
+              <Kv k={t("ID check")} v={x.kyc ? t("Verified ({type})", { type: x.kyc.type.toUpperCase() }) : t("Not done")} />
+              <Kv k={t("Payout bank")} v={x.bank ? `${x.bank.account_name} ••${x.bank.account_last4}` : t("Not added")} />
+              {!x.ready.ready ? <Button variant="primary" to="/account/verify?next=/account" icon="shield-check">{t("Verify ID and bank")}</Button>
+                : <Info icon="circle-check">{t("You can sell. Buyers see “ID verified” on your listings.")}</Info>}
+            </section>
+            {x.listings.length ? (
+              <section className="card stack">
+                <div className="row-between"><p className="title">{t("My listings")}</p><Link to="/sell">{t("New listing")}</Link></div>
+                {x.listings.map((l: any) => (
+                  <div key={l.id} className="kv" style={{ alignItems: "center" }}>
+                    <span className="stack" style={{ gap: 0 }}>
+                      <Link to={l.status === "draft" ? (l.title === "Untitled listing" ? `/sell/${l.id}/photos` : `/sell/${l.id}/review`) : `/l/${l.id}`} className="body">{l.title === "Untitled listing" ? t("Draft listing") : l.title}</Link>
+                      <span className="caption muted">{t(STATUS_WORD[l.status] ?? l.status)} · {naira(l.price_kobo)}{Number(l.requests) ? ` · ${Number(l.requests) === 1 ? t("1 request") : t("{n} requests", { n: l.requests })}` : ""}</span>
+                      {(l.status === "live" || l.status === "paused") ? (
+                        <span className="row wrap" style={{ gap: 12 }}>
+                          <Link to={`/sell/${l.id}/edit`} className="caption">{t("Edit listing")}</Link>
+                          {!isService(l.category) ? <Link to={`/sell/${l.id}/delivery`} className="caption">{offersDelivery(l) ? t("Delivery prices") : t("Add delivery prices")}</Link> : null}
+                        </span>
+                      ) : null}
+                      {l.visibility === "link" ? <span className="caption muted row" style={{ gap: 4 }}><Icon name="link" size={14} />{t("Checkout link only")}</span> : null}
+                    </span>
+                    {l.status === "live" || l.status === "paused" ? (
+                      <span className="stack" style={{ gap: 6, alignItems: "flex-end" }}>
+                        <Form method="post">
+                          <input type="hidden" name="listing" value={l.id} />
+                          <input type="hidden" name="status" value={l.status === "live" ? "paused" : "live"} />
+                          <Button type="submit">{l.status === "live" ? t("Pause") : t("Make live")}</Button>
+                        </Form>
+                        <Form method="post">
+                          <input type="hidden" name="listing" value={l.id} />
+                          <input type="hidden" name="visibility" value={l.visibility === "link" ? "public" : "link"} />
+                          <button type="submit" className="caption tap link-btn">{l.visibility === "link" ? t("Show on NosHen") : t("Link only")}</button>
+                        </Form>
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </section>
+            ) : null}
+            <ErrorText>{/^(handle|photo|agent)_/.test((actionData as any)?.intent ?? "") ? null : (actionData as any)?.error}</ErrorText>
+            {x.listings.length ? (
+              <section className="card stack" aria-labelledby="shop-link">
+                <p className="title" id="shop-link">{t("Your shop link")}</p>
+                <p className="caption muted">{t("Put it in your Instagram bio or WhatsApp status: one link to everything you sell on NosHen, with your track record.")}</p>
+                <div className="row wrap" style={{ gap: 8 }}><code className="caption">{x.shop}</code><CopyButton text={x.shop} label={t("Copy link")} /></div>
+                <div className="row wrap" style={{ gap: 12 }}>
+                  <Link to={new URL(x.shop).pathname} className="caption">{t("See your shop")}</Link>
+                  <a href={`/s/${x.user.id}/badge.svg`} target="_blank" rel="noreferrer" className="caption row" style={{ gap: 4 }}>
+                    <Icon name="download" size={14} />{t("Verified trust card")}
+                  </a>
+                </div>
+              </section>
+            ) : null}
+            {x.listings.length || x.handles.length ? (
+              <HandlesCard handles={x.handles} idOk={x.ready.idOk} error={(actionData as any)?.intent?.startsWith("handle_") ? (actionData as any)?.error : null} />
+            ) : null}
+            <div className="account-grid">
+              <PushCard />
+              <section className="card stack" aria-labelledby="assistant">
+                <p className="title" id="assistant">{t("NosHen assistant")}</p>
+                <p className="caption muted">{t("The NosHen assistant on Telegram can show your wallet and where your deals stand. Send it /link to connect it to this account.")}</p>
+                {x.links.map((l) => (
+                  <div key={l.id} className="kv" style={{ alignItems: "center" }}>
+                    <span className="body">{l.external_name ? t("Telegram: {name}", { name: l.external_name }) : t("Telegram chat")}</span>
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="agent_unlink" />
+                      <input type="hidden" name="link" value={l.id} />
+                      <Button type="submit">{t("Unlink")}</Button>
+                    </Form>
+                  </div>
+                ))}
+                <ErrorText>{(actionData as any)?.intent === "agent_unlink" ? (actionData as any)?.error : null}</ErrorText>
+              </section>
             </div>
-          </section>
-        ) : null}
-        {x.listings.length || x.handles.length ? (
-          <HandlesCard handles={x.handles} idOk={x.ready.idOk} error={(actionData as any)?.intent?.startsWith("handle_") ? (actionData as any)?.error : null} />
-        ) : null}
-        <PushCard />
-        <section className="card stack" aria-labelledby="assistant">
-          <p className="title" id="assistant">{t("NosHen assistant")}</p>
-          <p className="caption muted">{t("The NosHen assistant on Telegram can show your wallet and where your deals stand. Send it /link to connect it to this account.")}</p>
-          {x.links.map((l) => (
-            <div key={l.id} className="kv" style={{ alignItems: "center" }}>
-              <span className="body">{l.external_name ? t("Telegram: {name}", { name: l.external_name }) : t("Telegram chat")}</span>
-              <Form method="post">
-                <input type="hidden" name="intent" value="agent_unlink" />
-                <input type="hidden" name="link" value={l.id} />
-                <Button type="submit">{t("Unlink")}</Button>
-              </Form>
+            <div className="account-grid">
+              <section className="card stack" aria-labelledby="language">
+                <p className="title" id="language">{t("Language")}</p>
+                <p className="caption muted">{t("NosHen in English or Pidgin. Your choice is saved on this device.")}</p>
+                <LanguageSwitch />
+              </section>
+              <section className="card stack" aria-labelledby="country">
+                <p className="title" id="country">{t("Country")}</p>
+                <p className="caption muted">{t("NosHen shows the country you're in first. Nigeria is open; Ghana, Kenya and South Africa are coming.")}</p>
+                <div className="row"><CountrySwitch /></div>
+              </section>
+              <section className="card stack" aria-labelledby="data-saver">
+                <p className="title" id="data-saver">{t("Data saver")}</p>
+                <p className="caption muted">{t("For small data plans: smaller photos (tap one to see it full size), no extra fonts, and fewer background updates. It turns on by itself if your browser is saving data.")}</p>
+                <DataSaverSwitch />
+              </section>
+              <section className="card stack" aria-labelledby="appearance">
+                <p className="title" id="appearance">{t("Appearance")}</p>
+                <p className="caption muted">{t("Light is the default. Your choice is saved on this device.")}</p>
+                <ThemeSwitch />
+              </section>
             </div>
-          ))}
-          <ErrorText>{(actionData as any)?.intent === "agent_unlink" ? (actionData as any)?.error : null}</ErrorText>
-        </section>
-        <section className="card stack" aria-labelledby="language">
-          <p className="title" id="language">{t("Language")}</p>
-          <p className="caption muted">{t("NosHen in English or Pidgin. Your choice is saved on this device.")}</p>
-          <LanguageSwitch />
-        </section>
-        <section className="card stack" aria-labelledby="country">
-          <p className="title" id="country">{t("Country")}</p>
-          <p className="caption muted">{t("NosHen shows the country you're in first. Nigeria is open; Ghana, Kenya and South Africa are coming.")}</p>
-          <div className="row"><CountrySwitch /></div>
-        </section>
-        <section className="card stack" aria-labelledby="data-saver">
-          <p className="title" id="data-saver">{t("Data saver")}</p>
-          <p className="caption muted">{t("For small data plans: smaller photos (tap one to see it full size), no extra fonts, and fewer background updates. It turns on by itself if your browser is saving data.")}</p>
-          <DataSaverSwitch />
-        </section>
-        <section className="card stack" aria-labelledby="appearance">
-          <p className="title" id="appearance">{t("Appearance")}</p>
-          <p className="caption muted">{t("Light is the default. Your choice is saved on this device.")}</p>
-          <ThemeSwitch />
-        </section>
-        <section className="card link-list" aria-label={t("Help and legal")}>
-          <p className="label muted">{t("Help and legal")}</p>
-          {lang !== "en" ? <p className="caption muted">{t("These pages are in English.")}</p> : null}
-          {LEGAL_NAV.map((p) => <Link key={p.slug} to={`/${p.slug}`} className="row-between">{t(p.title)}<Icon name="chevron-right" size={18} /></Link>)}
-        </section>
-        <Form method="post" action="/signout"><Button type="submit" icon="logout">{t("Sign out")}</Button></Form>
+          </div>
+
+          <div className="account-foot">
+            <section className="card link-list" aria-label={t("Help and legal")}>
+              <p className="label muted">{t("Help and legal")}</p>
+              {lang !== "en" ? <p className="caption muted">{t("These pages are in English.")}</p> : null}
+              {LEGAL_NAV.map((p) => <Link key={p.slug} to={`/${p.slug}`} className="row-between">{t(p.title)}<Icon name="chevron-right" size={18} /></Link>)}
+            </section>
+            <Form method="post" action="/signout"><Button type="submit" icon="logout" block>{t("Sign out")}</Button></Form>
+          </div>
+        </div>
       </main>
     </div>
   );

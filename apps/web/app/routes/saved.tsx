@@ -30,7 +30,7 @@ export default function Saved({ loaderData: { listings } }: Route.ComponentProps
         </div>
 
         {listings.length ? (
-          <div className="grid">
+          <div className="grid-cards">
             {listings.map((l: any) => (
               <ListingCard
                 key={l.id}
