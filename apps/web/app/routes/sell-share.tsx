@@ -46,44 +46,52 @@ export default function Share({ loaderData: { listing: l, url, shop } }: Route.C
   return (
     <div>
       <TopBar title={t("Share your listing")} back="/deals?tab=selling" />
-      <main className="page narrow stack-4">
-        <div className="stack">
+      <main className="page sell-page stack-4">
+        <div className="stack" style={{ gap: 4 }}>
           <h1 className="heading">{l.visibility === "link" ? t("Your checkout link is ready") : t("Your listing is live")}</h1>
           <p className="body muted">{l.visibility === "link"
             ? t("Paste it in your Instagram bio, WhatsApp status or Facebook post. Whoever opens it pays into NosHen, and you see the money held before you hand over.")
             : job ? t("Share the link where your customers are. Anyone who opens it can book you with protection.") : t("Share the link where your buyers are. Anyone who opens it can buy with protection.")}</p>
         </div>
-        <section className="stack">
-          <p className="label">{t("How it looks in a WhatsApp chat")}</p>
-          <div className="wa stack">
-            <div className="preview">
-              {l.photo_keys?.[0] ? <img src={photoUrl(l.photo_keys[0], "small")} alt="" width={64} height={64} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 4 }} /> : null}
-              <div className="stack" style={{ gap: 2 }}>
-                <p className="label">{l.title} · {naira(l.price_kobo)}</p>
-                <p className="caption">{held}</p>
-                <p className="caption muted">{new URL(url).host}</p>
+
+        <div className="sell-flow">
+          <div className="sell-main">
+            <section className="sell-card stack">
+              <p className="label">{t("How it looks in a WhatsApp chat")}</p>
+              <div className="wa stack">
+                <div className="preview">
+                  {l.photo_keys?.[0] ? <img src={photoUrl(l.photo_keys[0], "small")} alt="" width={64} height={64} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 4 }} /> : null}
+                  <div className="stack" style={{ gap: 2 }}>
+                    <p className="label">{l.title} · {naira(l.price_kobo)}</p>
+                    <p className="caption">{held}</p>
+                    <p className="caption muted">{new URL(url).host}</p>
+                  </div>
+                </div>
+                <p className="body">{job ? t("Taking bookings. Book it here: {url}", { url }) : t("Still available. Buy it here: {url}", { url })}</p>
               </div>
-            </div>
-            <p className="body">{job ? t("Taking bookings. Book it here: {url}", { url }) : t("Still available. Buy it here: {url}", { url })}</p>
+              <div className="row"><ProtectionBadge variant="brand" /></div>
+            </section>
+            {l.visibility === "link" ? null : (
+              <section className="card stack">
+                <p className="label">{t("Your shop, for your Instagram bio")}</p>
+                <p className="caption muted">{t("One link to everything you sell on NosHen, with your track record.")}</p>
+                <div className="row wrap" style={{ gap: 8 }}><code className="caption" style={{ wordBreak: "break-all" }}>{shop}</code><Button size="sm" icon="link" onClick={async () => { await navigator.clipboard?.writeText(shop).catch(() => {}); }}>{t("Copy")}</Button></div>
+              </section>
+            )}
           </div>
-          <div className="row"><ProtectionBadge variant="brand" /></div>
-        </section>
-        {l.visibility === "link" ? null : (
-          <section className="card stack">
-            <p className="label">{t("Your shop, for your Instagram bio")}</p>
-            <p className="caption muted">{t("One link to everything you sell on NosHen, with your track record.")}</p>
-            <div className="row wrap" style={{ gap: 8 }}><code className="caption">{shop}</code><Button size="sm" icon="link" onClick={async () => { await navigator.clipboard?.writeText(shop).catch(() => {}); }}>{t("Copy")}</Button></div>
-          </section>
-        )}
-        <div className="row wrap">
-          <Button icon="brand-facebook" to={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`}>Facebook</Button>
-          <Button icon="link" onClick={async () => { await navigator.clipboard?.writeText(url).catch(() => {}); setCopied(true); }}>{copied ? t("Copied") : t("Copy link")}</Button>
+
+          <aside className="sell-side">
+            <div className="sell-cta-card stack">
+              <BottomAction>
+                <a className="nh-btn nh-btn-primary nh-btn-lg nh-btn-block" style={{ textDecoration: "none" }} href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer">
+                  <Icon name="brand-whatsapp" size={18} />{t("Share on WhatsApp")}
+                </a>
+              </BottomAction>
+              <Button icon="link" block onClick={async () => { await navigator.clipboard?.writeText(url).catch(() => {}); setCopied(true); }}>{copied ? t("Copied") : t("Copy link")}</Button>
+              <Button icon="brand-facebook" block to={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`}>Facebook</Button>
+            </div>
+          </aside>
         </div>
-        <BottomAction>
-          <a className="nh-btn nh-btn-primary nh-btn-lg nh-btn-block" style={{ textDecoration: "none" }} href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer">
-            <Icon name="brand-whatsapp" size={18} />{t("Share on WhatsApp")}
-          </a>
-        </BottomAction>
       </main>
     </div>
   );

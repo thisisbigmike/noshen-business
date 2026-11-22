@@ -951,6 +951,36 @@ label[for="photo-pick"][aria-disabled="true"] { opacity: 0.6; pointer-events: no
   .sell-quick-card { align-items: flex-start; padding: 16px; }
 }
 
+/* Shared responsive Sell flow (Photos, Details, Review, Share, Quick Link, Edit, Delivery). */
+.sell-page .nh-field { max-width: none; }
+.sell-flow { display: flex; flex-direction: column; gap: var(--space-4); }
+.sell-side { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.sell-row { display: grid; grid-template-columns: 1fr; gap: var(--space-4); }
+.sell-progress { height: 6px; border-radius: var(--radius-full); background: var(--canvas); overflow: hidden; }
+.sell-progress > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), var(--primary)); transition: width 320ms cubic-bezier(0.32, 0.72, 0, 1); }
+.shot { transition: border-color var(--dur-fast), box-shadow var(--dur) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+@media (hover: hover) { .shot.next:hover { transform: translateY(-1px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent), var(--shadow-md); } }
+@media (min-width: 640px) {
+  .sell-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .sell-flow { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-6); align-items: start; }
+  .sell-flow.sell-flow-wide { grid-template-columns: minmax(0, 1fr) 380px; }
+  .sell-side { position: sticky; top: 100px; }
+  .sell-card { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
+  .sell-cta-card { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
+  .sell-tips-box { padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
+  .sell-tips-box .photo-tips { flex-direction: column; gap: 10px; }
+  .sell-page .shot-list { gap: 12px; }
+  .sell-page .shot { grid-template-columns: 104px minmax(0, 1fr) auto; gap: 16px; padding: 14px; border-radius: var(--radius-xl); }
+  .sell-page .shot-photo { width: 104px; height: 104px; border-radius: var(--radius-lg); }
+  .sell-page .photo-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .sell-page .cond-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+}
+@media (max-width: 1023px) {
+  .sell-page .sell-cta-card > :empty { display: none; }
+}
+
 /* Deals (/deals): single-column mobile list (<1024px) and 2-column web dashboard + sticky sidebar (>=1024px). */
 .deals-head { display: flex; flex-direction: column; gap: var(--space-2); }
 .deals-tabs { width: 100%; }

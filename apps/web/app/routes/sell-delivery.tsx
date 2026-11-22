@@ -42,15 +42,26 @@ export default function SellDelivery({ loaderData: { listing: l }, actionData }:
   return (
     <CheckedForm method="post">
       <TopBar title={t("Delivery prices")} back={`/l/${l.id}`} />
-      <main className="page narrow no-tabs stack-4">
-        <div className="stack">
+      <main className="page sell-page no-tabs stack-4">
+        <div className="stack" style={{ gap: 4 }}>
           <h1 className="heading desktop-only">{t("Delivery prices")}</h1>
           <p className="body muted">{l.title}</p>
         </div>
-        <DeliveryFields state={l.state ?? ""} local={l.delivery_local_kobo} other={l.delivery_other_kobo} />
-        <Info icon="info-circle">{t("New prices apply to new requests. Buyers who've already asked keep the price they saw.")}</Info>
-        <ErrorText>{actionData?.error}</ErrorText>
-        <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? t("Saving…") : t("Save delivery prices")}</Button></BottomAction>
+
+        <div className="sell-flow">
+          <div className="sell-main">
+            <section className="sell-card stack-4">
+              <DeliveryFields state={l.state ?? ""} local={l.delivery_local_kobo} other={l.delivery_other_kobo} />
+            </section>
+          </div>
+          <aside className="sell-side">
+            <div className="sell-cta-card stack">
+              <Info icon="info-circle">{t("New prices apply to new requests. Buyers who've already asked keep the price they saw.")}</Info>
+              <ErrorText>{actionData?.error}</ErrorText>
+              <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy}>{busy ? t("Saving…") : t("Save delivery prices")}</Button></BottomAction>
+            </div>
+          </aside>
+        </div>
       </main>
     </CheckedForm>
   );

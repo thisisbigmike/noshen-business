@@ -62,58 +62,65 @@ export default function SellEdit({ loaderData: { listing: l }, actionData }: Rou
   return (
     <CheckedForm method="post">
       <TopBar title={t("Edit listing")} back={`/l/${l.id}`} />
-      <main className="page narrow no-tabs stack-4">
-        <div className="stack">
+      <main className="page sell-page no-tabs stack-4">
+        <div className="stack" style={{ gap: 4 }}>
           <h1 className="heading desktop-only">{t("Edit listing")}</h1>
           <p className="body muted">{t("Update your price, details or quantity without taking your listing down.")}</p>
         </div>
 
-        <TextField label={t("Title")} name="title" defaultValue={l.title} maxLength={80} required />
-        <TextField label={t("Price (₦)")} name="price" inputMode="numeric" defaultValue={String(priceNaira)} required />
+        <div className="sell-flow">
+          <div className="sell-main">
+            <section className="sell-card stack-4">
+              <TextField label={t("Title")} name="title" defaultValue={l.title} maxLength={80} required />
+              <div className="sell-row">
+                <TextField label={t("Price (₦)")} name="price" inputMode="numeric" defaultValue={String(priceNaira)} required />
+                <TextField
+                  label={t("Quantity")}
+                  name="quantity"
+                  type="number"
+                  min={minQty}
+                  max={999}
+                  defaultValue={String(l.quantity ?? 1)}
+                  hint={Number(l.sold_count) > 0 ? t("{n} already sold.", { n: Number(l.sold_count) }) : undefined}
+                  required
+                />
+              </div>
 
-        {!job ? (
-          <Select
-            name="condition"
-            label={t("Condition")}
-            defaultValue={l.condition}
-            options={CONDITIONS.map(([k, label]) => ({ value: k, label: t(label) }))}
-          />
-        ) : null}
+              {!job ? (
+                <Select
+                  name="condition"
+                  label={t("Condition")}
+                  defaultValue={l.condition}
+                  options={CONDITIONS.map(([k, label]) => ({ value: k, label: t(label) }))}
+                />
+              ) : null}
 
-        <TextField
-          label={t("Quantity")}
-          name="quantity"
-          type="number"
-          min={minQty}
-          max={999}
-          defaultValue={String(l.quantity ?? 1)}
-          hint={Number(l.sold_count) > 0 ? t("{n} already sold.", { n: Number(l.sold_count) }) : undefined}
-          required
-        />
+              <div className="sell-row">
+                <Select
+                  name="state"
+                  label={t("State")}
+                  defaultValue={l.state ?? "Lagos"}
+                  options={NIGERIA_STATES.map((st) => ({ value: st, label: stateLabel(st) }))}
+                />
+                <TextField label={t("Town or area")} name="area" defaultValue={l.area} maxLength={60} required />
+              </div>
 
-        <div className="row wrap" style={{ gap: 12 }}>
-          <div className="grow">
-            <Select
-              name="state"
-              label={t("State")}
-              defaultValue={l.state ?? "Lagos"}
-              options={NIGERIA_STATES.map((st) => ({ value: st, label: stateLabel(st) }))}
-            />
+              <TextArea label={t("Description")} name="description" defaultValue={l.description ?? ""} maxLength={2000} />
+            </section>
           </div>
-          <div className="grow">
-            <TextField label={t("Town or area")} name="area" defaultValue={l.area} maxLength={60} required />
-          </div>
+
+          <aside className="sell-side">
+            <div className="sell-cta-card stack">
+              <Info icon="info-circle">{t("Changes apply to new buy requests. Active deals keep the price already agreed.")}</Info>
+              <ErrorText>{actionData?.error}</ErrorText>
+              <BottomAction>
+                <Button type="submit" variant="primary" size="lg" block disabled={busy}>
+                  {busy ? t("Saving…") : t("Save changes")}
+                </Button>
+              </BottomAction>
+            </div>
+          </aside>
         </div>
-
-        <TextArea label={t("Description")} name="description" defaultValue={l.description ?? ""} maxLength={2000} />
-
-        <Info icon="info-circle">{t("Changes apply to new buy requests. Active deals keep the price already agreed.")}</Info>
-        <ErrorText>{actionData?.error}</ErrorText>
-        <BottomAction>
-          <Button type="submit" variant="primary" size="lg" block disabled={busy}>
-            {busy ? t("Saving…") : t("Save changes")}
-          </Button>
-        </BottomAction>
       </main>
     </CheckedForm>
   );

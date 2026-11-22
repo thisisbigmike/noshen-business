@@ -71,87 +71,93 @@ export default function SellQuick({ loaderData: x, actionData }: Route.Component
   return (
     <CheckedForm method="post">
       <TopBar title={t("Quick escrow link")} back="/sell" />
-      <main className="page narrow no-tabs stack-4">
-        <div className="stack">
+      <main className="page sell-page no-tabs stack-4">
+        <div className="stack" style={{ gap: 4 }}>
           <h1 className="heading">{t("Create a quick escrow link")}</h1>
           <p className="body muted">{t("Already agreed on a price on WhatsApp, Instagram or X? Make a private checkout link in seconds — no marketplace photos needed.")}</p>
         </div>
 
-        {!x.ready.ready ? (
-          <Info icon="shield-check" tone="warn">
-            {t.rich("You'll need to <verify>verify your ID and bank account</verify> before your escrow link can go live.", {
-              verify: (s) => <Link to="/account/verify?next=/sell/quick">{s}</Link>,
-            })}
-          </Info>
-        ) : null}
+        <div className="sell-flow">
+          <div className="sell-main">
+            {!x.ready.ready ? (
+              <Info icon="shield-check" tone="warn">
+                {t.rich("You'll need to <verify>verify your ID and bank account</verify> before your escrow link can go live.", {
+                  verify: (s) => <Link to="/account/verify?next=/sell/quick">{s}</Link>,
+                })}
+              </Info>
+            ) : null}
 
-        <Select
-          name="category"
-          label={t("Category")}
-          value={catKey}
-          onChange={(v) => setCatKey(v as CategoryKey)}
-          options={CATEGORIES.map((c) => ({ value: c.key, label: t(c.label) }))}
-        />
+            <section className="sell-card stack-4">
+              <div className="sell-row">
+                <Select
+                  name="category"
+                  label={t("Category")}
+                  value={catKey}
+                  onChange={(v) => setCatKey(v as CategoryKey)}
+                  options={CATEGORIES.map((c) => ({ value: c.key, label: t(c.label) }))}
+                />
+                <TextField label={t("What are you selling?")} name="title" placeholder={cat.titleExample} maxLength={80} required />
+              </div>
 
-        <TextField label={t("What are you selling?")} name="title" placeholder={cat.titleExample} maxLength={80} required />
+              <TextField
+                label={t("Agreed price (₦)")}
+                name="price"
+                inputMode="numeric"
+                placeholder="450000"
+                value={priceStr}
+                onChange={(e) => setPriceStr(e.target.value)}
+                hint={t("Minimum {min}. The buyer pays into NosHen escrow before handover.", { min: naira(x.minKobo) })}
+                required
+              />
 
-        <TextField
-          label={t("Agreed price (₦)")}
-          name="price"
-          inputMode="numeric"
-          placeholder="450000"
-          value={priceStr}
-          onChange={(e) => setPriceStr(e.target.value)}
-          hint={t("Minimum {min}. The buyer pays into NosHen escrow before handover.", { min: naira(x.minKobo) })}
-          required
-        />
+              {cat.id ? (
+                <TextField
+                  key={cat.key}
+                  label={t(cat.id.label)}
+                  name="imei"
+                  inputMode={cat.id.numeric ? "numeric" : "text"}
+                  autoCapitalize="characters"
+                  hint={t("Hidden until the buyer pays, so they can check it at handover.")}
+                  required={cat.id.required}
+                />
+              ) : null}
 
-        {priceKobo >= x.minKobo ? (
-          <section className="card">
-            <p className="label">{t("Escrow breakdown")}</p>
-            <Kv k={t("Item price")} v={naira(priceKobo)} />
-            <Kv k={t("NosHen fee")} v={naira(feeKobo)} />
-            <Kv k={t("The buyer pays")} v={naira(priceKobo + feeKobo)} total />
-          </section>
-        ) : null}
+              <div className="sell-row">
+                <Select
+                  name="state"
+                  label={t("State")}
+                  value={state}
+                  onChange={setState}
+                  options={NIGERIA_STATES.map((st) => ({ value: st, label: stateLabel(st) }))}
+                />
+                <TextField label={t("Town or area")} name="area" placeholder="Yaba, Ikeja, Wuse 2…" maxLength={60} required />
+              </div>
 
-        {cat.id ? (
-          <TextField
-            key={cat.key}
-            label={t(cat.id.label)}
-            name="imei"
-            inputMode={cat.id.numeric ? "numeric" : "text"}
-            autoCapitalize="characters"
-            hint={t("Hidden until the buyer pays, so they can check it at handover.")}
-            required={cat.id.required}
-          />
-        ) : null}
+              {!job ? <DeliveryFields state={state} local={null} other={null} /> : null}
 
-        <div className="row wrap" style={{ gap: 12 }}>
-          <div className="grow">
-            <Select
-              name="state"
-              label={t("State")}
-              value={state}
-              onChange={setState}
-              options={NIGERIA_STATES.map((st) => ({ value: st, label: stateLabel(st) }))}
-            />
+              <TextArea label={t("Short note or terms (optional)")} name="description" placeholder={t("Colour, condition, accessories, or what's included…")} maxLength={2000} />
+            </section>
           </div>
-          <div className="grow">
-            <TextField label={t("Town or area")} name="area" placeholder="Yaba, Ikeja, Wuse 2…" maxLength={60} required />
-          </div>
+
+          <aside className="sell-side">
+            <div className="sell-cta-card stack">
+              {priceKobo >= x.minKobo ? (
+                <div>
+                  <p className="title" style={{ marginBottom: 4 }}>{t("Escrow breakdown")}</p>
+                  <Kv k={t("Item price")} v={naira(priceKobo)} />
+                  <Kv k={t("NosHen fee")} v={naira(feeKobo)} />
+                  <Kv k={t("The buyer pays")} v={naira(priceKobo + feeKobo)} total />
+                </div>
+              ) : null}
+              <ErrorText>{actionData?.error}</ErrorText>
+              <BottomAction>
+                <Button type="submit" variant="primary" size="lg" block icon="bolt" disabled={busy}>
+                  {busy ? t("Creating link…") : t("Create escrow link")}
+                </Button>
+              </BottomAction>
+            </div>
+          </aside>
         </div>
-
-        {!job ? <DeliveryFields state={state} local={null} other={null} /> : null}
-
-        <TextArea label={t("Short note or terms (optional)")} name="description" placeholder={t("Colour, condition, accessories, or what's included…")} maxLength={2000} />
-
-        <ErrorText>{actionData?.error}</ErrorText>
-        <BottomAction>
-          <Button type="submit" variant="primary" size="lg" block icon="bolt" disabled={busy}>
-            {busy ? t("Creating link…") : t("Create escrow link")}
-          </Button>
-        </BottomAction>
       </main>
     </CheckedForm>
   );
