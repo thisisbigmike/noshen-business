@@ -54,51 +54,68 @@ export default function SellStart({ loaderData: x, actionData }: Route.Component
   return (
     <div>
       <TopBar title={t("Sell")} back="/browse" />
-      <main className="page narrow stack-4">
-        <SellSteps at={1} id={x.draft?.id} />
-        <div className="stack">
-          <h1 className="heading">{t("What are you selling?")}</h1>
-          <p className="body muted">{t("Pick one. Next you'll add photos, then the price and details.")}</p>
+      <main className="page sell-page stack-4">
+        <div className="sell-head">
+          <div className="sell-steps-wrap"><SellSteps at={1} id={x.draft?.id} /></div>
+          <div className="stack sell-title" style={{ gap: 4 }}>
+            <h1 className="heading">{t("What are you selling?")}</h1>
+            <p className="body muted">{t("Pick one. Next you'll add photos, then the price and details.")}</p>
+          </div>
         </div>
 
-        {market !== "NG" ? <Info icon="world">{t("NosHen works in Nigeria for now: you can sell an item that's in Nigeria. {country} is coming soon.", { country: t(marketOf(market).name) })}</Info> : null}
+        <div className="sell-layout">
+          <div className="sell-quick">
+            <Link to="/sell/quick" className="resume-card sell-quick-card" prefetch="intent">
+              <span className="cat-icon"><Icon name="bolt" size={22} /></span>
+              <span className="grow stack" style={{ gap: 2 }}>
+                <span className="label">{t("Quick escrow link (10 seconds)")}</span>
+                <span className="caption muted">{t("Already have a buyer on WhatsApp or Instagram? Skip photos and make a private checkout link.")}</span>
+              </span>
+              <Icon name="chevron-right" size={20} />
+            </Link>
+          </div>
 
-        <Link to="/sell/quick" className="resume-card" prefetch="intent">
-          <span className="cat-icon"><Icon name="bolt" size={22} /></span>
-          <span className="grow stack" style={{ gap: 0 }}>
-            <span className="label">{t("Quick escrow link (10 seconds)")}</span>
-            <span className="caption muted">{t("Already have a buyer on WhatsApp or Instagram? Skip photos and make a private checkout link.")}</span>
-          </span>
-          <Icon name="chevron-right" size={20} />
-        </Link>
+          <div className="sell-main">
+            {market !== "NG" ? <Info icon="world">{t("NosHen works in Nigeria for now: you can sell an item that's in Nigeria. {country} is coming soon.", { country: t(marketOf(market).name) })}</Info> : null}
 
-        {x.draft && draftCat ? (
-          <Link to={`/sell/${x.draft.id}/${x.draft.next}`} className="resume-card" prefetch="intent">
-            <span className="cat-icon"><Icon name={draftCat.icon} size={22} /></span>
-            <span className="grow stack" style={{ gap: 0 }}>
-              <span className="label">{t("Carry on with your {what} listing", { what: x.draft.title ? `“${x.draft.title}”` : t(draftCat.label).toLowerCase() })}</span>
-              <span className="caption muted">{x.draft.photos === 1 ? t("1 photo added. Pick a category below to change it.") : t("{n} photos added. Pick a category below to change it.", { n: x.draft.photos })}</span>
-            </span>
-            <Icon name="chevron-right" size={20} />
-          </Link>
-        ) : null}
+            {x.draft && draftCat ? (
+              <Link to={`/sell/${x.draft.id}/${x.draft.next}`} className="resume-card" prefetch="intent">
+                <span className="cat-icon"><Icon name={draftCat.icon} size={22} /></span>
+                <span className="grow stack" style={{ gap: 0 }}>
+                  <span className="label">{t("Carry on with your {what} listing", { what: x.draft.title ? `“${x.draft.title}”` : t(draftCat.label).toLowerCase() })}</span>
+                  <span className="caption muted">{x.draft.photos === 1 ? t("1 photo added. Pick a category below to change it.") : t("{n} photos added. Pick a category below to change it.", { n: x.draft.photos })}</span>
+                </span>
+                <Icon name="chevron-right" size={20} />
+              </Link>
+            ) : null}
 
-        <Form method="post" className="cat-grid cat-start" aria-label={t("Categories")}>
-          {CATEGORIES.map((c) => (
-            <button key={c.key} type="submit" name="category" value={c.key} className="cat-choice" aria-busy={choosing === c.key || undefined}
-              disabled={!!choosing} aria-pressed={x.draft?.category === c.key && !!x.draft ? true : undefined}>
-              <span className="cat-icon"><Icon name={c.icon} size={22} /></span>
-              <span className="body">{t(c.label)}</span>
-            </button>
-          ))}
-        </Form>
-        <ErrorText>{actionData?.error}</ErrorText>
+            <Form method="post" className="cat-grid cat-start" aria-label={t("Categories")}>
+              {CATEGORIES.map((c) => (
+                <button key={c.key} type="submit" name="category" value={c.key} className="cat-choice" aria-busy={choosing === c.key || undefined}
+                  disabled={!!choosing} aria-pressed={x.draft?.category === c.key && !!x.draft ? true : undefined}>
+                  <span className="cat-icon"><Icon name={c.icon} size={22} /></span>
+                  <span className="body">{t(c.label)}</span>
+                </button>
+              ))}
+            </Form>
+            <ErrorText>{actionData?.error}</ErrorText>
+          </div>
 
-        {!x.ready.ready ? (
-          <Info icon="shield-check">{t.rich("Before your listing goes live, <verify>verify your ID and bank account</verify>. You can start your listing now.", { verify: (s) => <Link to="/account/verify?next=/sell">{s}</Link> })}</Info>
-        ) : null}
-        <p className="caption muted">{t.rich("Some things can't be sold on NosHen, such as anything stolen or fake. See the <list>prohibited items</list>.", { list: (s) => <Link to="/prohibited-items">{s}</Link> })}</p>
-        <SellHelp whatsapp={x.help} step={t("What")} />
+          <aside className="sell-info">
+            {!x.ready.ready ? (
+              <Info icon="shield-check">{t.rich("Before your listing goes live, <verify>verify your ID and bank account</verify>. You can start your listing now.", { verify: (s) => <Link to="/account/verify?next=/sell">{s}</Link> })}</Info>
+            ) : null}
+            <section className="card stack desktop-only">
+              <p className="title">{t("Selling tips")}</p>
+              <ul className="sell-tips">
+                <li><Icon name="camera" size={16} /><span className="caption muted">{t("Clear photos and an honest description help buyers say yes faster.")}</span></li>
+                <li><Icon name="shield-check" size={16} /><span className="caption muted">{t("Money is held in escrow before you hand over or ship.")}</span></li>
+              </ul>
+            </section>
+            <p className="caption muted">{t.rich("Some things can't be sold on NosHen, such as anything stolen or fake. See the <list>prohibited items</list>.", { list: (s) => <Link to="/prohibited-items">{s}</Link> })}</p>
+            <SellHelp whatsapp={x.help} step={t("What")} />
+          </aside>
+        </div>
       </main>
     </div>
   );

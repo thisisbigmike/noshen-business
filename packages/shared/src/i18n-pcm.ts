@@ -1527,4 +1527,14 @@ export const PCM: Catalog = {
   "Quick links": "Quick links",
   "1 update": "1 update",
   "{n} updates": "{n} updates",
+  // Deals & Sell desktop/mobile views.
+  "Active": "Active",
+  "1 deal": "1 deal",
+  "{n} deals": "{n} deals",
+  "{n} need you": "{n} need you",
+  "Every deal is protected until you confirm.": "Every deal dey safe until you confirm.",
+  "Start a deal": "Start deal",
+  "Selling tips": "Selling tips",
+  "Clear photos and an honest description help buyers say yes faster.": "Clear photos and true description dey make buyers agree sharp sharp.",
+  "Money is held in escrow before you hand over or ship.": "Money dey stay inside escrow before you hand over or send am.",
 };

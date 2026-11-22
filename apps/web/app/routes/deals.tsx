@@ -1,8 +1,9 @@
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { Route } from "./+types/deals";
 import { requireUser, withApp } from "../../server/web";
 import { dealsFor, needsAction } from "@noshen/engine/queries";
-import { DealCard, Button } from "@noshen/ui/ui";
+import { Button, DealCard, Icon, Kv, TopBar } from "@noshen/ui/ui";
 import { dealText } from "../lib/deal-text";
 import { useT } from "@noshen/ui/i18n";
 
@@ -16,13 +17,34 @@ export async function loader({ request }: Route.LoaderArgs) {
   });
 }
 
+const ACTIVE_STATES = new Set(["requested", "accepted", "held", "disputed"]);
+
 export default function Deals({ loaderData }: Route.ComponentProps) {
   const t = useT();
   const [params] = useSearchParams();
   const all = loaderData.deals;
   const defaultTab = all.some((x) => x.role === "seller" && x.action) && !all.some((x) => x.role === "buyer" && x.action) ? "selling" : "buying";
-  const tab = params.get("tab") === "selling" || params.get("tab") === "buying" ? params.get("tab")! : defaultTab;
-  const list = all.filter((x) => (tab === "selling" ? x.role === "seller" : x.role === "buyer"));
+  const urlTab = params.get("tab") === "selling" || params.get("tab") === "buying" ? (params.get("tab") as "buying" | "selling") : defaultTab;
+  const [tab, setTab] = useState<"buying" | "selling">(urlTab);
+  useEffect(() => { setTab(urlTab); }, [urlTab]);
+
+  const switchTab = (next: "buying" | "selling") => {
+    setTab(next);
+    if (typeof window !== "undefined") {
+      const u = new URL(window.location.href);
+      u.searchParams.set("tab", next);
+      window.history.replaceState(window.history.state, "", u.pathname + u.search);
+    }
+  };
+
+  const buyingDeals = all.filter((x) => x.role === "buyer");
+  const sellingDeals = all.filter((x) => x.role === "seller");
+  const buyingNeeds = buyingDeals.filter((x) => x.action).length;
+  const sellingNeeds = sellingDeals.filter((x) => x.action).length;
+  const totalNeeds = buyingNeeds + sellingNeeds;
+  const activeCount = all.filter((x) => ACTIVE_STATES.has(x.state)).length;
+
+  const list = tab === "selling" ? sellingDeals : buyingDeals;
   const now = new Date();
   const card = (x: (typeof list)[number]) => {
     const names = x.role === "buyer" ? { buyer: loaderData.me, seller: x.other } : { buyer: x.other, seller: loaderData.me };
@@ -32,21 +54,99 @@ export default function Deals({ loaderData }: Route.ComponentProps) {
   };
   const needs = list.filter((x) => x.action);
   const rest = list.filter((x) => !x.action);
+  const totalText = all.length === 1 ? t("1 deal") : t("{n} deals", { n: all.length });
+
   return (
-    <main className="page narrow stack-4">
-      <h1 className="heading">{t("Deals")}</h1>
-      <div className="seg theme-seg" role="tablist" aria-label={t("Deals")} style={{ ["--seg-i" as string]: tab === "selling" ? 1 : 0 }}>
-        <Link to="?tab=buying" role="tab" replace preventScrollReset aria-selected={tab === "buying"} aria-current={tab === "buying" ? "true" : undefined}>{t("Buying")}</Link>
-        <Link to="?tab=selling" role="tab" replace preventScrollReset aria-selected={tab === "selling"} aria-current={tab === "selling" ? "true" : undefined}>{t("Selling")}</Link>
-      </div>
-      {list.length === 0 ? (
-        <div className="card stack" style={{ alignItems: "flex-start" }}>
-          {tab === "selling" ? <><p className="body">{t("You're not selling anything yet. List something and share the link.")}</p><Button variant="primary" to="/sell">{t("Sell something")}</Button></>
-            : <><p className="body">{t("You haven't bought anything with NosHen yet.")}</p><Button to="/browse">{t("Browse listings")}</Button></>}
+    <div>
+      <TopBar title={t("Deals")} />
+      <main className="page deals-page stack-4">
+        <div className="deals-head">
+          <div className="stack desktop-only" style={{ gap: 2 }}>
+            <h1 className="heading">{t("Deals")}</h1>
+            <p className="caption muted">
+              {all.length
+                ? (totalNeeds ? `${totalText} · ${t("{n} need you", { n: totalNeeds })}` : totalText)
+                : t("Every deal is protected until you confirm.")}
+            </p>
+          </div>
+          <div className="seg deals-tabs" role="tablist" aria-label={t("Deals")} style={{ ["--seg-i" as string]: tab === "selling" ? 1 : 0 }}>
+            <button type="button" role="tab" aria-selected={tab === "buying"} onClick={() => switchTab("buying")}>
+              {t("Buying")}{buyingNeeds ? <span className="notif-pill-count">{buyingNeeds}</span> : null}
+            </button>
+            <button type="button" role="tab" aria-selected={tab === "selling"} onClick={() => switchTab("selling")}>
+              {t("Selling")}{sellingNeeds ? <span className="notif-pill-count">{sellingNeeds}</span> : null}
+            </button>
+          </div>
         </div>
-      ) : null}
-      {needs.length ? <section className="stack"><h2 className="label muted">{t("Needs you")}</h2>{needs.map(card)}</section> : null}
-      {rest.length ? <section className="stack"><h2 className="label muted">{needs.length ? t("Earlier") : t("Your deals")}</h2>{rest.map(card)}</section> : null}
-    </main>
+
+        <div className="deals-layout">
+          <div className="deals-main">
+            {list.length === 0 ? (
+              <div className="card stack empty" style={{ alignItems: "center", textAlign: "center" }}>
+                <span className="empty-icon"><Icon name="receipt" size={26} /></span>
+                {tab === "selling" ? (
+                  <>
+                    <p className="body muted">{t("You're not selling anything yet. List something and share the link.")}</p>
+                    <Button variant="primary" to="/sell" icon="plus">{t("Sell something")}</Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="body muted">{t("You haven't bought anything with NosHen yet.")}</p>
+                    <Button variant="primary" to="/browse" icon="search">{t("Browse listings")}</Button>
+                  </>
+                )}
+              </div>
+            ) : null}
+
+            {needs.length ? (
+              <section className="stack">
+                <h2 className="label muted">{t("Needs you")}</h2>
+                <div className="deals-grid">{needs.map(card)}</div>
+              </section>
+            ) : null}
+
+            {rest.length ? (
+              <section className="stack">
+                <h2 className="label muted">{needs.length ? t("Earlier") : t("Your deals")}</h2>
+                <div className="deals-grid">{rest.map(card)}</div>
+              </section>
+            ) : null}
+          </div>
+
+          <aside className="deals-side desktop-only">
+            <section className="card stack">
+              <p className="title">{t("Overview")}</p>
+              <div>
+                <Kv k={t("Buying")} v={String(buyingDeals.length)} />
+                <Kv k={t("Selling")} v={String(sellingDeals.length)} />
+                <Kv k={t("Active")} v={String(activeCount)} />
+                <Kv k={t("Needs you")} v={String(totalNeeds)} />
+              </div>
+            </section>
+            <section className="card stack">
+              <p className="title">{t("Start a deal")}</p>
+              <Button variant="primary" to="/sell" icon="plus" block>{t("Sell something")}</Button>
+              <Button to="/sell/quick" icon="bolt" block>{t("Quick escrow link")}</Button>
+              <Button to="/browse" icon="search" block>{t("Browse listings")}</Button>
+            </section>
+            <section className="card link-list" aria-label={t("Quick links")}>
+              <p className="label muted">{t("Quick links")}</p>
+              <Link to="/notifications" className="row-between">
+                <span className="row"><Icon name="bell" size={18} />{t("Notifications")}</span>
+                <Icon name="chevron-right" size={18} />
+              </Link>
+              <Link to="/wallet" className="row-between">
+                <span className="row"><Icon name="wallet" size={18} />{t("NosHen wallet")}</span>
+                <Icon name="chevron-right" size={18} />
+              </Link>
+              <Link to="/account" className="row-between">
+                <span className="row"><Icon name="user" size={18} />{t("Account")}</span>
+                <Icon name="chevron-right" size={18} />
+              </Link>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
   );
 }
