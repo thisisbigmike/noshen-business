@@ -110,6 +110,33 @@ export async function statesWithListings(db: Db) {
     "select state, count(*) as n from listings where status = 'live' and visibility = 'public' and state is not null group by state order by count(*) desc, state")).map((r) => ({ state: r.state, n: Number(r.n) }));
 }
 
+/** Live public listings related to one being viewed (same seller or same category first, newest next). */
+export async function relatedListings(db: Db, excludeId: string, sellerId: string, category: string, limit = 4) {
+  if (!isId(excludeId)) return [];
+  const rows = await many(db, `with picked as (
+      select id, seller_id, title, price_kobo, area, state, category, size_system, size, photo_keys, published_at, status, quantity, sold_count,
+             (seller_id = $2) as same_seller, (category = $3) as same_cat
+        from listings
+       where id <> $1 and visibility = 'public' and status = 'live'
+         and exists (select 1 from users u where u.id = listings.seller_id and u.status = 'active')
+       order by (seller_id = $2) desc, (category = $3) desc, published_at desc
+       limit $4),
+    sellers as (
+      select s.seller_id,
+             exists (select 1 from kyc_checks k where k.user_id = s.seller_id and k.result = 'verified') as id_verified,
+             (select count(*) from deals d where d.seller_id = s.seller_id and d.state in ('released', 'paid_out')) as completed,
+             (select count(*) from disputes x join deals d on d.id = x.deal_id where d.seller_id = s.seller_id and x.decision = 'refund_buyer') as lost
+        from (select distinct seller_id from picked) s)
+    select picked.*, sellers.id_verified, sellers.completed, sellers.lost
+      from picked join sellers using (seller_id)
+     order by same_seller desc, same_cat desc, published_at desc`, [excludeId, sellerId, category, limit]);
+  return rows.map(({ seller_id, id_verified, completed, lost, same_seller, same_cat, ...l }) => {
+    const deals = Number(completed), lostN = Number(lost);
+    const level = trustLevel({ idVerified: !!id_verified, completedDeals: deals, disputesLost: lostN, problemFree: deals + lostN ? Math.round((deals / (deals + lostN)) * 100) : null });
+    return { ...l, seller: { level, deals } };
+  });
+}
+
 /** A seller's shop, for the link in their Instagram bio: their public listings, live first, then recently sold. */
 export async function sellerShop(db: Db, sellerId: string) {
   if (!isId(sellerId)) return null;

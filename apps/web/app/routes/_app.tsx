@@ -106,9 +106,14 @@ export default function AppShell({ loaderData }: Route.ComponentProps) {
           <LanguageToggle />
           <ThemeToggle />
           {loaderData.user ? (
-            <Link to="/notifications" className="icon-btn" aria-label={unread ? t("Notifications, {n} new", { n: unread }) : t("Notifications")}>
-              <Icon name="bell" />{unread ? <span className="dot-count" aria-hidden="true">{unread}</span> : null}
-            </Link>
+            <>
+              <NavLink to="/saved" className="icon-btn" title={t("Saved items")} aria-label={t("Saved items")} prefetch="intent">
+                <Icon name="heart" />
+              </NavLink>
+              <NavLink to="/notifications" className="icon-btn" title={t("Notifications")} aria-label={unread ? t("Notifications, {n} new", { n: unread }) : t("Notifications")}>
+                <Icon name="bell" />{unread ? <span className="dot-count" aria-hidden="true">{unread}</span> : null}
+              </NavLink>
+            </>
           ) : (
             <Button variant="primary" pill to="/signin">{t("Sign in")}</Button>
           )}

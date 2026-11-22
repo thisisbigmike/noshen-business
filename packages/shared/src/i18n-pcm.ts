@@ -1537,4 +1537,10 @@ export const PCM: Catalog = {
   "Selling tips": "Selling tips",
   "Clear photos and an honest description help buyers say yes faster.": "Clear photos and true description dey make buyers agree sharp sharp.",
   "Money is held in escrow before you hand over or ship.": "Money dey stay inside escrow before you hand over or send am.",
+  // Marketplace UX upgrades (Browse, Listing, Shop, Check a seller).
+  "More listings": "More listings",
+  "For sale": "Dey sell",
+  "Filter listings": "Filter listings",
+  "How we verify": "How we dey verify",
+  "Photo {n} of {total}": "Photo {n} inside {total}",
 };

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { data } from "react-router";
 import type { Route } from "./+types/shop";
 import { withApp } from "../../server/web";
@@ -41,33 +42,53 @@ export const meta: Route.MetaFunction = ({ loaderData: d }) => {
 export default function Shop({ loaderData: x }: Route.ComponentProps) {
   const t = useT();
   const name = firstName(x.summary.name);
+  const [filter, setFilter] = useState<"all" | "live" | "sold">("all");
   const live = x.listings.filter((l: any) => l.status !== "sold").length;
+  const soldCount = x.listings.length - live;
+  const hasBoth = live > 0 && soldCount > 0;
+  const shown = x.listings.filter((l: any) => (filter === "live" ? l.status !== "sold" : filter === "sold" ? l.status === "sold" : true));
+  const filterIdx = filter === "all" ? 0 : filter === "live" ? 1 : 2;
   return (
     <div>
       <TopBar title={<Wordmark size="sm" />} back="/browse" right={<ShareButton kind="icon" path={`/s/${x.summary.id}`} title={t("{name}'s shop on NosHen", { name })} text={t("{name}'s shop on NosHen. Every deal protected: your money is held until you have the item.", { name })} />} />
       <main className="page stack-4">
-        <div className="row-between wrap">
-          <h1 className="heading">{t("{name}'s shop", { name })}</h1>
-          <ProtectionBadge>{t("Every deal protected")}</ProtectionBadge>
+        <section className="card shop-hero stack-4">
+          <div className="row-between wrap" style={{ gap: 12 }}>
+            <div className="stack" style={{ gap: 4 }}>
+              <h1 className="heading">{t("{name}'s shop", { name })}</h1>
+              <div className="row wrap" style={{ gap: 8 }}>
+                <ProtectionBadge>{t("Every deal protected")}</ProtectionBadge>
+                {x.handles.length ? <span className="caption muted">{t("Verified on")}</span> : null}
+                {x.handles.map((h) => (
+                  <a key={`${h.platform}:${h.handle}`} href={profileUrl(h.platform, h.handle)} target="_blank" rel="noreferrer" className="chip">
+                    <Icon name="circle-check" size={14} />{t(platformOf(h.platform).label)} @{h.handle}
+                  </a>
+                ))}
+              </div>
+            </div>
+            <div className="row wrap" style={{ gap: 8 }}>
+              <a href={`/s/${x.summary.id}/badge.svg`} target="_blank" rel="noreferrer" className="nh-btn nh-btn-sm" style={{ textDecoration: "none" }}>
+                <Icon name="download" size={16} />{t("Share verified trust card")}
+              </a>
+              <ShareButton kind="button" path={`/s/${x.summary.id}`} title={t("{name}'s shop on NosHen", { name })} text={t("{name}'s shop on NosHen. Every deal protected: your money is held until you have the item.", { name })} />
+            </div>
+          </div>
+          <SellerRecord person={x.summary} shop />
+        </section>
+
+        <div className="row-between wrap" style={{ gap: 12 }}>
+          <h2 className="label muted">{live ? t("{n} for sale", { n: live }) : t("Nothing for sale right now")}</h2>
+          {hasBoth ? (
+            <div className="seg shop-filter" role="tablist" aria-label={t("Filter listings")} style={{ ["--seg-n" as string]: 3, ["--seg-i" as string]: filterIdx }}>
+              <button type="button" role="tab" aria-selected={filter === "all"} onClick={() => setFilter("all")}>{t("All")}</button>
+              <button type="button" role="tab" aria-selected={filter === "live"} onClick={() => setFilter("live")}>{t("For sale")}</button>
+              <button type="button" role="tab" aria-selected={filter === "sold"} onClick={() => setFilter("sold")}>{t("Sold")}</button>
+            </div>
+          ) : null}
         </div>
-        <SellerRecord person={x.summary} shop />
-        <div className="row wrap">
-          <a href={`/s/${x.summary.id}/badge.svg`} target="_blank" rel="noreferrer" className="nh-btn nh-btn-sm" style={{ textDecoration: "none" }}>
-            <Icon name="download" size={16} />{t("Share verified trust card")}
-          </a>
-        </div>
-        {x.handles.length ? (
-          <p className="caption shop-handles">
-            <span className="muted">{t("Verified on")}</span>
-            {x.handles.map((h) => (
-              <a key={`${h.platform}:${h.handle}`} href={profileUrl(h.platform, h.handle)} target="_blank" rel="noreferrer"><Icon name="circle-check" size={14} />{t(platformOf(h.platform).label)} @{h.handle}</a>
-            ))}
-          </p>
-        ) : null}
-        <h2 className="label muted">{live ? t("{n} for sale", { n: live }) : t("Nothing for sale right now")}</h2>
-        {x.listings.length ? (
-          <div className="grid-cards">
-            {x.listings.map((l: any) => (
+        {shown.length ? (
+          <div className="grid-cards grid-cards-4">
+            {shown.map((l: any) => (
               <ListingCard key={l.id} href={`/l/${l.id}`} title={l.title} priceKobo={l.price_kobo} area={[sizeLabel(l.category, l.size_system, l.size), placeLabel(l.area, l.state)].filter(Boolean).join(" · ")}
                 posted={ago(l.published_at)} imageUrl={l.photo_keys?.[0] ? photoUrl(l.photo_keys[0], "small") : undefined}
                 sold={l.status === "sold"} left={l.quantity > 1 ? l.quantity - l.sold_count : null} />

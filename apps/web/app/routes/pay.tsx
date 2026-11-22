@@ -34,16 +34,25 @@ export default function Pay({ loaderData: x }: Route.ComponentProps) {
   return (
     <div>
       <TopBar title={t("Choose how to pay")} back={`/d/${x.dealId}`} />
-      <main className="page narrow no-tabs stack-4">
-        <h1 className="heading desktop-only">{t("Choose how to pay")}</h1>
+      <main className="page sell-page no-tabs stack-4">
         <nav className="desktop-only caption muted" aria-label={t("Breadcrumb")}><Link to="/deals">{t("Deals")}</Link> / <Link to={`/d/${x.dealId}`}>{x.title}</Link> / {t("Pay")}</nav>
-        <section className="card stack">
-          <div className="row-between wrap"><MoneyStatus state="awaiting" />{x.payBy ? <span className="caption muted">{t("Pay by {time}", { time: when(new Date(x.payBy)) })}</span> : null}</div>
-          <p className="big-amount">{naira(x.due)}</p>
-          <p className="body muted">{t("{item} · {name} accepted", { item: x.title, name: x.seller })}</p>
-          <p className="body">{t("However you pay, NosHen holds the money until you have the item.")}</p>
-        </section>
-        <PayOptions dealId={x.dealId} country={x.country} quotes={x.quotes} />
+        <h1 className="heading desktop-only">{t("Choose how to pay")}</h1>
+
+        <div className="sell-flow sell-flow-wide">
+          <div className="sell-main">
+            <section className="sell-card stack-4">
+              <PayOptions dealId={x.dealId} country={x.country} quotes={x.quotes} />
+            </section>
+          </div>
+          <aside className="sell-side">
+            <section className="card stack">
+              <div className="row-between wrap"><MoneyStatus state="awaiting" />{x.payBy ? <span className="caption muted">{t("Pay by {time}", { time: when(new Date(x.payBy)) })}</span> : null}</div>
+              <p className="big-amount">{naira(x.due)}</p>
+              <p className="body muted">{t("{item} · {name} accepted", { item: x.title, name: x.seller })}</p>
+              <p className="body">{t("However you pay, NosHen holds the money until you have the item.")}</p>
+            </section>
+          </aside>
+        </div>
       </main>
     </div>
   );

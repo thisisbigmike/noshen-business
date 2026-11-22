@@ -2,16 +2,16 @@ import { useRef, useState } from "react";
 import { Link, data, useFetcher } from "react-router";
 import type { Route } from "./+types/listing";
 import { optionalUser, requireUser, withApp } from "../../server/web";
-import { listingView } from "@noshen/engine/queries";
+import { listingView, relatedListings } from "@noshen/engine/queries";
 import { isListingSaved, toggleSavedListing } from "@noshen/engine/sellers";
 import { settingsOf } from "@noshen/engine/core";
-import { Avatar, BottomAction, Button, Icon, Info, Kv, PhotoViewer, ProtectionBadge, TopBar, Wordmark } from "@noshen/ui/ui";
+import { Avatar, BottomAction, Button, Icon, Info, Kv, ListingCard, PhotoViewer, ProtectionBadge, TopBar, Wordmark } from "@noshen/ui/ui";
 import { feeFor, naira } from "@noshen/shared/money";
 import { CONDITIONS, firstName } from "@noshen/shared/deal";
 import { categoryOf, isService } from "@noshen/shared/categories";
 import type { Stage } from "@noshen/shared/stages";
 import { ago } from "@noshen/shared/time";
-import { clock, photoUrl } from "@noshen/shared/photos";
+import { clock, photoUrl, posterUrl } from "@noshen/shared/photos";
 import { placeLabel } from "@noshen/shared/locations";
 import { sizeLabel, sizeRuleFor } from "@noshen/shared/sizes";
 import { overLimit, sellerLimit } from "@noshen/engine/deals";
@@ -36,11 +36,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const mine = user?.id === v.listing.seller_id;
     // Sellers who haven't verified can only take deals up to a limit. Say so here, before a buyer starts, not at the last step.
     const limit = await sellerLimit(d.db, v.listing.seller_id, s);
-    const saved = user && !mine ? await isListingSaved(d.db, user.id, v.listing.id) : false;
+    const [saved, related] = await Promise.all([
+      user && !mine ? isListingSaved(d.db, user.id, v.listing.id) : Promise.resolve(false),
+      v.listing.visibility === "public" ? relatedListings(d.db, v.listing.id, v.listing.seller_id, v.listing.category, 4) : Promise.resolve([]),
+    ]);
     // Security: never send the raw IMEI/VIN/serial or the seller's full surname in the public page payload before payment.
     const safeListing = { ...v.listing, imei_or_serial: v.listing.imei_or_serial ? "REDACTED" : null };
     const safeSeller = { ...v.seller, name: firstName(v.seller.name) };
-    return { listing: safeListing, seller: safeSeller, fee: feeFor(price, s.fee), mine, saved, limit: overLimit(price, limit) ? limit : null, sendHours: s.handover_window_hours, origin: new URL(request.url).origin };
+    return { listing: safeListing, seller: safeSeller, related, fee: feeFor(price, s.fee), mine, saved, limit: overLimit(price, limit) ? limit : null, sendHours: s.handover_window_hours, origin: new URL(request.url).origin };
   });
 }
 
@@ -115,7 +118,7 @@ export const meta: Route.MetaFunction = ({ loaderData: d }) => {
 };
 
 export default function Listing({ loaderData }: Route.ComponentProps) {
-  const { listing: l, seller, fee, mine, saved, limit, sendHours } = loaderData;
+  const { listing: l, seller, related, fee, mine, saved, limit, sendHours } = loaderData;
   const t = useT();
   // Data saver: the photos on the page are the small copies; tapping one still opens it full size.
   const lite = useLite();
@@ -136,10 +139,16 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
     const el = trackRef.current;
     if (el) el.scrollTo({ left: slideOf(at) * el.clientWidth });
   };
+  const goSlide = (idx: number) => {
+    const el = trackRef.current;
+    if (!el || !slides.length) return;
+    const clamped = Math.max(0, Math.min(slides.length - 1, idx));
+    el.scrollTo({ left: clamped * el.clientWidth, behavior: "smooth" });
+    setPhoto(clamped);
+  };
   // "Watch video" on another slide: glide to the video and start it, while the tap still counts as the buyer's.
   const watchVideo = () => {
-    const el = trackRef.current;
-    if (el) el.scrollTo({ left: videoAt * el.clientWidth, behavior: "smooth" });
+    goSlide(videoAt);
     playVideo.current?.();
   };
   const sellerName = firstName(seller.name);
@@ -177,7 +186,7 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
   const saveBtn = !mine && ["live", "sold"].includes(l.status) ? (
     <saveFetcher.Form method="post">
       <input type="hidden" name="intent" value="toggle_save" />
-      <Button type="submit" block icon="heart">{isSaved ? t("Saved") : t("Save for later")}</Button>
+      <Button type="submit" block icon="heart" className="save-btn" data-saved={isSaved ? "true" : undefined}>{isSaved ? t("Saved") : t("Save for later")}</Button>
     </saveFetcher.Form>
   ) : null;
 
@@ -212,8 +221,26 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
                   <Icon name="player-play" size={14} className="filled" />{video.seconds !== null ? `${t("Watch video")} · ${clock(video.seconds)}` : t("Watch video")}
                 </button>
               ) : null}
+              {slides.length > 1 ? (
+                <>
+                  <button type="button" className="gallery-arrow gallery-prev desktop-only" aria-label={t("Previous photo")} disabled={photo === 0} onClick={() => goSlide(photo - 1)}><Icon name="arrow-left" size={18} /></button>
+                  <button type="button" className="gallery-arrow gallery-next desktop-only" aria-label={t("Next photo")} disabled={photo >= slides.length - 1} onClick={() => goSlide(photo + 1)}><Icon name="arrow-right" size={18} /></button>
+                </>
+              ) : null}
               {slides.length > 1 ? <span className={`dots${photo === videoAt ? " on-video" : ""}`} aria-hidden="true">{slides.map((s, i) => <span key={s.key} className={[i === photo && "on", s.kind === "video" && "video"].filter(Boolean).join(" ") || undefined} />)}</span> : null}
             </div>
+            {slides.length > 1 ? (
+              <div className="gallery-thumbs" role="group" aria-label={t("Photos")}>
+                {slides.map((s, i) => (
+                  <button key={s.key} type="button" className="gallery-thumb" aria-pressed={photo === i}
+                    aria-label={s.kind === "video" ? t("Watch video") : t("Photo {n} of {total}", { n: s.i + 1, total: photos.length })}
+                    onClick={() => goSlide(i)}>
+                    <img src={s.kind === "video" ? posterUrl(s.key) : photoUrl(s.key, "small")} alt="" loading="lazy" decoding="async" />
+                    {s.kind === "video" ? <span className="gallery-thumb-play" aria-hidden="true"><Icon name="player-play" size={14} className="filled" /></span> : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="stack mobile-only">
               <h1 className="title">{l.title}</h1>
               <p className="big-amount">{naira(price)}</p>
@@ -266,6 +293,22 @@ export default function Listing({ loaderData }: Route.ComponentProps) {
             {limitText ? null : <p className="caption muted">{t("You pay nothing until {seller} accepts.", { seller: sellerName })}</p>}
           </aside>
         </div>
+        {related.length ? (
+          <section className="related-shelf stack-4" aria-labelledby="more-listings-title">
+            <div className="row-between">
+              <h2 id="more-listings-title" className="heading">{t("More listings")}</h2>
+              <Link to={`/browse?cat=${cat.key}`} className="label">{t("See all")}</Link>
+            </div>
+            <div className="grid-cards grid-cards-4">
+              {related.map((r: any) => (
+                <ListingCard key={r.id} href={`/l/${r.id}`} title={r.title} priceKobo={r.price_kobo}
+                  area={[sizeLabel(r.category, r.size_system, r.size), placeLabel(r.area, r.state)].filter(Boolean).join(" · ")}
+                  posted={ago(r.published_at)} imageUrl={r.photo_keys?.[0] ? photoUrl(r.photo_keys[0], "small") : undefined}
+                  sold={r.status === "sold"} left={r.quantity > 1 ? r.quantity - r.sold_count : null} seller={r.seller} />
+              ))}
+            </div>
+          </section>
+        ) : null}
       </main>
       {viewing !== null ? (
         <PhotoViewer label={t("Photos of {title}", { title: l.title })} start={viewing} onClose={closeViewer}

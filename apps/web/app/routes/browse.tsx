@@ -106,6 +106,46 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
     return `?${p.toString()}`;
   };
 
+  const priceHref = (lo: number | null, hi: number | null) => {
+    const p = new URLSearchParams(params);
+    const same = (more.min ?? null) === lo && (more.max ?? null) === hi;
+    p.delete("min"); p.delete("max");
+    if (!same) {
+      if (lo) p.set("min", String(lo));
+      if (hi) p.set("max", String(hi));
+    }
+    return `?${p.toString()}`;
+  };
+  const verifiedHref = () => {
+    const p = new URLSearchParams(params);
+    if (more.verified) p.delete("verified"); else p.set("verified", "1");
+    return `?${p.toString()}`;
+  };
+
+  const desktopQuickFilters = (
+    <>
+      <div className="stack">
+        <p className="label">{t("Price")}</p>
+        <div className="chips wrap-chips">
+          {PRICE_PRESETS.map(([label, lo, hi]) => {
+            const on = (more.min ?? null) === lo && (more.max ?? null) === hi;
+            return (
+              <Link key={label} to={priceHref(lo, hi)} className="chip" replace preventScrollReset aria-current={on ? "true" : undefined}>
+                {t(label)}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+      <div className="stack">
+        <p className="label">{t("Seller")}</p>
+        <Link to={verifiedHref()} className="chip" replace preventScrollReset aria-current={more.verified ? "true" : undefined}>
+          <Icon name="shield-check" size={16} />{t("Verified sellers only")}
+        </Link>
+      </div>
+    </>
+  );
+
   const filters = (
     <div className="stack-4">
       <div className="stack">
@@ -122,7 +162,6 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
         ]} />
         <p className="caption muted">{t("{countries} are coming soon.", { countries: comingSoonList() })}</p>
       </Form>
-
     </div>
   );
   const search = (
@@ -158,7 +197,7 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
       {mobileTop}
       <main className="page">
         <div className="browse-layout">
-          <aside className="desktop-only card filter-card">{filters}</aside>
+          <aside className="desktop-only card filter-card stack-4">{filters}{desktopQuickFilters}</aside>
           <div className="stack-4">
             <div className="browse-head">
               <div className="stack">
