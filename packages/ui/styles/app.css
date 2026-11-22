@@ -942,9 +942,9 @@ label[for="photo-pick"][aria-disabled="true"] { opacity: 0.6; pointer-events: no
     gap: var(--space-4) var(--space-6);
     align-items: start;
   }
-  .sell-main { grid-area: main; }
-  .sell-quick { grid-area: quick; }
-  .sell-info { grid-area: info; }
+  .sell-layout > .sell-main { grid-area: main; }
+  .sell-layout > .sell-quick { grid-area: quick; }
+  .sell-layout > .sell-info { grid-area: info; }
   .sell-page .cat-start { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
   .sell-page .cat-start .cat-choice { padding: 16px; min-height: 112px; gap: 12px; justify-content: space-between; }
   .sell-page .cat-start .cat-choice .body { font-weight: 600; font-size: 14px; line-height: 19px; }
@@ -966,7 +966,8 @@ label[for="photo-pick"][aria-disabled="true"] { opacity: 0.6; pointer-events: no
 @media (min-width: 1024px) {
   .sell-flow { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-6); align-items: start; }
   .sell-flow.sell-flow-wide { grid-template-columns: minmax(0, 1fr) 380px; }
-  .sell-side { position: sticky; top: 100px; }
+  .sell-flow > .sell-main { grid-column: 1; grid-row: 1; }
+  .sell-flow > .sell-side { grid-column: 2; grid-row: 1; position: sticky; top: 100px; }
   .sell-card { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
   .sell-cta-card { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
   .sell-tips-box { padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
