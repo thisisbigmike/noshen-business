@@ -1515,4 +1515,16 @@ export const PCM: Catalog = {
   "Deposit": "Deposit",
   "Withdrawal": "Withdrawal",
   "No wallet activity yet.": "No wallet activity yet.",
+  // Notifications view (desktop inbox + mobile view).
+  "Filter notifications": "Filter notifications",
+  "No new notifications": "No new notification",
+  "You're all caught up.": "You don read everything.",
+  "No deal updates yet": "No deal update yet",
+  "Deal updates will show up here once you buy or sell.": "Deal updates go show here once you buy or sell.",
+  "Overview": "Summary",
+  "Total updates": "All updates",
+  "Deal updates": "Deal updates",
+  "Quick links": "Quick links",
+  "1 update": "1 update",
+  "{n} updates": "{n} updates",
 };
