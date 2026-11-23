@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useFetcher } from "react-router";
 import type { Route } from "./+types/handles";
 import { messageOf, requireStaff, withApp } from "../../server/web";
-import { decideHandle, handlesToCheck } from "@noshen/engine/handles";
+import { autoCheckHandle, decideHandle, handlesToCheck } from "@noshen/engine/handles";
 import { Button, CheckedForm, ErrorText, Icon, Info, TextArea, useEscape } from "@noshen/ui/ui";
 import { platformOf, profileUrl, type Platform } from "@noshen/shared/social";
 import { ago } from "@noshen/shared/time";
@@ -19,7 +19,16 @@ export async function action({ request }: Route.ActionArgs) {
   const staff = await requireStaff(request);
   const f = await request.formData();
   const id = String(f.get("handle") ?? "");
-  const verified = f.get("act") === "verify";
+  const act = String(f.get("act") ?? "");
+  if (act === "auto") {
+    try {
+      const outcome = await withApp((d) => autoCheckHandle(d, id));
+      return { ok: true as const, id, auto: outcome };
+    } catch (e) {
+      return { ok: false as const, id, error: messageOf(e) };
+    }
+  }
+  const verified = act === "verify";
   try {
     await withApp((d) => decideHandle(d, staff, id, verified, String(f.get("reason") ?? "")));
   } catch (e) {
@@ -41,7 +50,14 @@ export default function Handles({ loaderData: { rows } }: Route.ComponentProps) 
   const busy = fetcher.state !== "idle";
   useEscape(!!target, () => setTarget(null), busy);
   useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data?.ok || !target || fetcher.data.id !== target.row.id) return;
+    if (fetcher.state !== "idle" || !fetcher.data?.ok) return;
+    if ("auto" in fetcher.data && fetcher.data.auto) {
+      setDone(fetcher.data.auto === "verified" ? "Auto-check found the code in the bio and verified the handle."
+        : fetcher.data.auto === "not_found" ? "Auto-check didn't see the code in the bio yet. The seller was asked to check again."
+        : "Auto-check couldn't read that profile right now. You can verify it manually below.");
+      return;
+    }
+    if (!target || fetcher.data.id !== target.row.id) return;
     const who = target.row.full_name?.split(" ")[0] ?? "The seller";
     setDone(fetcher.data.verified ? `Verified @${target.row.handle}. Buyers who check it now see ${who}'s track record.` : `Not verified: @${target.row.handle}. ${who} has been told why.`);
     setTarget(null);
@@ -72,6 +88,11 @@ export default function Handles({ loaderData: { rows } }: Route.ComponentProps) 
                   <td className="caption" style={{ whiteSpace: "nowrap" }}>{ago(h.submitted_at)}</td>
                   <td className="cell-action">
                     <div className="row" style={{ justifyContent: "flex-end" }}>
+                      <fetcher.Form method="post">
+                        <input type="hidden" name="handle" value={h.id} />
+                        <input type="hidden" name="act" value="auto" />
+                        <Button size="sm" type="submit" disabled={busy}>Auto-check</Button>
+                      </fetcher.Form>
                       <Button size="sm" variant="primary" onClick={() => { setDone(null); setTarget({ row: h, act: "verify" }); }}>Verify</Button>
                       <Button size="sm" onClick={() => { setDone(null); setTarget({ row: h, act: "reject" }); }}>Not there</Button>
                     </div>

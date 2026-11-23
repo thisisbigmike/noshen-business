@@ -52,16 +52,98 @@ export async function addHandle(d: Deps, userId: string, platform: string, raw: 
      returning id, platform, handle, code, status, reject_reason, created_at`, [userId, platform, handle, newCode()]))!;
 }
 
-/** The seller says the code is in their bio: staff are asked to check the profile. */
+/**
+ * Applies an automated bio-check result to a submitted handle. Returns:
+ * - "verified": exact code found in the profile's bio; handle is now live and competing claims rejected.
+ * - "not_found": profile was read cleanly, but the code wasn't in the bio yet; seller is told to retry.
+ * - "queued": upstream API couldn't read the profile; kept in the manual staff queue as a fallback.
+ */
+async function applyAutoCheck(d: Deps, h: { id: string; user_id: string; platform: Platform; handle: string; code: string }): Promise<"verified" | "not_found" | "queued"> {
+  if (!d.social) return "queued";
+  const check = await d.social.checkBio(h.platform, h.handle, h.code);
+  if (check.status === "unavailable") return "queued";
+
+  const label = `${platformOf(h.platform).label} @${h.handle}`;
+  if (check.status === "matched") {
+    return inTx(d.db, { type: "system" }, async (tx) => {
+      const cur = await one<HandleRow & { user_id: string }>(tx.db, "select * from social_handles where id = $1 for update", [h.id]);
+      if (!cur || cur.status === "verified") return "verified" as const;
+      if (cur.status !== "submitted") return "queued" as const;
+      const taken = await one(tx.db, "select 1 from social_handles where platform = $1 and handle = $2 and status = 'verified'", [cur.platform, cur.handle]);
+      if (taken) {
+        await tx.db.query("update social_handles set status = 'rejected', checked_at = now(), reject_reason = 'Verified for another seller.' where id = $1", [h.id]);
+        await notify(d, tx, cur.user_id, null, "handle_rejected", `We couldn't verify ${label} for you: it's verified for another NosHen seller. If it's yours, contact NosHen.`);
+        return "not_found" as const;
+      }
+      await tx.db.query("update social_handles set status = 'verified', checked_at = now(), reject_reason = null where id = $1", [h.id]);
+      const others = await tx.db.query(
+        `update social_handles set status = 'rejected', checked_at = now(), reject_reason = 'Verified for another seller.'
+          where platform = $1 and handle = $2 and status in ('added', 'submitted') and id <> $3 returning user_id`,
+        [cur.platform, cur.handle, h.id],
+      );
+      for (const o of others.rows as { user_id: string }[]) {
+        await notify(d, tx, o.user_id, null, "handle_rejected", `We couldn't verify ${label} for you: it's verified for another NosHen seller. If it's yours, contact NosHen.`);
+      }
+      await notify(d, tx, cur.user_id, null, "handle_verified", `${label} is verified. Buyers who check it on NosHen now see your track record. You can take the code out of your bio.`);
+      return "verified" as const;
+    });
+  }
+
+  // Profile was read successfully, but the code isn't in the bio yet.
+  const reason = `We checked ${label} just now and didn't see ${h.code} in the bio yet. Save your bio (make sure the account is public) and check again.`;
+  await inTx(d.db, { type: "system" }, async (tx) => {
+    const cur = await one<HandleRow & { user_id: string }>(tx.db, "select * from social_handles where id = $1 for update", [h.id]);
+    if (!cur || cur.status !== "submitted") return;
+    await tx.db.query("update social_handles set status = 'rejected', checked_at = now(), reject_reason = $2 where id = $1", [h.id, reason.slice(0, 300)]);
+  });
+  return "not_found";
+}
+
+/**
+ * The seller says the code is in their bio. When automated bio checking (ScrapeCreators) is configured,
+ * NosHen checks the profile immediately (~1–2s); if the platform can't be read, it falls back to the manual staff queue.
+ */
 export async function submitHandle(d: Deps, userId: string, id: string) {
-  return inTx(d.db, { type: "seller", id: userId }, async (tx) => {
+  const row = await inTx(d.db, { type: "seller", id: userId }, async (tx) => {
     const h = await one<HandleRow & { user_id: string }>(tx.db, "select * from social_handles where id = $1 for update", [id]);
     if (!h || h.user_id !== userId) throw new DealError("forbidden", "This handle isn't yours.", 403);
-    if (h.status === "verified") return;
+    if (h.status === "verified") return null;
     if (h.status !== "added" && h.status !== "rejected") throw new DealError("state", "We're already checking this handle.");
     await tx.db.query("update social_handles set status = 'submitted', submitted_at = now(), reject_reason = null where id = $1", [id]);
-    await alertStaff(d, tx, "handle_check", `Handle to check: @${h.handle}`, `Look for ${h.code} in the ${platformOf(h.platform).label} bio.`, "/handles");
+    if (!d.social) {
+      await alertStaff(d, tx, "handle_check", `Handle to check: @${h.handle}`, `Look for ${h.code} in the ${platformOf(h.platform).label} bio.`, "/handles");
+    }
+    return h;
   });
+  if (!row || !d.social) return;
+
+  const outcome = await applyAutoCheck(d, row);
+  if (outcome === "queued") {
+    await inTx(d.db, { type: "system" }, async (tx) => {
+      await alertStaff(d, tx, "handle_check", `Handle to check: @${row.handle}`, `Auto-check couldn't read the profile. Look for ${row.code} in the ${platformOf(row.platform).label} bio.`, "/handles");
+    });
+  }
+}
+
+/** Runs an automated bio check on one submitted handle (for staff or scheduled sweeps). */
+export async function autoCheckHandle(d: Deps, id: string): Promise<"verified" | "not_found" | "queued"> {
+  if (!d.social) return "queued";
+  const h = await one<HandleRow & { user_id: string }>(d.db, "select * from social_handles where id = $1 and status = 'submitted'", [id]);
+  if (!h) return "queued";
+  return applyAutoCheck(d, h);
+}
+
+/** Checks pending submitted handles in the background (runs on the scheduled sweep). */
+export async function sweepPendingHandles(d: Deps, limit = 10): Promise<string[]> {
+  if (!d.social) return [];
+  const rows = await many<HandleRow & { user_id: string }>(d.db,
+    "select * from social_handles where status = 'submitted' order by submitted_at asc limit $1", [limit]);
+  const done: string[] = [];
+  for (const h of rows) {
+    const out = await applyAutoCheck(d, h);
+    if (out !== "queued") done.push(`handle ${h.platform}/@${h.handle}: ${out}`);
+  }
+  return done;
 }
 
 /** The seller takes a handle off: buyers no longer find them by it. */

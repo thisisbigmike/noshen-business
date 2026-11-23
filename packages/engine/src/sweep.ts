@@ -4,6 +4,7 @@ import { firstName } from "@noshen/shared/deal";
 import { when } from "@noshen/shared/time";
 import { type Deps, lockDeal, notify, nowOf, settingsOf, userName } from "./core";
 import { release, releaseDueStage } from "./deals";
+import { sweepPendingHandles } from "./handles";
 
 /**
  * Acts on every deadline that has passed: the job of each Workflow timer, and the 15-minute sweep
@@ -106,6 +107,9 @@ export async function sweep(d: Deps, onlyDealId?: string) {
         `Sent ${when(deal.sent_at!, now)} with ${deal.courier ?? "a courier"}${deal.tracking_ref ? `, tracking ${deal.tracking_ref}` : ""}, and not marked delivered. ${seller} and ${buyer} have been asked.`, `/deals/${deal.id}`);
       done.push(`arrival check ${deal.id}`);
     });
+  }
+  if (!onlyDealId) {
+    done.push(...(await sweepPendingHandles(d, 10).catch(() => [])));
   }
   return done;
 }

@@ -5,6 +5,7 @@ import type { EmailSender } from "./email";
 import type { SmsSender } from "./sms";
 import { sendPush, type PushConfig } from "./push";
 import type { IdProvider } from "./idcheck";
+import type { SocialVerifier } from "./social-verify";
 import type { Settings } from "./settings";
 import { loadSettings } from "./settings";
 import type { DealState } from "@noshen/shared/deal";
@@ -41,6 +42,8 @@ export interface Deps {
   /** Sends staff alerts waiting in the outbox (the staff site sends them; the customer site asks it to). */
   staffAlerts?: (d: Deps) => Promise<unknown>;
   ids: IdProvider;
+  /** Automatic social bio verification (ScrapeCreators). Missing falls back to the manual staff queue. */
+  social?: SocialVerifier;
   timers: Timers;
   secrets: { releaseCode: string; fieldKey: string };
   appUrl: string;

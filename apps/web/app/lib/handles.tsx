@@ -1,7 +1,7 @@
 // A seller's social handles, in Account: add one, put the code in that profile's bio, and NosHen checks it. Once
 // verified, buyers who look the handle up ("Check a seller") see the seller's track record.
 import { useState } from "react";
-import { Form, Link } from "react-router";
+import { Form, Link, useNavigation } from "react-router";
 import { Button, ErrorText, Icon, Select, TextField } from "@noshen/ui/ui";
 import { useT } from "@noshen/ui/i18n";
 import { PLATFORMS, platformOf, profileUrl, type Platform } from "@noshen/shared/social";
@@ -11,7 +11,9 @@ export interface Handle { id: string; platform: Platform; handle: string; code: 
 
 export function HandlesCard({ handles, idOk, error }: { handles: Handle[]; idOk: boolean; error?: string | null }) {
   const t = useT();
+  const nav = useNavigation();
   const [platform, setPlatform] = useState<string>("instagram");
+  const checkingId = nav.state !== "idle" && nav.formData?.get("intent") === "handle_submit" ? String(nav.formData.get("handle") ?? "") : "";
   return (
     <section className="card stack-4" aria-labelledby="handles-title">
       <div className="stack" style={{ gap: 4 }}>
@@ -36,7 +38,9 @@ export function HandlesCard({ handles, idOk, error }: { handles: Handle[]; idOk:
                   <p className="caption">{t("Put this code anywhere in your {platform} bio, then tell us:", { platform: t(platformOf(h.platform).label) })}</p>
                   <div className="row wrap" style={{ gap: 8 }}><code className="handle-code">{h.code}</code><CopyButton text={h.code} label={t("Copy code")} /></div>
                   <Form method="post" preventScrollReset><input type="hidden" name="intent" value="handle_submit" /><input type="hidden" name="handle" value={h.id} />
-                    <Button type="submit" variant="primary" size="sm">{h.status === "rejected" ? t("I've added it: check again") : t("I've added it")}</Button>
+                    <Button type="submit" variant="primary" size="sm" disabled={checkingId === h.id}>
+                      {checkingId === h.id ? t("Checking…") : h.status === "rejected" ? t("I've added it: check again") : t("I've added it")}
+                    </Button>
                   </Form>
                 </>
               ) : null}

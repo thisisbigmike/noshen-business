@@ -12,6 +12,7 @@ import type { CryptoPartner, PaymentsPartner, PartnerEvent } from "./partner/typ
 import { ConsoleEmail, NoEmail, ResendEmail, type EmailSender } from "./email";
 import { TermiiSms, type SmsSender } from "./sms";
 import { DojahIdProvider, FakeIdProvider, UnconfiguredIdProvider, type IdProvider } from "./idcheck";
+import { ScrapeCreatorsVerifier, type SocialVerifier } from "./social-verify";
 import type { PushConfig } from "./push";
 import { flushStaffAlerts } from "./staff-alerts";
 
@@ -177,6 +178,12 @@ export function idsFor(): IdProvider {
   return new DojahIdProvider({ appId: e.DOJAH_APP_ID, secretKey: e.DOJAH_SECRET_KEY, sandbox: e.ID_PROVIDER === "dojah-sandbox" });
 }
 
+/** Automatic social profile bio checker (ScrapeCreators) when SCRAPECREATORS_API_KEY is set. */
+export function socialFor(): SocialVerifier | undefined {
+  const e = env as unknown as Record<string, string | undefined>;
+  return e.SCRAPECREATORS_API_KEY ? new ScrapeCreatorsVerifier(e.SCRAPECREATORS_API_KEY) : undefined;
+}
+
 export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
   return {
     db,
@@ -189,6 +196,7 @@ export function depsFor(db: Db, mail: EmailSender = mailFor()): Deps {
     live: liveFor(),
     staffAlerts: staffAlertsFor(),
     ids: idsFor(),
+    social: socialFor(),
     timers: workflowTimers,
     secrets: { releaseCode: env.RELEASE_CODE_SECRET, fieldKey: env.FIELD_KEY },
     appUrl: env.APP_URL,
