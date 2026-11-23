@@ -20,7 +20,12 @@ export default function Money({ loaderData: m }: Route.ComponentProps) {
   const ok = ledger === open;
   return (
     <>
-      <div className="stack console-head"><h1 className="heading">Money</h1><p className="body muted">Every naira held for buyers and sellers, checked against payments into open deals.</p></div>
+      <header className="console-head">
+        <div className="stack">
+          <h1 className="heading">Money</h1>
+          <p className="body muted">Every naira held for buyers and sellers, checked against payments into open deals.</p>
+        </div>
+      </header>
       <div className="kpis two">
         <div className="kpi"><span className="kpi-icon"><Icon name="shield-lock" size={20} /></span><p className="caption muted">Held in NosHen's ledger</p><p className="kpi-value tabular">{naira(ledger)}</p></div>
         <div className="kpi"><span className="kpi-icon"><Icon name="cash" size={20} /></span><p className="caption muted">Paid into open deals</p><p className="kpi-value tabular">{naira(open)}</p></div>

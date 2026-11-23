@@ -27,7 +27,8 @@ export function SellerRecord({ person, area, shop }: { person: Person; area?: st
   const name = firstName(person.name);
   const reply = replyTime(person.replyMinutes, t);
   return (
-    <section className="card stack-4" aria-label={t("Seller")}>
+    // In the shop, the record sits inside the shop's own card, so it drops its frame (no card inside a card).
+    <section className={shop ? "seller-record-flat stack-4" : "card stack-4"} aria-label={t("Seller")}>
       <div className="row">
         <Avatar name={person.name} photo={person.photo} />
         <div className="grow stack" style={{ gap: 4, alignItems: "flex-start" }}>

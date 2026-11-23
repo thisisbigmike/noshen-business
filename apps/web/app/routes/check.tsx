@@ -103,7 +103,7 @@ export default function Check({ loaderData: { q, result, origin } }: Route.Compo
           <aside className="sell-side">
             <section className="card stack">
               <p className="title">{t("How we verify")}</p>
-              <p className="caption muted">{t("How we verify: a seller adds their handle on NosHen, and puts a code we give them in that profile's bio. We check the profile ourselves before it shows here.")}</p>
+              <p className="caption muted">{t("A seller adds their handle on NosHen, and puts a code we give them in that profile's bio. We check the profile ourselves before it shows here.")}</p>
               <div><Button to="/account" icon="shield-check" block>{t("Sell on Instagram? Add your handle.")}</Button></div>
             </section>
           </aside>

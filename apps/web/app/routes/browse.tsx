@@ -146,22 +146,36 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
     </>
   );
 
+  // Where to look: a labelled field in the desktop sidebar, a pill beside Sort on phones.
+  const place = (pill: boolean) => (
+    <Form method="get" className={pill ? undefined : "stack"} preventScrollReset>
+      {f.cat ? <input type="hidden" name="cat" value={f.cat} /> : null}
+      {f.q ? <input type="hidden" name="q" value={f.q} /> : null}
+      {f.sort ? <input type="hidden" name="sort" value={f.sort} /> : null}
+      <Select name="state" label={t("Location")} hideLabel={pill} pill={pill} icon={pill ? "map-pin" : undefined} submitOnChange defaultValue={f.state} options={[
+        { value: "", label: t("All of Nigeria") },
+        ...NIGERIA_STATES.map((st) => ({ value: st, label: counts.get(st) ? `${stateLabel(st)} (${counts.get(st)})` : stateLabel(st) })),
+      ]} />
+      {pill ? null : <p className="caption muted">{t("{countries} are coming soon.", { countries: comingSoonList() })}</p>}
+    </Form>
+  );
+  const sort = (className?: string) => (
+    <Form method="get" className={className} preventScrollReset>
+      {[...params.entries()].filter(([k]) => k !== "sort").map(([k, v], i) => <input key={`${k}${i}`} type="hidden" name={k} value={v} />)}
+      <Select name="sort" label={t("Sort")} hideLabel pill submitOnChange defaultValue={f.sort} options={[
+        { value: "", label: t("Newest first") },
+        { value: "price_asc", label: t("Price: low to high") },
+        { value: "price_desc", label: t("Price: high to low") },
+      ]} />
+    </Form>
+  );
   const filters = (
     <div className="stack-4">
       <div className="stack">
         <p className="label">{t("Category")}</p>
-        <CategoryChips cat={f.cat} link={link} />
+        <CategoryChips cat={f.cat} link={link} few={6} />
       </div>
-      <Form method="get" className="stack" preventScrollReset>
-        {f.cat ? <input type="hidden" name="cat" value={f.cat} /> : null}
-        {f.q ? <input type="hidden" name="q" value={f.q} /> : null}
-        {f.sort ? <input type="hidden" name="sort" value={f.sort} /> : null}
-        <Select name="state" label={t("Location")} submitOnChange defaultValue={f.state} options={[
-          { value: "", label: t("All of Nigeria") },
-          ...NIGERIA_STATES.map((st) => ({ value: st, label: counts.get(st) ? `${stateLabel(st)} (${counts.get(st)})` : stateLabel(st) })),
-        ]} />
-        <p className="caption muted">{t("{countries} are coming soon.", { countries: comingSoonList() })}</p>
-      </Form>
+      {place(false)}
     </div>
   );
   const search = (
@@ -201,28 +215,25 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
           <div className="stack-4">
             <div className="browse-head">
               <div className="stack">
-                <h1 className="heading">{f.q ? t("Results for “{q}”", { q: f.q }) : isCategory(f.cat) ? t("{category} in {place}", { category: t(categoryOf(f.cat).label), place: where }) : f.state ? t("For sale in {place}", { place: where }) : t("For sale across Nigeria")}</h1>
-                <div className="row wrap" style={{ gap: 8 }}><CountrySwitch /></div>
+                <div className="browse-title">
+                  <h1 className="heading">{f.q ? t("Results for “{q}”", { q: f.q }) : isCategory(f.cat) ? t("{category} in {place}", { category: t(categoryOf(f.cat).label), place: where }) : f.state ? t("For sale in {place}", { place: where }) : t("For sale across Nigeria")}</h1>
+                  <CountrySwitch />
+                </div>
                 <p className="caption muted">{(() => { const live = listings.filter((l: any) => l.status !== "sold").length; const sold = listings.length - live; return sold ? t("{live} for sale, {sold} sold recently.", { live, sold }) : t("{live} for sale.", { live }); })()} {t("Every deal is protected: your money is held until you have the item.")}</p>
               </div>
               <div className="row browse-tools">
                 {search}
                 <button type="button" className="nh-btn nh-btn-secondary nh-btn-md nh-btn-pill filter-btn" onClick={() => setFiltersOpen(true)} aria-haspopup="dialog">
-                  <Icon name="adjustments-horizontal" size={18} />{t("Filters")}{active.length ? <span className="filter-count" aria-label={t(", {n} on", { n: active.length })}>{active.length}</span> : null}
+                  <Icon name="adjustments-horizontal" size={18} /><span className="filter-label">{t("Filters")}</span>{active.length ? <span className="filter-count" aria-label={t(", {n} on", { n: active.length })}>{active.length}</span> : null}
                 </button>
-                <Form method="get" className="row" preventScrollReset>
-                  {[...params.entries()].filter(([k]) => k !== "sort").map(([k, v], i) => <input key={`${k}${i}`} type="hidden" name={k} value={v} />)}
-                  <Select name="sort" label={t("Sort")} hideLabel pill submitOnChange defaultValue={f.sort} options={[
-                    { value: "", label: t("Newest first") },
-                    { value: "price_asc", label: t("Price: low to high") },
-                    { value: "price_desc", label: t("Price: high to low") },
-                  ]} />
-                </Form>
+                {sort("row desktop-only")}
               </div>
             </div>
-            <AbroadNote />
-            <Link to="/check" className="check-nudge caption"><Icon name="shield-check" size={16} />{t("Found a seller on Instagram or TikTok? Check them before you pay")}<Icon name="chevron-right" size={16} /></Link>
-            <div className="mobile-only">{filters}</div>
+            {/* Phones: categories run edge to edge, then place and sort side by side, so listings start higher up. */}
+            <div className="mobile-only browse-quick">
+              <nav aria-label={t("Category")}><CategoryChips cat={f.cat} link={link} /></nav>
+              <div className="browse-pick">{place(true)}{sort()}</div>
+            </div>
             {active.length ? (
               <div className="active-filters" aria-label={t("Filters on")}>
                 {active.map((a) => {
@@ -233,6 +244,8 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
                 <Link to={`?${clearedParams(params).toString()}`} className="caption tap" replace preventScrollReset>{t("Clear all")}</Link>
               </div>
             ) : null}
+            <AbroadNote />
+            <Link to="/check" className="check-nudge caption"><Icon name="shield-check" size={16} />{t("Found a seller on Instagram or TikTok? Check them before you pay")}<Icon name="chevron-right" size={16} /></Link>
             {listings.length === 0 ? (
               <div className="card stack empty" style={{ alignItems: "center", textAlign: "center" }}>
                 <span className="empty-icon"><Icon name="search" size={26} /></span>
@@ -257,16 +270,27 @@ export default function Browse({ loaderData }: Route.ComponentProps) {
   );
 }
 
-/** Category chip bar with a sliding active pill (each instance tracks its own layout). */
-function CategoryChips({ cat, link }: { cat: string; link: (k: string, v: string) => string }) {
+/** Category chip bar with a sliding active pill (each instance tracks its own layout). Given `few`, only that many
+ *  show, then "See more" for the rest; it starts open when the chosen category is among the rest. A plain <details>,
+ *  so it works without JavaScript. */
+function CategoryChips({ cat, link, few }: { cat: string; link: (k: string, v: string) => string; few?: number }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const slide = useSlideIndicator(ref, cat);
+  const chip = (c: (typeof CATEGORIES)[number], i?: number) => <Link key={c.key} to={link("cat", c.key)} className="chip" preventScrollReset aria-current={cat === c.key ? "true" : undefined} style={i === undefined ? undefined : { ["--i" as string]: i }}><Icon name={c.icon} size={16} />{t(c.label)}</Link>;
+  const rest = few ? CATEGORIES.slice(few) : [];
   return (
     <div ref={ref} className="chips cat-chips" {...slide.props}>
       {slide.pill}
       <Link to={link("cat", "")} className="chip" preventScrollReset aria-current={!cat ? "true" : undefined}><Icon name="layout-grid" size={16} />{t("All")}</Link>
-      {CATEGORIES.map((c) => <Link key={c.key} to={link("cat", c.key)} className="chip" preventScrollReset aria-current={cat === c.key ? "true" : undefined}><Icon name={c.icon} size={16} />{t(c.label)}</Link>)}
+      {CATEGORIES.slice(0, few).map((c) => chip(c))}
+      {rest.length ? (
+        <details className="cat-more" open={rest.some((c) => c.key === cat) || undefined}>
+          {/* data-animate marks an opening by tap, so the rest glide in then, not when a page loads already open. */}
+          <summary className="chip" onClick={(e) => e.currentTarget.parentElement?.setAttribute("data-animate", "")}>{t("See {n} more", { n: rest.length })}<Icon name="chevron-down" size={16} /></summary>
+          <div className="cat-rest">{rest.map((c, i) => chip(c, i))}</div>
+        </details>
+      ) : null}
     </div>
   );
 }

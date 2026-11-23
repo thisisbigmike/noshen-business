@@ -53,24 +53,24 @@ export default function Shop({ loaderData: x }: Route.ComponentProps) {
       <TopBar title={<Wordmark size="sm" />} back="/browse" right={<ShareButton kind="icon" path={`/s/${x.summary.id}`} title={t("{name}'s shop on NosHen", { name })} text={t("{name}'s shop on NosHen. Every deal protected: your money is held until you have the item.", { name })} />} />
       <main className="page stack-4">
         <section className="card shop-hero stack-4">
-          <div className="row-between wrap" style={{ gap: 12 }}>
-            <div className="stack" style={{ gap: 4 }}>
+          <div className="shop-head">
+            <div className="stack" style={{ gap: 8 }}>
               <h1 className="heading">{t("{name}'s shop", { name })}</h1>
-              <div className="row wrap" style={{ gap: 8 }}>
+              <div className="shop-badges">
                 <ProtectionBadge>{t("Every deal protected")}</ProtectionBadge>
-                {x.handles.length ? <span className="caption muted">{t("Verified on")}</span> : null}
                 {x.handles.map((h) => (
-                  <a key={`${h.platform}:${h.handle}`} href={profileUrl(h.platform, h.handle)} target="_blank" rel="noreferrer" className="chip">
+                  <a key={`${h.platform}:${h.handle}`} href={profileUrl(h.platform, h.handle)} target="_blank" rel="noreferrer" className="chip"
+                    aria-label={t("Verified on {platform}: @{handle}", { platform: t(platformOf(h.platform).label), handle: h.handle })}>
                     <Icon name="circle-check" size={14} />{t(platformOf(h.platform).label)} @{h.handle}
                   </a>
                 ))}
               </div>
             </div>
-            <div className="row wrap" style={{ gap: 8 }}>
-              <a href={`/s/${x.summary.id}/badge.svg`} target="_blank" rel="noreferrer" className="nh-btn nh-btn-sm" style={{ textDecoration: "none" }}>
-                <Icon name="download" size={16} />{t("Share verified trust card")}
+            <div className="shop-actions">
+              <a href={`/s/${x.summary.id}/badge.svg`} target="_blank" rel="noreferrer" className="nh-btn nh-btn-secondary nh-btn-md" style={{ textDecoration: "none" }}>
+                <Icon name="download" size={18} />{t("Trust card")}
               </a>
-              <ShareButton kind="button" path={`/s/${x.summary.id}`} title={t("{name}'s shop on NosHen", { name })} text={t("{name}'s shop on NosHen. Every deal protected: your money is held until you have the item.", { name })} />
+              <ShareButton kind="button" size="md" path={`/s/${x.summary.id}`} title={t("{name}'s shop on NosHen", { name })} text={t("{name}'s shop on NosHen. Every deal protected: your money is held until you have the item.", { name })} />
             </div>
           </div>
           <SellerRecord person={x.summary} shop />

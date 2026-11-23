@@ -41,6 +41,9 @@ export default function PayBank({ loaderData: x }: Route.ComponentProps) {
   }, [lite]); // eslint-disable-line react-hooks/exhaustive-deps
   const due = naira(deal.amount_due_kobo);
   const acct = String(deal.collection_account_number ?? "");
+  // The deal's own account number comes from the partner bank a moment after the seller accepts. Until then, say so
+  // (the page checks again every few seconds) rather than showing empty rows.
+  const ready = acct.length > 0;
   const grouped = acct.replace(/(\d{4})(\d{3})(\d{3})/, "$1 $2 $3");
   const simulate = async (wrongName = false) => {
     setDevMsg("Sending…");
@@ -56,19 +59,19 @@ export default function PayBank({ loaderData: x }: Route.ComponentProps) {
         <nav className="desktop-only caption muted"><Link to="/deals">{t("Deals")}</Link> / <Link to={`/d/${deal.id}`}>{x.title}</Link> / <Link to={`/d/${deal.id}/pay`}>{t("Pay")}</Link> / {t("Bank transfer")}</nav>
         <h1 className="heading desktop-only">{t("Pay by bank transfer")}</h1>
 
-        <div className="sell-flow sell-flow-wide">
+        <div className="sell-flow sell-flow-wide pay-flow">
           <div className="sell-main">
             {copied ? <Info icon="clock">{t.rich("<b>Waiting for your transfer.</b> Bank transfers usually show within a few minutes. We'll email you when it arrives.", { b: (s) => <strong>{s}</strong> })}</Info> : null}
-            <section className="card">
+            {ready ? <section className="card">
               <Kv k={t("Bank")} v={x.partnerBank} />
               <div className="kv" style={{ alignItems: "center" }}><span className="stack"><span className="muted">{t("Deal account number")}</span><span className="heading tabular">{grouped}</span></span><CopyButton text={acct} onCopied={() => setCopied(true)} /></div>
-              <Kv k={t("Account name")} v={`NosHen / ${deal.collection_ref ? "deal " + deal.id.slice(0, 4).toUpperCase() : ""}`} />
+              <Kv k={t("Account name")} v={deal.collection_ref ? `NosHen / deal ${deal.id.slice(0, 4).toUpperCase()}` : "NosHen"} />
               <div className="kv" style={{ alignItems: "center" }}><span className="stack"><span className="muted">{t("Exact amount")}</span><span className="title tabular">{due}</span></span><CopyButton text={String(Number(deal.amount_due_kobo) / 100)} /></div>
-            </section>
+            </section> : <Info icon="clock">{t("Getting this deal's account number ready. This page updates by itself in a few seconds.")}</Info>}
             <Info icon="user">{t.rich("<b>Pay from an account in your own name.</b> Money from someone else's account is held for checks, and may be sent back. This account number is only for this deal.", { b: (s) => <strong>{s}</strong> })}</Info>
-            <p className="caption muted">{deal.handover === "meetup"
+            {x.partnerBank ? <p className="caption muted">{deal.handover === "meetup"
               ? t("{bank}, our licensed partner, holds the money. {name} can't touch it until you give your release code.", { bank: x.partnerBank, name: x.seller })
-              : t("{bank}, our licensed partner, holds the money. {name} can't touch it until you confirm you received the item.", { bank: x.partnerBank, name: x.seller })}</p>
+              : t("{bank}, our licensed partner, holds the money. {name} can't touch it until you confirm you received the item.", { bank: x.partnerBank, name: x.seller })}</p> : null}
             {x.dev ? (
               <div className="dev stack">
                 <p className="label">Test mode: no real money moves. Pretend to be your bank:</p>
@@ -85,7 +88,7 @@ export default function PayBank({ loaderData: x }: Route.ComponentProps) {
               <p className="body muted">{t("{item} · {name} accepted", { item: x.title, name: x.seller })}</p>
               <p className="body">{t("Transfer exactly {amount} to the deal account below. We hold it until you have the item.", { amount: due })}</p>
               <BottomAction>
-                <CopyButton text={acct} label={t("Copy account number")} onCopied={() => setCopied(true)} />
+                {ready ? <CopyButton text={acct} label={t("Copy account number")} onCopied={() => setCopied(true)} /> : null}
                 <p className="caption muted" style={{ textAlign: "center" }}>{t("This page updates when your bank confirms the money.")} <Link to={`/d/${deal.id}/pay`}>{t("Pay another way")}</Link></p>
               </BottomAction>
             </div>

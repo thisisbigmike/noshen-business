@@ -12,7 +12,7 @@ import { useT } from "@noshen/ui/i18n";
 export const meta = () => [{ title: "Notifications · NosHen" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
-  return withApp(async (d) => ({ items: await notificationsFor(d.db, (await requireUser(request, d)).id) }));
+  return withApp(async (d) => ({ items: await notificationsFor(d.db, (await requireUser(request, d)).id), walletLive: !!d.wallets }));
 }
 
 type Filter = "all" | "deals" | "new";
@@ -121,7 +121,7 @@ export default function Notifications({ loaderData }: Route.ComponentProps) {
           </section>
 
           <aside className="notif-side">
-            <PushCard />
+            <PushCard compact />
             <section className="card stack desktop-only">
               <p className="title">{t("Overview")}</p>
               <div>
@@ -137,7 +137,7 @@ export default function Notifications({ loaderData }: Route.ComponentProps) {
                 <Icon name="chevron-right" size={18} />
               </Link>
               <Link to="/wallet" className="row-between">
-                <span className="row"><Icon name="wallet" size={18} />{t("NosHen wallet")}</span>
+                <span className="row"><Icon name="wallet" size={18} />{t("NosHen wallet")}{loaderData.walletLive ? null : <span className="soon-tag">{t("Soon")}</span>}</span>
                 <Icon name="chevron-right" size={18} />
               </Link>
               <Link to="/account" className="row-between">

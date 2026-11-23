@@ -29,6 +29,7 @@ export default [
     route("sell/:id/edit", "routes/sell-edit.tsx"),
     route("account", "routes/account.tsx"),
     route("account/verify", "routes/verify.tsx"),
+    route("account/listings", "routes/my-listings.tsx"),
     route("wallet", "routes/wallet.tsx"),
     route("saved", "routes/saved.tsx"),
     route("link/:code", "routes/link.tsx"),

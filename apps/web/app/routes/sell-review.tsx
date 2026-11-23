@@ -184,13 +184,13 @@ export default function SellReview({ loaderData: { listing: l, fee, limit, ready
                 </label>
               </fieldset>
 
-              <label className="check">
-                <input type="checkbox" name="confirm" value="yes" required />
-                <span className="body">{t.rich("This is mine to sell, it's described honestly, and it isn't a <list>prohibited item</list>.", { list: (s) => <Link to="/prohibited-items">{s}</Link> })}</span>
-              </label>
-
               <ErrorText>{actionData?.error}</ErrorText>
               <BottomAction>
+                {/* The promise sits right above the button, so on a phone it's seen before tapping Publish. */}
+                <label className="check publish-check">
+                  <input type="checkbox" name="confirm" value="yes" required />
+                  <span className="caption">{t.rich("This is mine to sell, it's described honestly, and it isn't a <list>prohibited item</list>.", { list: (s) => <Link to="/prohibited-items">{s}</Link> })}</span>
+                </label>
                 <Button type="submit" variant="primary" size="lg" block icon="shield-check" disabled={busy}>{busy ? t("Publishing…") : ready ? t("Publish listing") : t("Verify, then publish")}</Button>
               </BottomAction>
             </div>

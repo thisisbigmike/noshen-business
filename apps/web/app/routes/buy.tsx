@@ -182,7 +182,11 @@ export default function Buy({ loaderData, actionData }: Route.ComponentProps) {
               </section>
               <ErrorText>{actionData?.error}</ErrorText>
               {actionData?.needsId ? <Link to={`/account/verify?next=/l/${l.id}/buy`}>{t("Verify your ID")}</Link> : null}
-              <BottomAction><Button type="submit" variant="primary" size="lg" block disabled={busy || cantDeliver}>{busy ? t("Sending…") : l.visibility === "link" ? t("Continue to pay") : t("Send request")}</Button></BottomAction>
+              <BottomAction>
+                {/* On phones the summary above is out of sight, so the total sits right on the button bar. */}
+                <p className="bottom-total mobile-only"><span className="muted">{t("Total")}</span><span className="tabular">{naira(price + fee + (delivery ?? 0))}</span></p>
+                <Button type="submit" variant="primary" size="lg" block disabled={busy || cantDeliver}>{busy ? t("Sending…") : l.visibility === "link" ? t("Continue to pay") : t("Send request")}</Button>
+              </BottomAction>
               <p className="caption muted">{t.rich("Sending a request means you agree to the <terms>Protected Deal Terms</terms>.", { terms: (s) => <Link to="/deal-terms">{s}</Link> })}</p>
             </div>
             <Info icon="shield-check">{job

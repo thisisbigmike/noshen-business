@@ -75,7 +75,8 @@ export default function StaffLayout({ loaderData: { staff, counts } }: Route.Com
           <div className="row"><ThemeToggle /><Form method="post" action="/signout"><button type="submit" className="icon-btn" aria-label="Sign out"><Icon name="logout" /></button></Form></div>
         </div>
         <nav ref={pillsRef} className="console-pills" aria-label="Console" {...pillsSlide.props}>{pillsSlide.pill}{SECTIONS.flatMap((s) => s.links).map(link)}</nav>
-        <StaffPushSwitch />
+        {/* On phones the alerts switch shows on the dashboard only, so it doesn't push every page's content down. */}
+        {pathname === "/" ? <StaffPushSwitch /> : null}
       </header>
 
       <main className="console-main"><Outlet /></main>

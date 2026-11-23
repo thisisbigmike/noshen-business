@@ -98,11 +98,31 @@ export function usePush() {
 }
 
 /** The card for Alerts and Account: turn notifications on or off for this device, with help when it can't. */
+const LATER_KEY = "noshen-push-later";
+const LATER_DAYS = 14;
+
 export function PushCard({ compact }: { compact?: boolean }) {
   const t = useT();
   const p = usePush();
+  // "Not now" on the small banner hides it on this device for two weeks. Account keeps the full card regardless.
+  const [later, setLater] = useState(false);
+  useEffect(() => {
+    if (!compact) return;
+    try { const at = Number(localStorage.getItem(LATER_KEY)); if (at && Date.now() - at < LATER_DAYS * 864e5) setLater(true); } catch {}
+  }, [compact]);
   if (!p.available || p.state === "loading") return null;
-  if (compact && p.state !== "off") return null;
+  if (compact && (p.state !== "off" || later)) return null;
+  if (compact) {
+    const notNow = () => { setLater(true); try { localStorage.setItem(LATER_KEY, String(Date.now())); } catch {} };
+    return (
+      <section className="push-card compact" aria-labelledby="push-title">
+        <span className="push-icon" aria-hidden="true"><Icon name="bell" size={18} /></span>
+        <p id="push-title" className="caption grow"><strong>{t("Hear the moment something changes")}</strong></p>
+        <Button variant="primary" size="sm" onClick={p.turnOn} disabled={p.busy}>{p.busy ? t("Turning on…") : t("Turn on")}</Button>
+        <button type="button" className="icon-btn push-later" aria-label={t("Not now")} onClick={notNow}><Icon name="x" size={18} /></button>
+      </section>
+    );
+  }
   return (
     <section className={compact ? "push-card compact" : "push-card"} aria-labelledby="push-title">
       <span className="push-icon" aria-hidden="true"><Icon name="bell" size={22} /></span>

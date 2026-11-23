@@ -86,6 +86,8 @@
 .nh-select-trigger:focus-visible { border-color: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent); }
 .nh-select-trigger[aria-expanded="true"] { border-color: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent); }
 .nh-select-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nh-select-icon { flex: none; margin-right: -4px; color: var(--ink-muted); }
+.nh-select-icon + .nh-select-value { flex: 1; }
 .nh-select-chev { color: var(--ink-muted); transition: transform var(--dur) var(--ease-out); }
 .nh-select-trigger[aria-expanded="true"] .nh-select-chev { transform: rotate(180deg); color: var(--primary); }
 .nh-select-pill .nh-select-trigger { border-color: var(--border); border-radius: var(--radius-full); box-shadow: var(--shadow-sm); padding: 0 12px 0 16px; }
@@ -102,7 +104,8 @@
 .nh-select-backdrop { position: fixed; inset: 0; z-index: 59; background: transparent; }
 @keyframes nh-pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
 @media (max-width: 639px) {
-  .nh-select-backdrop { background: rgb(4 20 16 / 0.35); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); animation: nh-fade 200ms var(--ease-out); }
+  /* No blur behind the sheet on phones: a plain dim opens just as fast on any phone. */
+  .nh-select-backdrop { background: rgb(4 20 16 / 0.45); animation: nh-fade 200ms var(--ease-out); }
   .nh-select-pop, .nh-select-pop.up, .nh-select-pop.right { top: auto !important; left: 10px !important; right: 10px !important; bottom: calc(10px + env(safe-area-inset-bottom)) !important; min-width: 0 !important; width: auto; max-width: none; padding: 8px 8px 10px; border-radius: var(--radius-xl); animation: nh-sheet 300ms var(--ease-out); }
   .nh-select-pop ul { max-height: 55vh; }
   .nh-select-head { display: block; padding: 10px 12px 8px; color: var(--ink-muted); }
@@ -160,7 +163,10 @@
 .nh-listing-title, .nh-listing-price, .nh-listing-meta { margin: 0; }
 .nh-listing-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .nh-listing-price { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-.nh-listing-meta { display: flex; align-items: center; gap: 5px; max-width: 100%; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nh-listing-meta { display: flex; align-items: center; gap: 5px; max-width: 100%; color: var(--ink-muted); white-space: nowrap; overflow: hidden; }
+.nh-listing-meta .nh-icon { flex: none; }
+.nh-listing-place { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nh-listing-when { flex: none; }
 .nh-listing-seller { display: flex; align-items: center; gap: 6px; margin: auto 0 0; padding-top: 6px; color: var(--ink-muted); }
 .nh-listing-seller.trusted { color: var(--primary-ink); font-weight: 600; }
 .nh-trust { flex: none; display: block; }
@@ -176,6 +182,8 @@
 .nh-deal-amount, .nh-deal-item, .nh-deal-next { margin: 0; }
 .nh-deal-amount { font-variant-numeric: tabular-nums; }
 .nh-deal-who, .nh-deal-next { color: var(--ink-muted); }
+.nh-deal-what { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.nh-deal-thumb { flex: none; width: 40px; height: 40px; border-radius: 10px; object-fit: cover; background: var(--canvas); }
 .nh-deal-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 
 @property --beam { syntax: "<angle>"; inherits: false; initial-value: 0deg; }

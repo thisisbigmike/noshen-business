@@ -6,7 +6,7 @@ import "@noshen/ui/styles/components.css";
 import "@noshen/ui/styles/app.css";
 import { themeFromCookie, type Theme } from "@noshen/ui/theme";
 import { canRefresh, failureOf, useRecover } from "@noshen/ui/recover";
-import { Button } from "@noshen/ui/ui";
+import { Button, Wordmark } from "@noshen/ui/ui";
 import { pushFor } from "@noshen/engine/context";
 import { LANG_INFO, langFromRequest, loadCatalog, msg, type Lang } from "@noshen/shared/i18n";
 import { liteFromRequest } from "@noshen/shared/data-saver";
@@ -40,7 +40,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const lang: Lang = root?.lang ?? "en";
   const lite = root?.lite ?? false;
   return (
-    <html lang={LANG_INFO[lang].html} data-lang={lang} data-theme={theme}>
+    <html lang={LANG_INFO[lang].html} data-lang={lang} data-theme={theme} data-lite={lite ? "" : undefined}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -157,16 +157,25 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   if (failure === "broken" && isRouteErrorResponse(error) && error.statusText) details = error.statusText;
   else if (failure === "broken" && import.meta.env.DEV && error instanceof Error) details = error.message;
   return (
-    <main className="page narrow" style={{ paddingTop: 48 }}>
-      <title>{`${title} · NosHen`}</title>
-      <h1 className="heading">{title}</h1>
-      <p className="body muted">{details}</p>
-      <div className="row wrap" style={{ gap: 16, alignItems: "center", marginTop: 8 }}>
-        {failure !== "missing" ? (
-          <Button variant="primary" onClick={failure === "update" ? () => location.reload() : retry} disabled={retrying}>{retrying ? t("Trying again…") : t("Try again")}</Button>
-        ) : null}
-        <a href="/">{t("Go to NosHen")}</a>
-      </div>
-    </main>
+    <>
+      {/* The NosHen bar and real ways out, so a missing or broken page is never a dead end. */}
+      <header className="pill-bar error-top">
+        <a href="/" aria-label={t("Go to NosHen")} style={{ textDecoration: "none" }}><Wordmark size="sm" /></a>
+      </header>
+      <main className="page narrow error-page">
+        <title>{`${title} · NosHen`}</title>
+        <h1 className="heading">{title}</h1>
+        <p className="body muted">{details}</p>
+        <div className="error-actions">
+          {failure !== "missing" ? (
+            <Button variant="primary" size="lg" onClick={failure === "update" ? () => location.reload() : retry} disabled={retrying}>{retrying ? t("Trying again…") : t("Try again")}</Button>
+          ) : (
+            <Button variant="primary" size="lg" icon="search" to="/browse">{t("Browse listings")}</Button>
+          )}
+          <Button variant="secondary" size="lg" icon="receipt" to="/deals">{t("Your deals")}</Button>
+          <a href="/" className="tap">{t("Go to NosHen")}</a>
+        </div>
+      </main>
+    </>
   );
 }

@@ -176,11 +176,12 @@ export interface DealListItem {
   review_hold: boolean; created_at: Date; updated_at: Date; decision_due_at: Date | null;
   kind: "goods" | "service"; next_stage_done: boolean | null;
   ended_by?: "buyer" | "seller" | "system" | null;
+  photo_key: string | null;
 }
 
 export async function dealsFor(db: Db, userId: string): Promise<DealListItem[]> {
   return many<DealListItem>(db,
-    `select d.id, d.state, case when d.buyer_id = $1 then 'buyer' else 'seller' end as role, l.title,
+    `select d.id, d.state, case when d.buyer_id = $1 then 'buyer' else 'seller' end as role, l.title, l.photo_keys[1] as photo_key,
        coalesce(case when d.buyer_id = $1 then s.full_name else b.full_name end, 'Someone') as other,
        d.price_kobo, d.amount_due_kobo, d.seller_share_kobo, d.handover, d.request_expires_at, d.payment_due_at,
        d.handover_due_at, d.release_due_at, d.delivered_at, d.sent_at, d.courier, d.tracking_ref, d.delivery_kobo, d.delivery_state,

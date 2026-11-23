@@ -284,7 +284,14 @@ export function ListingCard({ title, priceKobo, area, posted, imageUrl, href, so
       <div className="nh-listing-body">
         <p className="nh-listing-title title">{title}</p>
         <p className="nh-listing-price heading">{naira(priceKobo)}</p>
-        {meta ? <p className="nh-listing-meta caption"><Icon name="map-pin" size={16} />{meta}</p> : null}
+        {meta ? (
+          <p className="nh-listing-meta caption" title={meta}>
+            <Icon name="map-pin" size={16} />
+            {/* The place gives way with "…"; the date always shows whole. */}
+            {area ? <span className="nh-listing-place">{area}</span> : null}
+            {posted ? <span className="nh-listing-when">{area ? `· ${posted}` : posted}</span> : null}
+          </p>
+        ) : null}
         {seller ? (
           <p className={cx("nh-listing-seller caption", seller.level === "trusted" && "trusted")}>
             <TrustBadge level={seller.level} size={16} />
@@ -296,8 +303,8 @@ export function ListingCard({ title, priceKobo, area, posted, imageUrl, href, so
   );
 }
 
-export function DealCard({ state, word, amountKobo, item, counterpart, deadline, nextStep, href, children }: {
-  state: MoneyState; word?: string; amountKobo: number | string; item: string; counterpart?: string; deadline?: string; nextStep?: string; href?: string; children?: ReactNode;
+export function DealCard({ state, word, amountKobo, item, counterpart, deadline, nextStep, href, imageUrl, children }: {
+  state: MoneyState; word?: string; amountKobo: number | string; item: string; counterpart?: string; deadline?: string; nextStep?: string; href?: string; imageUrl?: string; children?: ReactNode;
 }) {
   const t = useT();
   const body = (
@@ -307,7 +314,10 @@ export function DealCard({ state, word, amountKobo, item, counterpart, deadline,
         {deadline ? <span className="nh-deal-deadline caption"><Icon name="clock" size={16} />{deadline}</span> : null}
       </div>
       <p className="nh-deal-amount display">{naira(amountKobo)}</p>
-      <p className="nh-deal-item body">{item}{counterpart ? <span className="nh-deal-who"> · {counterpart}</span> : null}</p>
+      <div className="nh-deal-what">
+        {imageUrl ? <img className="nh-deal-thumb" src={imageUrl} alt="" width={40} height={40} loading="lazy" decoding="async" /> : null}
+        <p className="nh-deal-item body">{item}{counterpart ? <span className="nh-deal-who"> · {counterpart}</span> : null}</p>
+      </div>
       {nextStep ? <p className="nh-deal-next body">{nextStep}</p> : null}
       {children ? <div className="nh-deal-actions">{children}</div> : null}
     </>
@@ -358,9 +368,9 @@ const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayout
  * Keyboard: arrows, Home/End, Enter or Space to choose, Escape to close, and type a letter to jump.
  * It posts like a native field through a hidden input; `submitOnChange` sends its form when a choice is made.
  */
-export function Select({ name, label, options, defaultValue, value: controlled, onChange, hideLabel, pill, submitOnChange, id }: {
+export function Select({ name, label, options, defaultValue, value: controlled, onChange, hideLabel, pill, submitOnChange, id, icon }: {
   name: string; label: string; options: SelectOption[]; defaultValue?: string; value?: string; onChange?: (v: string) => void;
-  hideLabel?: boolean; pill?: boolean; submitOnChange?: boolean; id?: string;
+  hideLabel?: boolean; pill?: boolean; submitOnChange?: boolean; id?: string; icon?: IconName;
 }) {
   const t = useT();
   const auto = useId();
@@ -459,6 +469,7 @@ export function Select({ name, label, options, defaultValue, value: controlled, 
       <input type="hidden" name={name} value={value} ref={hidden} />
       <button type="button" ref={trigger} id={base + "-button"} className="nh-select-trigger" aria-haspopup="listbox" aria-expanded={open}
         aria-controls={open ? base + "-list" : undefined} aria-labelledby={`${base}-label ${base}-button`} onClick={() => (open ? close() : show())} onKeyDown={onTriggerKey}>
+        {icon ? <Icon name={icon} size={18} className="nh-select-icon" /> : null}
         <span className="nh-select-value">{current?.label ?? t("Choose")}</span>
         <Icon name="chevron-down" size={18} className="nh-select-chev" />
       </button>

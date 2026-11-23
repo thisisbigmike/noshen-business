@@ -201,10 +201,25 @@ const faq = (t: T, min: number, max: number | null): [string, string][] => [
   [t("Can I use NosHen in Pidgin, or on a small data plan?"), t("Yes. Tap Pidgin at the top of the page to read NosHen in Pidgin. Turn on Data saver in your account (or in your browser) and pages use small photos and no extra fonts.")],
 ];
 
+/** The page's looping animations stop while their section is off screen, so a phone isn't busy drawing what nobody
+ *  can see. Each section gets data-off while it's out of view; landing.css pauses everything inside it. */
+function usePauseOffscreen() {
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) e.target.toggleAttribute("data-off", !e.isIntersecting);
+    }, { rootMargin: "120px 0px" });
+    const sections = document.querySelectorAll(".landing-main > section");
+    sections.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+}
+
 export default function Landing({ loaderData: x }: Route.ComponentProps) {
   const t = useT();
   const b = (s: string) => <strong>{s}</strong>;
   const market = marketOf(useMarket());
+  usePauseOffscreen();
   const header = (
     <header className="pill-bar landing-top mobile-only">
       <Link to="/" aria-label={t("NosHen home")} style={{ textDecoration: "none" }}><Wordmark size="sm" /></Link>
@@ -487,8 +502,11 @@ function Hero({ live, spotlight, fee, min }: { live: number; spotlight: HeroSpot
     <section className="lp-hero" aria-labelledby="hero-title">
       <div className="lp-inner hero-layout">
         <div className="hero-copy">
-          <div className="row wrap hero-country"><CountrySwitch /></div>
-          <p className="live-pill"><span className="live-dot" aria-hidden="true" />{live ? t("{n} items for sale across Nigeria now", { n: live }) : t("Buy and sell anything in Nigeria")}</p>
+          {/* One line above the headline: what's live, and the country beside it. */}
+          <div className="hero-meta">
+            <p className="live-pill"><span className="live-dot" aria-hidden="true" />{live ? t("{n} items for sale across Nigeria now", { n: live }) : t("Buy and sell anything in Nigeria")}</p>
+            <span className="hero-country"><CountrySwitch /></span>
+          </div>
           <h1 id="hero-title" className="hero-title">{t.rich("Your money is <mark>held</mark> until you have the item.", {
             mark: (s) => <span className="mark">{s}<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 14 C 50 4, 120 4, 197 10" /></svg></span>,
           })}</h1>

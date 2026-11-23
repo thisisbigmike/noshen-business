@@ -6,6 +6,7 @@ import { dealsFor, needsAction } from "@noshen/engine/queries";
 import { Button, DealCard, Icon, Kv, TopBar } from "@noshen/ui/ui";
 import { dealText } from "../lib/deal-text";
 import { useT } from "@noshen/ui/i18n";
+import { photoUrl } from "@noshen/shared/photos";
 
 export const meta = () => [{ title: "Deals · NosHen" }];
 
@@ -13,7 +14,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   return withApp(async (d) => {
     const user = await requireUser(request, d);
     const deals = await dealsFor(d.db, user.id);
-    return { me: user.full_name ?? "", deals: deals.map((x) => ({ ...x, action: needsAction(x) })) };
+    return { me: user.full_name ?? "", deals: deals.map((x) => ({ ...x, action: needsAction(x) })), walletLive: !!d.wallets };
   });
 }
 
@@ -50,10 +51,13 @@ export default function Deals({ loaderData }: Route.ComponentProps) {
     const names = x.role === "buyer" ? { buyer: loaderData.me, seller: x.other } : { buyer: x.other, seller: loaderData.me };
     const dt = dealText(x, x.role, names, Number(x.amount_due_kobo), { decisionDue: x.decision_due_at, endedBy: x.ended_by, nextStageDone: x.next_stage_done }, now, t);
     return <DealCard key={x.id} href={`/d/${x.id}`} state={dt.chip.state} word={dt.chip.word} amountKobo={dt.amountKobo} item={x.title}
-      counterpart={x.other.split(" ")[0]} deadline={dt.deadline} nextStep={x.action ? dt.next : undefined} />;
+      counterpart={x.other.split(" ")[0]} deadline={dt.deadline} nextStep={x.action ? dt.next : undefined}
+      imageUrl={x.photo_key ? photoUrl(x.photo_key, "small") : undefined} />;
   };
   const needs = list.filter((x) => x.action);
-  const rest = list.filter((x) => !x.action);
+  // Deals still going (but not waiting on you) apart from the finished ones, so "On its way" isn't lost among old deals.
+  const going = list.filter((x) => !x.action && ACTIVE_STATES.has(x.state));
+  const done = list.filter((x) => !x.action && !ACTIVE_STATES.has(x.state));
   const totalText = all.length === 1 ? t("1 deal") : t("{n} deals", { n: all.length });
 
   return (
@@ -105,10 +109,17 @@ export default function Deals({ loaderData }: Route.ComponentProps) {
               </section>
             ) : null}
 
-            {rest.length ? (
+            {going.length ? (
               <section className="stack">
-                <h2 className="label muted">{needs.length ? t("Earlier") : t("Your deals")}</h2>
-                <div className="deals-grid">{rest.map(card)}</div>
+                <h2 className="label muted">{t("In progress")}</h2>
+                <div className="deals-grid">{going.map(card)}</div>
+              </section>
+            ) : null}
+
+            {done.length ? (
+              <section className="stack">
+                <h2 className="label muted">{t("Done")}</h2>
+                <div className="deals-grid">{done.map(card)}</div>
               </section>
             ) : null}
           </div>
@@ -136,7 +147,7 @@ export default function Deals({ loaderData }: Route.ComponentProps) {
                 <Icon name="chevron-right" size={18} />
               </Link>
               <Link to="/wallet" className="row-between">
-                <span className="row"><Icon name="wallet" size={18} />{t("NosHen wallet")}</span>
+                <span className="row"><Icon name="wallet" size={18} />{t("NosHen wallet")}{loaderData.walletLive ? null : <span className="soon-tag">{t("Soon")}</span>}</span>
                 <Icon name="chevron-right" size={18} />
               </Link>
               <Link to="/account" className="row-between">

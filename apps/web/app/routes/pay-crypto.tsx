@@ -39,7 +39,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     try {
       await prepareCryptoPayment(d, user.id, v.deal.id, coin, network);
     } catch (e) {
-      if (e instanceof DealError) throw redirect(`/d/${params.id}`);
+      // Say why this way of paying isn't open (for example, the time to pay ran out), instead of a silent bounce.
+      if (e instanceof DealError) return { problem: e.message, dealId: v.deal.id as string };
       throw e;
     }
     const found = await cryptoPaymentFor(d, user.id, v.deal.id, coin, network);
@@ -83,7 +84,31 @@ function useSecondsLeft(until: Date | string | null | undefined, serverNow: numb
 }
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
+type Ready = Exclude<Route.ComponentProps["loaderData"], { problem: string }>;
+
 export default function PayCrypto({ loaderData: x, actionData }: Route.ComponentProps) {
+  if ("problem" in x && x.problem) return <PayProblem dealId={String(x.dealId)} problem={x.problem} />;
+  return <PayCryptoScreen x={x as Ready} actionData={actionData} />;
+}
+
+function PayProblem({ dealId, problem }: { dealId: string; problem: string }) {
+  const t = useT();
+  return (
+    <div>
+      <TopBar title={t("Pay with crypto")} back={`/d/${dealId}/pay`} />
+      <main className="page narrow no-tabs stack-4">
+        <h1 className="heading desktop-only">{t("Pay with crypto")}</h1>
+        <Info icon="alert-triangle" tone="warn">{t(problem)}</Info>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <Button variant="primary" to={`/d/${dealId}`}>{t("Back to the deal")}</Button>
+          <Button to={`/d/${dealId}/pay`}>{t("Pay another way")}</Button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function PayCryptoScreen({ x, actionData }: { x: Ready; actionData: Route.ComponentProps["actionData"] }) {
   const t = useT();
   const lite = useLite();
   const n = networkOf(x.network);
@@ -125,7 +150,7 @@ export default function PayCrypto({ loaderData: x, actionData }: Route.Component
         <nav className="desktop-only caption muted" aria-label={t("Breadcrumb")}><Link to="/deals">{t("Deals")}</Link> / <Link to={`/d/${x.deal.id}`}>{x.title}</Link> / <Link to={`/d/${x.deal.id}/pay`}>{t("Pay")}</Link> / {t("{coin} on {network}", { coin: c, network: n.name })}</nav>
         <h1 className="heading desktop-only">{t("Pay with {coin} on {network}", { coin: c, network: n.name })}</h1>
 
-        <div className="sell-flow sell-flow-wide">
+        <div className="sell-flow sell-flow-wide pay-flow">
           <div className="sell-main">
             {!p ? null : expired ? (
               <section className="card stack-4">

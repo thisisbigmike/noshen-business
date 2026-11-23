@@ -464,7 +464,7 @@ a.feed-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--prim
   .notif-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--space-6); align-items: start; }
   .notif-main { order: 0; }
   .notif-side { order: 1; position: sticky; top: 100px; }
-  .notif-side .push-card { flex-direction: column; gap: 10px; }
+  .notif-side .push-card:not(.compact) { flex-direction: column; gap: 10px; }
   .notif-feed { gap: 0; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); overflow: hidden; }
   .notif-feed .feed-item { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
   .notif-feed .feed-item + .feed-item { border-top: 1px solid var(--border); }
@@ -497,6 +497,49 @@ a.feed-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--prim
 
 /* Desktop filter sidebar: chips wrap instead of scrolling. */
 .browse-layout aside .chips { flex-wrap: wrap; overflow: visible; }
+/* The categories past the first few, behind "See more". Once open, the button goes and the rest stay. */
+.cat-more { flex: 1 1 100%; }
+.cat-more > summary { list-style: none; cursor: pointer; color: var(--primary-ink); }
+.cat-more > summary::-webkit-details-marker { display: none; }
+.cat-more > summary .nh-icon { margin: 0 -4px 0 6px; }
+.cat-more[open] > summary { display: none; }
+.cat-rest { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* Opening "See more": the list grows to its height (where the browser can animate to "auto") and the chips drop in
+   one after another. Only transform and opacity move on the chips, so it stays smooth on any phone. */
+.cat-more { interpolate-size: allow-keywords; }
+.cat-more::details-content { block-size: 0; overflow: clip; transition: block-size 360ms var(--ease-out), content-visibility 360ms allow-discrete; }
+.cat-more[open]::details-content { block-size: auto; }
+.cat-more[data-animate][open] .cat-rest > .chip { animation: cat-in 380ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 35ms); }
+@keyframes cat-in { from { opacity: 0; transform: translate3d(0, -8px, 0) scale(0.94); } }
+@media (prefers-reduced-motion: reduce) {
+  .cat-more::details-content { transition: none; }
+  .cat-more[data-animate][open] .cat-rest > .chip { animation: none; }
+}
+
+/* Browse title with the country under it on computers, beside it on phones. */
+.browse-title { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+/* Phones and tablets: title and country on one line, search and an icon Filters button on one line, categories
+   running edge to edge, then place and sort side by side, so the first listings show without scrolling. */
+@media (max-width: 1023px) {
+  .browse-title { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+  .browse-title .country-switch { flex: none; }
+  .browse-title .country-menu { left: auto; right: 0; }
+  .browse-tools { flex-wrap: nowrap; }
+  .browse-tools .search-pill { flex: 1 1 auto; }
+  .browse-tools .filter-btn { position: relative; width: 48px; padding: 0; }
+  .filter-btn .filter-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .filter-btn .filter-count { position: absolute; top: -4px; right: -4px; box-shadow: 0 0 0 2px var(--canvas); }
+  .browse-quick { display: flex; flex-direction: column; gap: 12px; }
+  .browse-quick .chips { margin: -2px calc(-1 * var(--space-4)) 0; padding: 2px var(--space-4) 4px; scroll-padding-inline: var(--space-4); }
+  .browse-pick { display: flex; gap: var(--space-2); }
+  .browse-pick > form { min-width: 0; }
+  .browse-pick > form:first-child { flex: 1 1 auto; }
+  .browse-pick > form:last-child { flex: 0 1 auto; }
+  .browse-pick .nh-select-trigger { min-height: 44px; gap: 6px; padding: 0 10px 0 14px; font-size: 15px; }
+}
+@media (min-width: 640px) and (max-width: 1023px) {
+  .browse-quick .chips { margin-inline: calc(-1 * var(--space-6)); padding-inline: var(--space-6); scroll-padding-inline: var(--space-6); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .page > *, .two-col > * > *, .grid-cards > *, .sheet, .sheet-backdrop { animation: none; }
@@ -692,7 +735,9 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 
 /* Notifications on this device: turn them on, with help when the browser can't. */
 .push-card { display: flex; gap: 12px; align-items: flex-start; padding: var(--space-4); border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border)); border-radius: var(--radius-lg); background: linear-gradient(135deg, var(--tint), var(--surface) 70%); box-shadow: var(--shadow-sm); }
-.push-card.compact { padding: 12px 14px; }
+.push-card.compact { align-items: center; gap: 10px; padding: 8px 8px 8px 10px; border-radius: var(--radius-full); }
+.push-card.compact .push-icon { width: 32px; height: 32px; border-radius: 50%; }
+.push-card.compact .push-later { width: 36px; height: 36px; flex: none; }
 .push-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--primary); color: var(--on-primary); }
 .ok-note { color: var(--primary-ink); font-weight: 600; }
 
@@ -766,7 +811,8 @@ a, button, input, label, select, summary, textarea, [role="button"] { touch-acti
 .country-menu button:active::before { transform: translate3d(0, 0, 0); }
 @media (prefers-reduced-motion: reduce) { .pay-option::before, .link-list a::before, .share-menu a::before, .share-menu button::before, .country-menu button::before { transition: none; } }
 @media (max-width: 480px) { .country-switch .country-name { display: none; } }
-.hero-country { margin-bottom: var(--space-2); }
+.hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hero-meta .live-pill { margin: 0; }
 .hero-country .country-switch .country-name { display: inline; }
 
 /* A NosHen country that isn't open yet. */
@@ -1030,3 +1076,72 @@ label[for="photo-pick"][aria-disabled="true"] { opacity: 0.6; pointer-events: no
   .grid-cards.grid-cards-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { .cat-start .cat-choice::before, .resume-card::before { display: none; } .cat-start .cat-choice, .resume-card, .gallery-arrow, .gallery-thumb { transition: none; } }
+
+/* The error page: the NosHen bar, then the message and big ways out. */
+.error-top { padding: 0 16px; }
+.error-page { padding-top: var(--space-10); }
+.error-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: var(--space-2); }
+@media (max-width: 479px) { .error-actions > .nh-btn { flex: 1 1 100%; } }
+@media (min-width: 1024px) { .error-top { width: min(1180px, calc(100% - 48px)); margin: 14px auto 0; min-height: 64px; padding: 0 22px; } }
+
+/* My listings: a card per listing, photo and title on top, real buttons under. */
+.my-listings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.my-listing { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.my-listing-main { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; }
+.my-listing-main > .nh-icon { color: var(--ink-muted); }
+.my-listing-thumb { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: var(--radius-md); overflow: hidden; background: var(--tint); color: var(--primary-ink); }
+.my-listing-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.my-listing-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-listing-status { font-weight: 600; color: var(--ink); }
+.my-listing-status[data-status="live"] { color: var(--released); }
+.my-listing-status[data-status="paused"], .my-listing-status[data-status="draft"] { color: var(--held); }
+.my-listing-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
+.my-listing-actions > form { display: contents; }
+.my-listing-actions .nh-btn { width: 100%; }
+.shop-link-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.shop-link-row code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Account: the links list's "Soon" tag, and one Settings card with a line per setting. */
+.soon-tag { margin-left: 8px; padding: 1px 8px; border-radius: var(--radius-full); background: var(--tint); color: var(--primary-ink); font-size: 11px; font-weight: 600; }
+.settings-card { display: flex; flex-direction: column; }
+.settings-card .title { margin-bottom: 4px; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: 12px 0; }
+.setting-row + .setting-row { border-top: 1px solid var(--border); }
+.setting-row > :last-child { flex: none; }
+@media (max-width: 420px) { .setting-row { flex-wrap: wrap; } .setting-row > :last-child { flex: 1 1 100%; } }
+.bottom-total { display: flex; justify-content: space-between; align-items: baseline; margin: 0 4px; font-weight: 600; }
+.bottom-total .tabular { font-size: 18px; }
+
+/* Shop header: name and badges, then two same-size buttons; the seller record sits flat inside the same card. */
+.shop-head { display: flex; flex-direction: column; gap: var(--space-4); }
+.shop-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.shop-badges .chip { min-height: 32px; padding: 0 12px; }
+.shop-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.shop-actions > * { min-width: 0; }
+.shop-actions .nh-btn { width: 100%; }
+.seller-record-flat { padding-top: var(--space-4); border-top: 1px solid var(--border); }
+@media (min-width: 768px) {
+  .shop-head { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+  .shop-actions { flex: none; width: 320px; }
+}
+
+/* ---------------------------------------------------------------------------
+   Smooth on every phone
+   --------------------------------------------------------------------------- */
+/* Frosted glass has to be redrawn behind fixed bars on every scroll frame, which makes cheaper phones stutter. On
+   touch screens the bars are solid instead (they look almost the same), and the moving border on held deals, which
+   repaints all the time, stays still. Computers with a mouse keep both. */
+@media (hover: none), (pointer: coarse) {
+  .pill-bar, .topbar, .tabs, .bottom-action, .sheet-backdrop, .carousel .dots, .carousel .count, .gallery-arrow,
+  .video-chip, .video-jump, .video-controls, .video-play, .review-video-play { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .pill-bar, .topbar, .tabs { background: color-mix(in srgb, var(--surface) 97%, transparent); }
+  .bottom-action { background: var(--surface); }
+  .sheet-backdrop { background: rgb(4 20 16 / 0.55); }
+  .beam::before { animation: none; }
+}
+/* Data saver: no looping animations anywhere. */
+[data-lite] .beam::before, [data-lite] .timeline li.now .dot::after { animation: none; }
+
+/* Paying: on phones, what you're paying for (amount, item, deadline) comes first, then how to pay it. */
+@media (max-width: 1023px) { .pay-flow > .sell-side { order: -1; } }
+.publish-check { padding: 0 2px 4px; gap: 10px; align-items: center; }

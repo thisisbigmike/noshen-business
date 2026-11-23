@@ -97,9 +97,16 @@ export default function Wallet({ loaderData: x, actionData }: Route.ComponentPro
         </div>
 
         {!x.enabled ? (
-          <Info icon="wallet">
-            {t("Multi-chain NosHen wallets are turning on soon on this site. You can still pay with USDT or USDC directly on any deal.")}
-          </Info>
+          // Not switched on yet: say so plainly and give the ways to pay with crypto today, so it isn't a dead end.
+          <div className="card stack empty" style={{ alignItems: "center", textAlign: "center" }}>
+            <span className="empty-icon"><Icon name="wallet" size={26} /></span>
+            <p className="title">{t("Coming soon")}</p>
+            <p className="body muted">{t("Multi-chain NosHen wallets are turning on soon on this site. You can still pay with USDT or USDC directly on any deal.")}</p>
+            <div className="row wrap" style={{ justifyContent: "center", gap: 8 }}>
+              <Button variant="primary" pill to="/browse" icon="search">{t("Browse listings")}</Button>
+              <Button pill to="/deals" icon="receipt">{t("Your deals")}</Button>
+            </div>
+          </div>
         ) : (
           <div className="two-col">
             <div className="stack-4">

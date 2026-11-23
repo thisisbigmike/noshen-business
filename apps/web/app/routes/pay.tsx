@@ -38,7 +38,7 @@ export default function Pay({ loaderData: x }: Route.ComponentProps) {
         <nav className="desktop-only caption muted" aria-label={t("Breadcrumb")}><Link to="/deals">{t("Deals")}</Link> / <Link to={`/d/${x.dealId}`}>{x.title}</Link> / {t("Pay")}</nav>
         <h1 className="heading desktop-only">{t("Choose how to pay")}</h1>
 
-        <div className="sell-flow sell-flow-wide">
+        <div className="sell-flow sell-flow-wide pay-flow">
           <div className="sell-main">
             <section className="sell-card stack-4">
               <PayOptions dealId={x.dealId} country={x.country} quotes={x.quotes} />

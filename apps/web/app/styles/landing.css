@@ -326,3 +326,9 @@
 .value-card { display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: inherit; }
 .value-card .tap { margin-top: auto; color: var(--primary); }
 .lp-check { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-md); }
+
+/* Off screen (see usePauseOffscreen): loops stand still until the section scrolls back into view. Scroll reveals
+   are left alone, since they follow the scroll rather than the clock. */
+.landing-main > section[data-off] *:not(.reveal),
+.landing-main > section[data-off] *::before,
+.landing-main > section[data-off] *::after { animation-play-state: paused !important; }

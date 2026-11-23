@@ -7,7 +7,7 @@ import { useT } from "@noshen/ui/i18n";
  * whatever the person has installed: WhatsApp, Instagram, Messages and so on. Elsewhere a small menu opens with
  * WhatsApp, Facebook, X and Copy link. `text` is the message without the link; the link is added to it.
  */
-export function ShareButton({ path, title, text, kind = "button" }: { path: string; title: string; text: string; kind?: "button" | "icon" }) {
+export function ShareButton({ path, title, text, kind = "button", size = "lg" }: { path: string; title: string; text: string; kind?: "button" | "icon"; size?: "sm" | "md" | "lg" }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -48,7 +48,7 @@ export function ShareButton({ path, title, text, kind = "button" }: { path: stri
       {kind === "icon" ? (
         <button type="button" className="icon-btn" aria-label={t("Share this listing")} aria-haspopup="menu" aria-expanded={open} onClick={share}><Icon name="share" /></button>
       ) : (
-        <Button size="lg" block icon="share" aria-haspopup="menu" aria-expanded={open} onClick={share}>{t("Share")}</Button>
+        <Button size={size} block icon="share" aria-haspopup="menu" aria-expanded={open} onClick={share}>{t("Share")}</Button>
       )}
       {open ? (
         <div className="share-menu" role="menu" aria-label={t("Share this listing")}>

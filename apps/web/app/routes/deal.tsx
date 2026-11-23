@@ -193,7 +193,6 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
             ) : null}
 
             {deal.review_hold && role === "buyer" ? <HoldCard x={x} other={other} busy={busy} error={actionData?.intent === "explain" ? (actionData as any).error : undefined} onCancel={() => setCancelOpen(true)} /> : null}
-            {isOpen(deal.state) ? <PushCard compact /> : null}
 
             {x.refundWaiting ? (
               <section className="card stack" aria-labelledby="refund-to">
@@ -215,6 +214,7 @@ export default function Deal({ loaderData: x, actionData }: Route.ComponentProps
               <h2 id="steps" className="label muted">{t("Deal steps")}</h2>
               <Timeline steps={steps} />
             </section>
+            {isOpen(deal.state) ? <PushCard compact /> : null}
           </div>
           <aside className="side">
             <Chat x={x} other={other} live={live} />
