@@ -48,7 +48,8 @@ export default function Dashboard({ loaderData: { q, o, waiting, assistant, isAd
   const decided = params.get("decided");
   const total = q.disputes.length + q.holds.length + q.locked.length + q.stuck.length + q.failed.length;
   const kpis: { icon: IconName; label: string; value: string; sub: string; to?: string }[] = [
-    { icon: "shield-lock", label: "Money held", value: naira(o.heldKobo), sub: `${o.openDeals} open deal${o.openDeals === 1 ? "" : "s"}`, to: "/money" },
+    // The count under "Money held" is the deals actually holding money (held or disputed), not every open deal.
+    { icon: "shield-lock", label: "Money held", value: naira(o.heldKobo), sub: `in ${o.holdingDeals} deal${o.holdingDeals === 1 ? "" : "s"}`, to: "/money" },
     { icon: "trending-up", label: "Sold in 7 days", value: naira(o.soldKobo7d), sub: `${o.completed7d} deal${o.completed7d === 1 ? "" : "s"} completed`, to: "/deals?state=paid_out" },
     { icon: "receipt", label: "Fees in 7 days", value: naira(o.fees7d), sub: "NosHen's fee on completed deals", to: "/money" },
     { icon: "tag", label: "Live listings", value: o.liveListings.toLocaleString("en-NG"), sub: `${o.listings7d} posted this week`, to: "/listings?status=live" },

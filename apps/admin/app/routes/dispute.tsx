@@ -4,6 +4,7 @@ import type { Route } from "./+types/dispute";
 import { requireStaff, withApp, messageOf } from "../../server/web";
 import { disputeReview } from "@noshen/engine/queries";
 import { decideDispute } from "@noshen/engine/disputes";
+import { heldFor, releasedShare } from "@noshen/engine/core";
 import { Button, ErrorText, Info, Kv, MoneyStatus, TextArea } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
 import { CONDITIONS, disputeReasonLabel, firstName } from "@noshen/shared/deal";
@@ -16,7 +17,17 @@ export const meta = () => [{ title: "Dispute · NosHen staff" }];
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   await requireStaff(request);
-  const v = await withApp((d) => disputeReview(d.db, params.id));
+  const v = await withApp(async (d) => {
+    const found = await disputeReview(d.db, params.id);
+    if (!found) return null;
+    // The amounts a decision actually moves, by the ledger: everything still held (for a refund), and the seller's
+    // share less any job stages already paid to them (for a release).
+    return {
+      ...found,
+      heldKobo: await heldFor(d.db, found.deal.id),
+      sellerDueKobo: Number(found.deal.seller_share_kobo) - await releasedShare(d.db, found.deal.id),
+    };
+  });
   if (!v) throw data("Not found", { status: 404 });
   return v;
 }
@@ -42,11 +53,12 @@ export default function Dispute({ loaderData: v, actionData }: Route.ComponentPr
   const [reason, setReason] = useState("");
   const [confirm, setConfirm] = useState(false);
   const buyer = firstName(v.buyer.name), seller = firstName(v.seller.name);
-  const paid = v.payments.filter((p: any) => !p.sent_back).reduce((s: number, p: any) => s + Number(p.amount_kobo), 0);
+  const paid = v.heldKobo;
+  const staged = paid < Number(v.deal.amount_due_kobo);
   const decided = d.state === "decided";
   const evidenceOpen = new Date(d.evidence_due_at) > new Date();
   const who = (id: string | null) => (id === v.deal.buyer_id ? `${buyer} (buyer)` : id === v.deal.seller_id ? `${seller} (seller)` : "NosHen");
-  const outcome = choice === "refund_buyer" ? `Refund ${buyer} ${naira(paid)}` : `Release ${naira(v.deal.seller_share_kobo)} to ${seller}`;
+  const outcome = choice === "refund_buyer" ? `Refund ${buyer} ${naira(paid)}` : `Release ${naira(v.sellerDueKobo)} to ${seller}`;
   return (
     <>
       <nav className="caption muted" aria-label="Breadcrumb"><Link to="/">Dashboard</Link> / <Link to="/disputes">Disputes</Link> / <Link to={`/deals/${v.deal.id}`}>Deal {String(v.deal.id).slice(0, 8).toUpperCase()}</Link></nav>
@@ -124,9 +136,9 @@ export default function Dispute({ loaderData: v, actionData }: Route.ComponentPr
               <p className="title">Your decision</p>
               <p className="caption muted">Decide by {when(new Date(d.decision_due_at))}. You can't undo it.</p>
               <label className="choice"><input type="radio" name="decision" value="refund_buyer" checked={choice === "refund_buyer"} onChange={() => setChoice("refund_buyer")} />
-                <span className="stack" style={{ gap: 0 }}><span className="body">Refund {buyer} {naira(paid)}</span><span className="caption muted">The full amount, fee included, to the account it came from.</span></span></label>
+                <span className="stack" style={{ gap: 0 }}><span className="body">Refund {buyer} {naira(paid)}</span><span className="caption muted">{staged ? "Everything still held, fee included, to the account it came from. Stages already released stay paid." : "The full amount, fee included, to the account it came from."}</span></span></label>
               <label className="choice"><input type="radio" name="decision" value="release_to_seller" checked={choice === "release_to_seller"} onChange={() => setChoice("release_to_seller")} />
-                <span className="stack" style={{ gap: 0 }}><span className="body">Release {naira(v.deal.seller_share_kobo)} to {seller}</span><span className="caption muted">The seller's share; NosHen keeps the fee.</span></span></label>
+                <span className="stack" style={{ gap: 0 }}><span className="body">Release {naira(v.sellerDueKobo)} to {seller}</span><span className="caption muted">The seller's share; NosHen keeps the fee.</span></span></label>
               <TextArea label="Reason" name="reason" value={reason} onChange={(e) => setReason(e.target.value)} hint="Both people will see this." maxLength={1000} />
               <ErrorText>{actionData?.error}</ErrorText>
               {confirm ? (

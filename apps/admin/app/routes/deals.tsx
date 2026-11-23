@@ -101,7 +101,10 @@ export default function Deals({ loaderData: { rows, counts, f } }: Route.Compone
                       </div>
                     </div>
                   </td>
-                  <td className="tabular">{naira(x.amount_due_kobo)}{x.paid_with === "crypto" ? <p className="caption muted">Paid in crypto</p> : null}</td>
+                  <td className="tabular">{naira(x.amount_due_kobo)}
+                    {/* A job with stages already paid out holds less than the deal's amount: say how much is left. */}
+                    {(x.state === "held" || x.state === "disputed") && Number(x.held_kobo) !== Number(x.amount_due_kobo) ? <p className="caption muted">{naira(x.held_kobo)} still held</p> : null}
+                    {x.paid_with === "crypto" ? <p className="caption muted">Paid in crypto</p> : null}</td>
                   <td>
                     <div className="row wrap" style={{ gap: 6 }}>
                       <StatePill map={DEAL_STATE} value={x.state} />

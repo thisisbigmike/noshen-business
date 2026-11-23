@@ -2,7 +2,7 @@ import { inTx, one, type Tx } from "./db";
 import { naira } from "@noshen/shared/money";
 import { firstName, DISPUTE_REASONS, type DisputeReason } from "@noshen/shared/deal";
 import { when, addHours } from "@noshen/shared/time";
-import { type DealRow, type Deps, DealError, N, amountPaid, heldFor, releasedShare, lockDeal, notify, nowOf, schedule, settingsOf, userName } from "./core";
+import { type DealRow, type Deps, DealError, N, heldFor, releasedShare, lockDeal, notify, nowOf, schedule, settingsOf, userName } from "./core";
 import { refund, release } from "./deals";
 import { alertStaff } from "./staff-alerts";
 
@@ -44,7 +44,7 @@ export async function openDispute(d: Deps, tx: Tx, deal: DealRow, input: { reaso
   schedule(d, tx, "evidence_close", deal.id, evidenceDue);
   const item = await one<{ title: string }>(tx.db, "select title from listings where id = $1", [deal.listing_id]);
   await alertStaff(d, tx, "dispute", `New dispute: ${item?.title ?? "a deal"}`,
-    `${reasonLabel(input.reason)}. ${naira(await amountPaid(tx.db, deal.id))} frozen. Decide by ${when(decisionDue, now)}.`, `/disputes/${disp!.id}`);
+    `${reasonLabel(input.reason)}. ${naira(await heldFor(tx.db, deal.id))} frozen. Decide by ${when(decisionDue, now)}.`, `/disputes/${disp!.id}`);
   return disp!.id;
 }
 

@@ -1,5 +1,5 @@
 import { inTx, one, type Tx } from "./db";
-import { type Deps, DealError, N, amountPaid, lockDeal, notify, nowOf, schedule } from "./core";
+import { type Deps, DealError, N, heldFor, lockDeal, notify, nowOf, releasedShare, schedule } from "./core";
 import { refund, release, retryFailedTransfer } from "./deals";
 import { openDispute } from "./disputes";
 import { sweep } from "./sweep";
@@ -168,10 +168,11 @@ export async function staffRefund(d: Deps, staff: StaffActor, dealId: string, re
   return inTx(d.db, { type: "staff", id: staff.id }, async (tx) => {
     const deal = await lockDeal(tx.db, dealId);
     heldOnly(deal.state);
-    const paid = await amountPaid(tx.db, dealId);
+    // The audit log records what actually goes back: what the ledger still holds (a job's released stages stay paid).
+    const refunded = await heldFor(tx.db, dealId);
     await refund(d, tx, deal, "reviewer");
     await notify(d, tx, deal.seller_id, dealId, "staff_refund", `NosHen refunded the buyer and closed this deal. Reason: ${why}`);
-    await logAction(tx, staff.id, "refund_buyer", "deal", dealId, why, { amount_kobo: paid });
+    await logAction(tx, staff.id, "refund_buyer", "deal", dealId, why, { amount_kobo: refunded });
   });
 }
 
@@ -187,9 +188,11 @@ export async function staffRelease(d: Deps, staff: StaffActor, dealId: string, r
     const deal = await lockDeal(tx.db, dealId);
     heldOnly(deal.state);
     if (deal.review_hold) throw new DealError("review_hold", "The payment is held for review. Clear the hold first.");
+    // The seller's share less what earlier stages already paid them: what this release actually sends.
+    const released = N(deal.seller_share_kobo) - await releasedShare(tx.db, dealId);
     await release(d, tx, deal, "staff");
     await notify(d, tx, deal.buyer_id, dealId, "staff_release", `NosHen released the money to the seller. Reason: ${why}`);
-    await logAction(tx, staff.id, "release_to_seller", "deal", dealId, why, { amount_kobo: N(deal.seller_share_kobo) });
+    await logAction(tx, staff.id, "release_to_seller", "deal", dealId, why, { amount_kobo: released });
   });
 }
 

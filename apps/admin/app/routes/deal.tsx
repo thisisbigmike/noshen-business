@@ -3,6 +3,7 @@ import type { Route } from "./+types/deal";
 import { messageOf, requireStaff, withApp } from "../../server/web";
 import { staffDeal } from "@noshen/engine/queries";
 import { explorerLink } from "@noshen/engine/stablecoins";
+import { heldFor, releasedShare } from "@noshen/engine/core";
 import { checkDeadlinesNow, giveMoreTime, noteToBoth, openDisputeForBuyer, retryTransfer, staffCancel, staffRefund, staffRelease, unlockReleaseCode } from "@noshen/engine/staff";
 import { Icon, Info, Kv, Select } from "@noshen/ui/ui";
 import { naira } from "@noshen/shared/money";
@@ -25,6 +26,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const collected = found.events.filter((e: any) => e.type === "coin_collected");
     return {
       ...found,
+      // What the deal still holds, by the ledger: the same figure a refund or release would move.
+      heldKobo: await heldFor(d.db, found.deal.id),
+      // What a release would still pay the seller: their share less what earlier stages already paid them.
+      sellerDueKobo: Number(found.deal.seller_share_kobo) - await releasedShare(d.db, found.deal.id),
       payments: found.payments.map((p: any) => ({ ...p, tx_url: p.method === "crypto" ? explorerLink(d, p.network, "tx", p.tx_hash) : null })),
       deposits: found.deposits.map((c: any) => ({ ...c, address_url: explorerLink(d, c.network, "address", c.address) })),
       collected: collected.map((e: any) => ({ at: e.at, url: explorerLink(d, e.payload?.network, "tx", e.payload?.tx) })),
@@ -96,7 +101,7 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
   const locked = code?.locked_until && new Date(code.locked_until) > new Date();
   const failed = v.transfers.filter((t: any) => t.status === "failed");
   const flagged = v.messages.filter((m: any) => m.flagged).length;
-  const held = v.payments.filter((p: any) => !p.sent_back).reduce((n: number, p: any) => n + Number(p.amount_kobo), 0);
+  const held = v.heldKobo;
   const open = ["requested", "accepted", "held", "disputed"].includes(deal.state);
   // A job: the start of the work, then each stage the seller marks done.
   const nextStage = v.stages.find((s: any) => !s.released_at) ?? null;
@@ -122,7 +127,7 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
             <div className="row wrap" style={{ gap: 8 }}>
               <StatePill map={DEAL_STATE} value={deal.state} />
               {deal.review_hold ? <span className="st-pill warn">Review hold</span> : null}
-              <span className="caption muted">{naira(deal.amount_due_kobo)} · {deal.handover === "meetup" ? "Meet-up" : deliveryTo} · {placeLabel(listing.area, listing.state)} · started {when(new Date(deal.created_at))}</span>
+              <span className="caption muted">{naira(deal.amount_due_kobo)}{(deal.state === "held" || deal.state === "disputed") && held !== Number(deal.amount_due_kobo) ? ` (${naira(held)} still held)` : ""} · {deal.handover === "meetup" ? "Meet-up" : deliveryTo} · {placeLabel(listing.area, listing.state)} · started {when(new Date(deal.created_at))}</span>
             </div>
           </div>
         </div>
@@ -195,6 +200,9 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
               {deal.handover === "delivery" ? <Kv k={`${deliveryTo} (paid to the seller with the price)`} v={Number(deal.delivery_kobo) ? naira(deal.delivery_kobo) : "Free"} /> : null}
               <Kv k="Buyer pays" v={naira(deal.amount_due_kobo)} />
               <Kv k="Seller gets" v={naira(deal.seller_share_kobo)} total />
+              {/* A job paid in stages: what's gone to the seller already, and what's still held now. */}
+              {v.sellerDueKobo < Number(deal.seller_share_kobo) ? <Kv k="Already paid to the seller" v={naira(Number(deal.seller_share_kobo) - v.sellerDueKobo)} /> : null}
+              {(deal.state === "held" || deal.state === "disputed") && held !== Number(deal.amount_due_kobo) ? <Kv k="Still held" v={naira(held)} /> : null}
             </div>
             <p className="label">Payments in</p>
             {v.payments.length === 0 ? <p className="caption muted">Nothing paid yet.</p> : v.payments.map((p: any, i: number) => (
@@ -307,7 +315,7 @@ export default function StaffDeal({ loaderData: v }: Route.ComponentProps) {
                   reasonHint="Both people see this. It's kept in the audit log with your name." />
               ) : null}
               {deal.state === "held" && !deal.review_hold ? (v.isAdmin ? (
-                <ReasonAction intent="release" danger confirmLabel={`Release ${naira(deal.seller_share_kobo)}`} label="Release to the seller"
+                <ReasonAction intent="release" danger confirmLabel={`Release ${naira(v.sellerDueKobo)}`} label="Release to the seller"
                   help="For when the buyer has told NosHen they have the item but can't confirm in the app. The payout starts at once and can't be undone."
                   reasonHint="Both people see this. It's kept in the audit log with your name." />
               ) : (

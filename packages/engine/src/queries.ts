@@ -246,11 +246,17 @@ export async function notificationsFor(db: Db, userId: string) {
 // Staff console
 // ---------------------------------------------------------------------------
 
+/** Money still held in one deal (the deal is `d` in the query): what was paid in and not sent back, less job stages
+ *  already released (the seller's share and NosHen's fee). The same rule as the held_funds_check view, so every
+ *  "held" figure on the staff site adds up to the ledger. */
+const STILL_HELD = `((select coalesce(sum(p.amount_kobo), 0) from payments p where p.deal_id = d.id and not p.sent_back)
+  - (select coalesce(sum(s.share_kobo + s.fee_kobo), 0) from deal_stages s where s.deal_id = d.id and s.released_at is not null))`;
+
 export async function staffQueues(db: Db) {
   const [disputes, holds, locked, stuck, failed] = await Promise.all([
     many(db,
       `select x.id, x.deal_id, x.reason, x.state, x.decision_due_at, x.evidence_due_at, l.title, b.full_name as buyer, s.full_name as seller,
-              (select coalesce(sum(amount_kobo),0) from payments p where p.deal_id = d.id and not p.sent_back) as held_kobo
+              ${STILL_HELD} as held_kobo
        from disputes x join deals d on d.id = x.deal_id join listings l on l.id = d.listing_id
        join users b on b.id = d.buyer_id join users s on s.id = d.seller_id
        where x.state <> 'decided' order by x.decision_due_at`),
@@ -322,7 +328,8 @@ export async function staffDeals(db: Db, f: { q?: string; state?: string; flag?:
     `select d.id, d.state, d.review_hold, d.amount_due_kobo, d.price_kobo, d.handover, d.created_at, d.state_changed_at,
             l.title, l.photo_keys, b.id as buyer_id, b.full_name as buyer, s.id as seller_id, s.full_name as seller,
             (select x.state from disputes x where x.deal_id = d.id) as dispute_state,
-            (select p.method from payments p where p.deal_id = d.id and not p.sent_back order by p.received_at limit 1) as paid_with
+            (select p.method from payments p where p.deal_id = d.id and not p.sent_back order by p.received_at limit 1) as paid_with,
+            ${STILL_HELD} as held_kobo
        from deals d join listings l on l.id = d.listing_id join users b on b.id = d.buyer_id join users s on s.id = d.seller_id
       ${where.length ? `where ${where.join(" and ")}` : ""} order by d.created_at desc limit 200`, p);
   const counts = await many<{ state: string; n: string }>(db, "select state, count(*) as n from deals group by state");
@@ -379,9 +386,11 @@ export async function staffDisputes(db: Db, decided: boolean) {
 
 export async function moneySummary(db: Db) {
   const check = await one(db, "select * from held_funds_check");
+  // Money still held, by deal state. It uses the ledger check's own rule (STILL_HELD), so it always adds up to
+  // "Paid into open deals" above it.
   const byState = await many(db,
-    `select d.state, count(distinct d.id) as n, coalesce(sum(p.amount_kobo),0) as kobo from deals d left join payments p on p.deal_id = d.id and not p.sent_back
-     where d.state in ('held','disputed') group by d.state`);
+    `select d.state, count(*) as n, coalesce(sum(${STILL_HELD}), 0) as kobo
+       from deals d where d.state in ('held','disputed') group by d.state`);
   const transfers = await many(db,
     `select t.created_at, t.kind, t.deal_id, t.amount_kobo, t.status from transfers t order by t.created_at desc limit 50`);
   const unmatched = await many(db, "select amount_kobo, sender_name, method, coin, network, tx_hash, received_at from payments where deal_id is null order by received_at desc");
@@ -412,6 +421,7 @@ export async function adminOverview(db: Db) {
   const k = await one<Record<string, string>>(db,
     `select (select ledger_held_kobo from held_funds_check) as held_kobo,
             (select count(*) from deals where state in ('requested', 'accepted', 'held', 'disputed')) as open_deals,
+            (select count(*) from deals where state in ('held', 'disputed')) as holding_deals,
             (select count(*) from deals where state in ('released', 'paid_out') and state_changed_at > now() - interval '7 days') as completed_7d,
             (select coalesce(sum(price_kobo), 0) from deals where state in ('released', 'paid_out') and state_changed_at > now() - interval '7 days') as sold_kobo_7d,
             (select coalesce(sum(e.credit_kobo - e.debit_kobo), 0) from ledger_entries e where e.account = 'fee_revenue' and e.at > now() - interval '7 days') as fees_7d,
@@ -428,7 +438,7 @@ export async function adminOverview(db: Db) {
     "select category, count(*) as n from listings where status = 'live' group by category order by count(*) desc");
   const n = (v: string | undefined) => Number(v ?? 0);
   return {
-    heldKobo: n(k?.held_kobo), openDeals: n(k?.open_deals), completed7d: n(k?.completed_7d), soldKobo7d: n(k?.sold_kobo_7d),
+    heldKobo: n(k?.held_kobo), openDeals: n(k?.open_deals), holdingDeals: n(k?.holding_deals), completed7d: n(k?.completed_7d), soldKobo7d: n(k?.sold_kobo_7d),
     fees7d: n(k?.fees_7d), usersTotal: n(k?.users_total), users7d: n(k?.users_7d), liveListings: n(k?.live_listings), listings7d: n(k?.listings_7d),
     days: days.map((d) => ({ day: d.day, started: n(d.started), completed: n(d.completed) })),
     byCategory: byCategory.map((c) => ({ category: c.category, n: n(c.n) })),
