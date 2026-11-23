@@ -31,7 +31,14 @@ export function HandlesCard({ handles, idOk, error }: { handles: Handle[]; idOk:
                 </span>
               </div>
               {h.status === "verified" ? <p className="caption muted">{t("Buyers who check @{handle} on NosHen see your track record. You can take the code out of your bio.", { handle: h.handle })}</p> : null}
-              {h.status === "submitted" ? <p className="caption muted">{t("We're looking for {code} in your bio, usually within a day. Keep it there until then.", { code: h.code })}</p> : null}
+              {h.status === "submitted" ? (
+                <>
+                  <p className="caption muted">{t("We're looking for {code} in your bio, usually within a day. Keep it there until then.", { code: h.code })}</p>
+                  <Form method="post" preventScrollReset><input type="hidden" name="intent" value="handle_submit" /><input type="hidden" name="handle" value={h.id} />
+                    <Button type="submit" size="sm" disabled={checkingId === h.id}>{checkingId === h.id ? t("Checking…") : t("Check")}</Button>
+                  </Form>
+                </>
+              ) : null}
               {h.status === "rejected" && h.reject_reason ? <p className="caption error-text">{h.reject_reason}</p> : null}
               {h.status === "added" || h.status === "rejected" ? (
                 <>

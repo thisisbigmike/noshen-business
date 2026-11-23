@@ -105,9 +105,16 @@ async function applyAutoCheck(d: Deps, h: { id: string; user_id: string; platfor
  */
 export async function submitHandle(d: Deps, userId: string, id: string) {
   const row = await inTx(d.db, { type: "seller", id: userId }, async (tx) => {
-    const h = await one<HandleRow & { user_id: string }>(tx.db, "select * from social_handles where id = $1 for update", [id]);
+    const h = await one<HandleRow & { user_id: string; submitted_at: Date | null }>(tx.db, "select * from social_handles where id = $1 for update", [id]);
     if (!h || h.user_id !== userId) throw new DealError("forbidden", "This handle isn't yours.", 403);
     if (h.status === "verified") return null;
+    if (h.status === "submitted") {
+      if (!d.social) throw new DealError("state", "We're already checking this handle.");
+      // Brief cooldown so rapid taps don't burn duplicate ScrapeCreators credits.
+      if (h.submitted_at && Date.now() - new Date(h.submitted_at).getTime() < 15_000) return null;
+      await tx.db.query("update social_handles set submitted_at = now() where id = $1", [id]);
+      return h;
+    }
     if (h.status !== "added" && h.status !== "rejected") throw new DealError("state", "We're already checking this handle.");
     await tx.db.query("update social_handles set status = 'submitted', submitted_at = now(), reject_reason = null where id = $1", [id]);
     if (!d.social) {
@@ -118,7 +125,7 @@ export async function submitHandle(d: Deps, userId: string, id: string) {
   if (!row || !d.social) return;
 
   const outcome = await applyAutoCheck(d, row);
-  if (outcome === "queued") {
+  if (outcome === "queued" && row.status !== "submitted") {
     await inTx(d.db, { type: "system" }, async (tx) => {
       await alertStaff(d, tx, "handle_check", `Handle to check: @${row.handle}`, `Auto-check couldn't read the profile. Look for ${row.code} in the ${platformOf(row.platform).label} bio.`, "/handles");
     });
